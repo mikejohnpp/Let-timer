@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/let-timer-protocol",
+    "crates/let-timer-core",
+    "crates/let-timer-ipc",
+    "crates/let-timer-cli",
+    "crates/let-timer-daemon",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+[workspace.dependencies]
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Misc
+bytes = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+futures = "0.3"
+
+# Internal crates
+let-timer-protocol = { path = "crates/let-timer-protocol" }
+let-timer-core = { path = "crates/let-timer-core" }
+let-timer-ipc = { path = "crates/let-timer-ipc" }

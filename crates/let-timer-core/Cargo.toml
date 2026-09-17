@@ -1,0 +1,8 @@
+[package]
+name = "let-timer-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure timer state machine — no async, no I/O"
+
+[dependencies]
