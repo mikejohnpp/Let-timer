@@ -6,13 +6,13 @@ use tokio::{
     net::{UnixListener, UnixStream},
 };
 
-pub struct IPCServer {
+pub struct IpcServer {
     pub listener: UnixListener,
     pub path: String,
     handler: Arc<dyn Fn(Command) -> Response + Sync + Send>,
 }
 
-impl IPCServer {
+impl IpcServer {
     pub async fn new(
         path: &str,
         handler: impl Fn(Command) -> Response + Sync + Send + 'static,
@@ -50,7 +50,7 @@ impl IPCServer {
     }
 }
 
-impl Drop for IPCServer {
+impl Drop for IpcServer {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.path);
         println!("socket removed: {}", self.path);

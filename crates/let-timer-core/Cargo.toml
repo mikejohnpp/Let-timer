@@ -9,3 +9,4 @@ description = "Core timer state machine, wire protocol, and Unix socket IPC for 
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+rusqlite = { workspace = true }
