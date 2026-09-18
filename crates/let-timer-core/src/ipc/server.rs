@@ -88,7 +88,6 @@ async fn handle_connect(
                     }
                 };
                 let res = (_handler)(command);
-                println!("Res of handler: {:?}", res);
 
                 let out = serde_json::to_string(&res).expect("serialize");
                 write_half.write_all(out.as_bytes()).await.ok();

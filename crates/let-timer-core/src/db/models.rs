@@ -96,5 +96,5 @@ pub struct UpdateTask {
     pub name: Option<String>,
     pub description: Option<Option<String>>,
     pub priority: Option<Priority>,
-    pub estimated_mins: Option<Option<i64>>,
+    pub estimated_mins: Option<i64>,
 }
