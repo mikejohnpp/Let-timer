@@ -3,16 +3,12 @@ name = "let-timer-daemon"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Background daemon for Let-timer — wires core + ipc"
+description = "Background daemon for Let-timer"
 
 [[bin]]
 name = "let-timer-daemon"
 path = "src/main.rs"
 
 [dependencies]
-let-timer-protocol = { workspace = true }
-let-timer-ipc = { workspace = true }
 let-timer-core = { workspace = true }
 tokio = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
