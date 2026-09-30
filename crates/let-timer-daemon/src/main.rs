@@ -1,6 +1,9 @@
 use std::sync::{Arc, Mutex};
 
-use let_timer_core::{Command, Database, IpcServer, Response, TaskPayload, TaskRepository};
+use let_timer_core::{
+    Command, Database, IpcServer, MediaListRepository, Response, TaskPayload, TaskRepository,
+    WorkspaceRepository,
+};
 use let_timer_daemon::{create_commands, delete_task, find_by_name, get_list_task};
 
 fn invoke_command(cmd: Command, db: &Arc<Mutex<Database>>) -> Response {
@@ -33,6 +36,42 @@ fn invoke_command(cmd: Command, db: &Arc<Mutex<Database>>) -> Response {
         Command::Done => {
             println!("Marking current task as done");
             Response::OkEmpty
+        }
+        Command::ListWorkspaces => {
+            let workspaces = WorkspaceRepository::new(_db.conn()).list_all();
+            match workspaces {
+                Ok(list) => Response::WorkspaceList(list),
+                Err(error) => Response::Error {
+                    message: error.to_string(),
+                },
+            }
+        }
+        Command::CreateWorkspace(new_workspace) => {
+            let created = WorkspaceRepository::new(_db.conn()).create(&new_workspace);
+            match created {
+                Ok(workspace) => Response::Workspace(workspace),
+                Err(error) => Response::Error {
+                    message: error.to_string(),
+                },
+            }
+        }
+        Command::ListMediaLists => {
+            let lists = MediaListRepository::new(_db.conn()).list_all();
+            match lists {
+                Ok(list) => Response::MediaListList(list),
+                Err(error) => Response::Error {
+                    message: error.to_string(),
+                },
+            }
+        }
+        Command::CreateMediaList(new_media_list) => {
+            let created = MediaListRepository::new(_db.conn()).create(&new_media_list);
+            match created {
+                Ok(media_list) => Response::MediaList(media_list),
+                Err(error) => Response::Error {
+                    message: error.to_string(),
+                },
+            }
         }
     }
 }

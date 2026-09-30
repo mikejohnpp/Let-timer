@@ -5,7 +5,7 @@ use crate::SortOrder;
 use super::error::DbError;
 use super::models::{NewTask, Priority, Task, TaskStatus, UpdateTask};
 
-/// Provides CRUD and timer operations on the `tasks` table.
+/// Provides CRUD and status-transition operations on the `tasks` table.
 pub struct TaskRepository<'a> {
     conn: &'a Connection,
 }
@@ -24,15 +24,29 @@ impl<'a> TaskRepository<'a> {
 
         Ok(Task {
             id: row.get("id")?,
+            workspace_id: row.get::<_, i64>("workspace_id")?,
+            media_list_id: row.get::<_, Option<i64>>("media_list_id")?,
             name: row.get("name")?,
             description: row.get("description")?,
             priority: Priority::from_i64(priority_raw).unwrap_or(Priority::NotYet),
             status: status_raw.parse().unwrap_or(TaskStatus::Pending),
             estimated_mins: row.get("estimated_mins")?,
-            elapsed_secs: row.get("elapsed_secs")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })
+    }
+
+    fn query_by_id(&self, id: i64) -> Result<Task, DbError> {
+        self.conn
+            .query_row(
+                "SELECT * FROM tasks WHERE id = ?1",
+                params![id],
+                Self::row_to_task,
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => DbError::NotFound { entity: "task", id },
+                other => DbError::Sqlite(other),
+            })
     }
 
     /// Touch `updated_at` to the current time for a given task.
@@ -44,14 +58,49 @@ impl<'a> TaskRepository<'a> {
         Ok(())
     }
 
+    /// Set `status` on a task. Returns `DbError::NotFound` if missing.
+    fn set_status(&self, id: i64, status: TaskStatus) -> Result<Task, DbError> {
+        self.query_by_id(id)?;
+        self.conn.execute(
+            "UPDATE tasks SET status = ?1, updated_at = datetime('now') WHERE id = ?2",
+            params![status.as_str(), id],
+        )?;
+        self.query_by_id(id)
+    }
+
     // ─── CRUD ────────────────────────────────────────────────────────
 
     /// Insert a new task and return the created `Task`.
     pub fn create(&self, new_task: &NewTask) -> Result<Task, DbError> {
+        let ws_exists: i64 = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM workspaces WHERE id = ?1)",
+            params![new_task.workspace_id],
+            |row| row.get(0),
+        )?;
+        if ws_exists == 0 {
+            return Err(DbError::NotFound {
+                entity: "workspace",
+                id: new_task.workspace_id,
+            });
+        }
+
+        if let Some(media_list_id) = new_task.media_list_id {
+            let ml_exists: i64 = self.conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM media_list WHERE id = ?1)",
+                params![media_list_id],
+                |row| row.get(0),
+            )?;
+            if ml_exists == 0 {
+                return Err(DbError::NotFound { entity: "media_list", id: media_list_id });
+            }
+        }
+
         self.conn.execute(
-            "INSERT INTO tasks (name, description, priority, estimated_mins)
-             VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO tasks (workspace_id, media_list_id, name, description, priority, estimated_mins)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
+                new_task.workspace_id,
+                new_task.media_list_id,
                 new_task.name,
                 new_task.description,
                 new_task.priority as i64,
@@ -59,27 +108,17 @@ impl<'a> TaskRepository<'a> {
             ],
         )?;
         let id = self.conn.last_insert_rowid();
-        self.get_by_id(id)
+        self.query_by_id(id)
     }
 
     /// Retrieve a single task by its ID.
     pub fn get_by_id(&self, id: i64) -> Result<Task, DbError> {
-        self.conn
-            .query_row(
-                "SELECT * FROM tasks WHERE id = ?1",
-                params![id],
-                Self::row_to_task,
-            )
-            .map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => DbError::NotFound(id),
-                other => DbError::Sqlite(other),
-            })
+        self.query_by_id(id)
     }
 
     /// Update specific fields of a task. Only `Some` fields are changed.
     pub fn update(&self, id: i64, update: &UpdateTask) -> Result<Task, DbError> {
-        // Verify the task exists first.
-        self.get_by_id(id)?;
+        self.query_by_id(id)?;
 
         if let Some(ref name) = update.name {
             self.conn.execute(
@@ -95,6 +134,23 @@ impl<'a> TaskRepository<'a> {
             )?;
         }
 
+        if let Some(ref ml_opt) = update.media_list_id {
+            if let Some(media_list_id) = *ml_opt {
+                let ml_exists: i64 = self.conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM media_list WHERE id = ?1)",
+                    params![media_list_id],
+                    |row| row.get(0),
+                )?;
+                if ml_exists == 0 {
+                    return Err(DbError::NotFound { entity: "media_list", id: media_list_id });
+                }
+            }
+            self.conn.execute(
+                "UPDATE tasks SET media_list_id = ?1 WHERE id = ?2",
+                params![*ml_opt, id],
+            )?;
+        }
+
         if let Some(priority) = update.priority {
             self.conn.execute(
                 "UPDATE tasks SET priority = ?1 WHERE id = ?2",
@@ -102,15 +158,22 @@ impl<'a> TaskRepository<'a> {
             )?;
         }
 
-        if let Some(ref est_opt) = update.estimated_mins {
+        if let Some(status) = update.status {
+            self.conn.execute(
+                "UPDATE tasks SET status = ?1 WHERE id = ?2",
+                params![status.as_str(), id],
+            )?;
+        }
+
+        if let Some(estimated_mins) = update.estimated_mins {
             self.conn.execute(
                 "UPDATE tasks SET estimated_mins = ?1 WHERE id = ?2",
-                params![*est_opt, id],
+                params![estimated_mins, id],
             )?;
         }
 
         self.touch_updated_at(id)?;
-        self.get_by_id(id)
+        self.query_by_id(id)
     }
 
     /// Delete a task by ID. Returns `DbError::NotFound` if it doesn't exist.
@@ -119,7 +182,7 @@ impl<'a> TaskRepository<'a> {
             .conn
             .execute("DELETE FROM tasks WHERE id = ?1", params![id])?;
         if rows == 0 {
-            return Err(DbError::NotFound(id));
+            return Err(DbError::NotFound { entity: "task", id });
         }
         Ok(())
     }
@@ -133,6 +196,17 @@ impl<'a> TaskRepository<'a> {
             .prepare("SELECT * FROM tasks ORDER BY created_at DESC")?;
         let tasks = stmt
             .query_map([], Self::row_to_task)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(tasks)
+    }
+
+    /// List tasks belonging to a workspace.
+    pub fn list_by_workspace(&self, workspace_id: i64) -> Result<Vec<Task>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM tasks WHERE workspace_id = ?1 ORDER BY created_at DESC",
+        )?;
+        let tasks = stmt
+            .query_map(params![workspace_id], Self::row_to_task)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(tasks)
     }
@@ -173,61 +247,32 @@ impl<'a> TaskRepository<'a> {
         Ok(tasks)
     }
 
-    // ─── Timer Operations ────────────────────────────────────────────
+    // ─── Status Operations ───────────────────────────────────────────
 
     /// Get the currently running task (status = `InProgress`), if any.
     pub fn get_current(&self) -> Result<Option<Task>, DbError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT * FROM tasks WHERE status = 'in_progress' LIMIT 1")?;
+            .prepare("SELECT * FROM tasks WHERE status = 'in-progress' LIMIT 1")?;
         let mut rows = stmt
             .query_map([], Self::row_to_task)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows.pop())
     }
 
-    /// Start a task: set its status to `InProgress`.
-    ///
-    /// Returns `DbError::AlreadyInProgress` if another task is already running.
+    /// Mark a task as in progress.
     pub fn start_task(&self, id: i64) -> Result<Task, DbError> {
-        // Check that no other task is already in progress.
-        if let Some(current) = self.get_current()? {
-            if current.id != id {
-                return Err(DbError::AlreadyInProgress);
-            }
-            // Already running this same task — just return it.
-            return Ok(current);
-        }
-
-        self.conn.execute(
-            "UPDATE tasks SET status = 'in_progress', updated_at = datetime('now')
-             WHERE id = ?1",
-            params![id],
-        )?;
-        self.get_by_id(id)
+        self.set_status(id, TaskStatus::InProgress)
     }
 
-    /// Stop a task: set its status back to `Pending` and accumulate elapsed seconds.
-    pub fn stop_task(&self, id: i64, elapsed: i64) -> Result<Task, DbError> {
-        let task = self.get_by_id(id)?;
-        let new_elapsed = task.elapsed_secs + elapsed;
-
-        self.conn.execute(
-            "UPDATE tasks SET status = 'pending', elapsed_secs = ?1, updated_at = datetime('now')
-             WHERE id = ?2",
-            params![new_elapsed, id],
-        )?;
-        self.get_by_id(id)
+    /// Mark a task as completed.
+    pub fn complete_task(&self, id: i64) -> Result<Task, DbError> {
+        self.set_status(id, TaskStatus::Completed)
     }
 
-    /// Mark a task as done.
-    pub fn done_task(&self, id: i64) -> Result<Task, DbError> {
-        self.conn.execute(
-            "UPDATE tasks SET status = 'done', updated_at = datetime('now')
-             WHERE id = ?1",
-            params![id],
-        )?;
-        self.get_by_id(id)
+    /// Cancel a task.
+    pub fn cancel_task(&self, id: i64) -> Result<Task, DbError> {
+        self.set_status(id, TaskStatus::Cancelled)
     }
 }
 
@@ -237,14 +282,16 @@ impl<'a> TaskRepository<'a> {
 mod tests {
     use super::*;
     use crate::db::connection::Database;
+    use crate::db::workspace_repository::WorkspaceRepository;
 
-    /// Helper: open an in-memory DB and return the connection.
     fn setup() -> Database {
         Database::open_in_memory().expect("in-memory db")
     }
 
-    fn sample_task() -> NewTask {
+    fn sample_task(workspace_id: i64) -> NewTask {
         NewTask {
+            workspace_id,
+            media_list_id: None,
             name: "Write report".to_string(),
             description: Some("Quarterly report".to_string()),
             priority: Priority::Immediate,
@@ -252,148 +299,152 @@ mod tests {
         }
     }
 
-    // ── CRUD ──
+    fn sample_workspace(repo: &WorkspaceRepository) -> i64 {
+        repo.create(&crate::db::models::NewWorkspace {
+            name: "Work".to_string(),
+            description: None,
+        })
+        .unwrap()
+        .id
+    }
 
     #[test]
     fn create_and_get_by_id() {
         let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
         let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
 
-        let task = repo.create(&sample_task()).unwrap();
+        let task = repo.create(&sample_task(ws_id)).unwrap();
         assert_eq!(task.name, "Write report");
+        assert_eq!(task.workspace_id, ws_id);
         assert_eq!(task.priority, Priority::Immediate);
         assert_eq!(task.status, TaskStatus::Pending);
-        assert_eq!(task.elapsed_secs, 0);
 
         let fetched = repo.get_by_id(task.id).unwrap();
         assert_eq!(fetched.id, task.id);
     }
 
     #[test]
+    fn create_requires_existing_workspace() {
+        let db = setup();
+        let repo = TaskRepository::new(db.conn());
+        assert!(matches!(
+            repo.create(&sample_task(999)),
+            Err(DbError::NotFound { entity: "workspace", id: 999 })
+        ));
+    }
+
+    #[test]
     fn get_by_id_not_found() {
         let db = setup();
         let repo = TaskRepository::new(db.conn());
-
-        let result = repo.get_by_id(999);
-        assert!(matches!(result, Err(DbError::NotFound(999))));
+        assert!(matches!(
+            repo.get_by_id(999),
+            Err(DbError::NotFound { entity: "task", id: 999 })
+        ));
     }
 
     #[test]
     fn update_partial_fields() {
         let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
         let repo = TaskRepository::new(db.conn());
-        let task = repo.create(&sample_task()).unwrap();
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
 
         let updated = repo
             .update(
                 task.id,
                 &UpdateTask {
                     name: Some("Updated name".to_string()),
-                    priority: Some(Priority::Urgent),
+                    status: Some(TaskStatus::InProgress),
                     ..Default::default()
                 },
             )
             .unwrap();
 
         assert_eq!(updated.name, "Updated name");
-        assert_eq!(updated.priority, Priority::Urgent);
-        // Unchanged fields stay the same.
+        assert_eq!(updated.status, TaskStatus::InProgress);
         assert_eq!(updated.description, Some("Quarterly report".to_string()));
     }
 
     #[test]
-    fn update_set_description_to_null() {
+    fn update_clear_media_list_id() {
         let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
         let repo = TaskRepository::new(db.conn());
-        let task = repo.create(&sample_task()).unwrap();
-        assert!(task.description.is_some());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
 
         let updated = repo
             .update(
                 task.id,
                 &UpdateTask {
-                    description: Some(None),
+                    media_list_id: Some(Some(42)),
                     ..Default::default()
                 },
             )
-            .unwrap();
-        assert!(updated.description.is_none());
+            .unwrap_err();
+        assert!(matches!(
+            updated,
+            DbError::NotFound { entity: "media_list", id: 42 }
+        ));
     }
 
     #[test]
     fn delete_existing() {
         let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
         let repo = TaskRepository::new(db.conn());
-        let task = repo.create(&sample_task()).unwrap();
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
 
         repo.delete(task.id).unwrap();
-        assert!(matches!(repo.get_by_id(task.id), Err(DbError::NotFound(_))));
+        assert!(matches!(
+            repo.get_by_id(task.id),
+            Err(DbError::NotFound { .. })
+        ));
     }
 
     #[test]
-    fn delete_not_found() {
+    fn list_and_filter() {
         let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
         let repo = TaskRepository::new(db.conn());
-        assert!(matches!(repo.delete(999), Err(DbError::NotFound(999))));
-    }
+        let ws_id = sample_workspace(&ws);
 
-    // ── Query ──
+        let t1 = repo.create(&sample_task(ws_id)).unwrap();
+        let t2 = repo
+            .create(&NewTask {
+                workspace_id: ws_id,
+                media_list_id: None,
+                name: "Buy groceries".to_string(),
+                description: None,
+                priority: Priority::NotYet,
+                estimated_mins: None,
+            })
+            .unwrap();
+        let _ = (t1, t2);
 
-    #[test]
-    fn list_all() {
-        let db = setup();
-        let repo = TaskRepository::new(db.conn());
-        repo.create(&sample_task()).unwrap();
-        repo.create(&NewTask {
-            name: "Second task".to_string(),
-            description: None,
-            priority: Priority::NotYet,
-            estimated_mins: None,
-        })
-        .unwrap();
+        assert_eq!(repo.list_by_workspace(ws_id).unwrap().len(), 2);
+        assert_eq!(repo.list_all().unwrap().len(), 2);
 
-        let all = repo.list_all().unwrap();
-        assert_eq!(all.len(), 2);
-    }
-
-    #[test]
-    fn find_by_name() {
-        let db = setup();
-        let repo = TaskRepository::new(db.conn());
-        repo.create(&sample_task()).unwrap();
-        repo.create(&NewTask {
-            name: "Buy groceries".to_string(),
-            description: None,
-            priority: Priority::NotYet,
-            estimated_mins: None,
-        })
-        .unwrap();
-
-        let results = repo.find_by_name("report").unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].name, "Write report");
-    }
-
-    #[test]
-    fn list_by_status() {
-        let db = setup();
-        let repo = TaskRepository::new(db.conn());
-        let t = repo.create(&sample_task()).unwrap();
-        repo.done_task(t.id).unwrap();
-
-        let done = repo.list_by_status(TaskStatus::Done).unwrap();
-        assert_eq!(done.len(), 1);
-
-        let pending = repo.list_by_status(TaskStatus::Pending).unwrap();
-        assert_eq!(pending.len(), 0);
+        let hits = repo.find_by_name("report").unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].name, "Write report");
     }
 
     #[test]
     fn list_sorted_by_priority() {
         let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
         let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
 
         repo.create(&NewTask {
+            workspace_id: ws_id,
+            media_list_id: None,
             name: "Low".to_string(),
             description: None,
             priority: Priority::NotYet,
@@ -401,6 +452,8 @@ mod tests {
         })
         .unwrap();
         repo.create(&NewTask {
+            workspace_id: ws_id,
+            media_list_id: None,
             name: "High".to_string(),
             description: None,
             priority: Priority::Urgent,
@@ -417,72 +470,48 @@ mod tests {
         assert_eq!(desc[1].name, "Low");
     }
 
-    // ── Timer ──
-
     #[test]
-    fn start_stop_done_flow() {
+    fn status_transitions_and_current() {
         let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
         let repo = TaskRepository::new(db.conn());
-        let task = repo.create(&sample_task()).unwrap();
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
 
-        // Start
         let started = repo.start_task(task.id).unwrap();
         assert_eq!(started.status, TaskStatus::InProgress);
 
-        // get_current should return this task
         let current = repo.get_current().unwrap();
         assert!(current.is_some());
         assert_eq!(current.unwrap().id, task.id);
 
-        // Stop with 120 seconds elapsed
-        let stopped = repo.stop_task(task.id, 120).unwrap();
-        assert_eq!(stopped.status, TaskStatus::Pending);
-        assert_eq!(stopped.elapsed_secs, 120);
-
-        // get_current should be None now
+        let done = repo.complete_task(task.id).unwrap();
+        assert_eq!(done.status, TaskStatus::Completed);
         assert!(repo.get_current().unwrap().is_none());
 
-        // Start again, stop with 60 more seconds
-        repo.start_task(task.id).unwrap();
-        let stopped2 = repo.stop_task(task.id, 60).unwrap();
-        assert_eq!(stopped2.elapsed_secs, 180); // accumulated
+        let cancelled = repo.cancel_task(task.id).unwrap();
+        assert_eq!(cancelled.status, TaskStatus::Cancelled);
 
-        // Done
-        let done = repo.done_task(task.id).unwrap();
-        assert_eq!(done.status, TaskStatus::Done);
+        let in_progress = repo.list_by_status(TaskStatus::InProgress).unwrap();
+        assert!(in_progress.is_empty());
+        let done_list = repo.list_by_status(TaskStatus::Completed).unwrap();
+        assert!(done_list.is_empty());
+        let cancelled_list = repo.list_by_status(TaskStatus::Cancelled).unwrap();
+        assert_eq!(cancelled_list.len(), 1);
     }
 
     #[test]
-    fn start_task_already_in_progress() {
+    fn delete_workspace_cascades_tasks() {
         let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
         let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
 
-        let t1 = repo.create(&sample_task()).unwrap();
-        let t2 = repo
-            .create(&NewTask {
-                name: "Other".to_string(),
-                description: None,
-                priority: Priority::NotYet,
-                estimated_mins: None,
-            })
-            .unwrap();
-
-        repo.start_task(t1.id).unwrap();
-
-        // Trying to start a different task should fail.
-        let result = repo.start_task(t2.id);
-        assert!(matches!(result, Err(DbError::AlreadyInProgress)));
-    }
-
-    #[test]
-    fn start_same_task_twice_is_idempotent() {
-        let db = setup();
-        let repo = TaskRepository::new(db.conn());
-        let task = repo.create(&sample_task()).unwrap();
-
-        repo.start_task(task.id).unwrap();
-        // Starting the same task again should just return it.
-        let again = repo.start_task(task.id).unwrap();
-        assert_eq!(again.status, TaskStatus::InProgress);
+        ws.delete(ws_id).unwrap();
+        assert!(matches!(
+            repo.get_by_id(task.id),
+            Err(DbError::NotFound { entity: "task", .. })
+        ));
     }
 }

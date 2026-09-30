@@ -25,5 +25,8 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 # CLI
 clap = { version = "4", features = ["derive"] }
 
+# Interactive prompts
+inquire = { version = "0.9", features = ["fuzzy"] }
+
 # Internal crates
 let-timer-core = { path = "crates/let-timer-core" }

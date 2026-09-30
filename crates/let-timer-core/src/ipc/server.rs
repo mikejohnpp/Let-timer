@@ -92,7 +92,6 @@ async fn handle_connect(
                 let out = serde_json::to_string(&res).expect("serialize");
                 write_half.write_all(out.as_bytes()).await.ok();
                 write_half.write_all(b"\n").await.ok();
-                break;
             }
 
             Err(e) => {

@@ -5,23 +5,21 @@ use std::fmt;
 pub enum DbError {
     /// A rusqlite error occurred.
     Sqlite(rusqlite::Error),
-    /// The requested task was not found.
-    NotFound(i64),
-    /// An invalid status string was encountered.
+    /// A row with the given id does not exist in the given entity table.
+    NotFound { entity: &'static str, id: i64 },
+    /// An invalid enum string was stored in / passed to the database.
     InvalidStatus(String),
-    /// Attempted to start a task while another is already in progress.
-    AlreadyInProgress,
+    /// A row that must be unique already exists (e.g. duplicate membership).
+    AlreadyExists { entity: &'static str },
 }
 
 impl fmt::Display for DbError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DbError::Sqlite(e) => write!(f, "database error: {e}"),
-            DbError::NotFound(id) => write!(f, "task not found: id={id}"),
-            DbError::InvalidStatus(s) => write!(f, "invalid task status: \"{s}\""),
-            DbError::AlreadyInProgress => {
-                write!(f, "another task is already in progress")
-            }
+            DbError::NotFound { entity, id } => write!(f, "{entity} not found: id={id}"),
+            DbError::InvalidStatus(s) => write!(f, "invalid status: \"{s}\""),
+            DbError::AlreadyExists { entity } => write!(f, "{entity} already exists"),
         }
     }
 }

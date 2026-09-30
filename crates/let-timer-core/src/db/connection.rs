@@ -43,8 +43,9 @@ CREATE TABLE IF NOT EXISTS media_media_list (
     created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT    NOT NULL DEFAULT (datetime('now')),
 
-    FOREIGN KEY (media_id) REFERENCES medias(id),
-    FOREIGN KEY (media_list_id) REFERENCES media_list(id)
+    UNIQUE (media_id, media_list_id),
+    FOREIGN KEY (media_id) REFERENCES medias(id) ON DELETE CASCADE,
+    FOREIGN KEY (media_list_id) REFERENCES media_list(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -53,7 +54,12 @@ CREATE TABLE IF NOT EXISTS tasks (
     media_list_id   INTEGER,
     name            TEXT    NOT NULL,
     description     TEXT,
-    priority        INTEGER NOT NULL DEFAULT 0,
+    priority        INTEGER NOT NULL DEFAULT 0
+                    CHECK (priority IN (
+                            0,
+                            1,
+                            2
+                            )),
     status          TEXT    NOT NULL DEFAULT 'pending'
                     CHECK (status IN (
                              'pending',
@@ -65,8 +71,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT    NOT NULL DEFAULT (datetime('now')),
 
-    FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
-    FOREIGN KEY (media_list_id) REFERENCES media_list(id)
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+    FOREIGN KEY (media_list_id) REFERENCES media_list(id) ON DELETE SET NULL
 );
 ";
 

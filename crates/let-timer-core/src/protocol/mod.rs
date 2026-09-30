@@ -1,4 +1,6 @@
-use crate::db::models::{NewTask, Priority, Task, TaskStatus, UpdateTask};
+use crate::db::models::{
+    MediaList, NewMediaList, NewTask, NewWorkspace, Task, TaskStatus, UpdateTask, Workspace,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +26,10 @@ pub enum Command {
     },
     Stop,
     Done,
+    ListWorkspaces,
+    CreateWorkspace(NewWorkspace),
+    ListMediaLists,
+    CreateMediaList(NewMediaList),
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -37,6 +43,10 @@ pub enum Response {
     Ok(TaskPayload),
     OkList(Vec<Task>),
     OkEmpty,
+    WorkspaceList(Vec<Workspace>),
+    Workspace(Workspace),
+    MediaListList(Vec<MediaList>),
+    MediaList(MediaList),
     Error { message: String },
 }
 
