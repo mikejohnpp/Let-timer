@@ -1,5 +1,7 @@
 use rusqlite::{Connection, params};
 
+use crate::SortOrder;
+
 use super::error::DbError;
 use super::models::{NewTask, Priority, Task, TaskStatus, UpdateTask};
 
@@ -159,11 +161,10 @@ impl<'a> TaskRepository<'a> {
     }
 
     /// List all tasks sorted by priority.
-    pub fn list_sorted_by_priority(&self, ascending: bool) -> Result<Vec<Task>, DbError> {
-        let sql = if ascending {
-            "SELECT * FROM tasks ORDER BY priority ASC, created_at DESC"
-        } else {
-            "SELECT * FROM tasks ORDER BY priority DESC, created_at DESC"
+    pub fn list_sorted_by_priority(&self, sort_by: SortOrder) -> Result<Vec<Task>, DbError> {
+        let sql = match sort_by {
+            SortOrder::Ascending => "SELECT * FROM tasks ORDER BY priority ASC, created_at DESC",
+            SortOrder::Descending => "SELECT * FROM tasks ORDER BY priority DESC, created_at DESC",
         };
         let mut stmt = self.conn.prepare(sql)?;
         let tasks = stmt
@@ -407,11 +408,11 @@ mod tests {
         })
         .unwrap();
 
-        let asc = repo.list_sorted_by_priority(true).unwrap();
+        let asc = repo.list_sorted_by_priority(SortOrder::Ascending).unwrap();
         assert_eq!(asc[0].name, "Low");
         assert_eq!(asc[1].name, "High");
 
-        let desc = repo.list_sorted_by_priority(false).unwrap();
+        let desc = repo.list_sorted_by_priority(SortOrder::Descending).unwrap();
         assert_eq!(desc[0].name, "High");
         assert_eq!(desc[1].name, "Low");
     }

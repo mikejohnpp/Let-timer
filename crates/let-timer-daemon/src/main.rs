@@ -1,37 +1,23 @@
 use std::sync::{Arc, Mutex};
 
 use let_timer_core::{Command, Database, IpcServer, Response, TaskPayload, TaskRepository};
+use let_timer_daemon::{create_commands, delete_task, find_by_name, get_list_task};
 
 fn invoke_command(cmd: Command, db: &Arc<Mutex<Database>>) -> Response {
     let _db = db.lock().unwrap();
-    let _repo = TaskRepository::new(_db.conn());
+    let repo = TaskRepository::new(_db.conn());
     match cmd {
-        Command::Create(new_task) => {
-            println!("Creating task: {:?}", new_task);
-            Response::OkEmpty
-        }
-        Command::Delete { id } => {
-            println!("Deleting task with id: {}", id);
-            Response::OkEmpty
-        }
+        Command::Create(new_task) => create_commands(&repo, &new_task),
+        Command::Delete { id } => delete_task(&repo, id),
         Command::Edit { id, update } => {
             println!("Editing task with id: {}, update: {:?}", id, update);
             Response::OkEmpty
         }
-        Command::Find { query } => {
-            println!("Finding tasks with query: {}", query);
-            Response::OkList(vec![])
-        }
+        Command::Find { query } => find_by_name(&repo, &query),
         Command::List {
             sort_priority,
             filter_status,
-        } => {
-            println!(
-                "Listing tasks with sort_priority: {:?}, filter_status: {:?}",
-                sort_priority, filter_status
-            );
-            Response::OkList(vec![])
-        }
+        } => get_list_task(&repo, filter_status, sort_priority),
         Command::Current => {
             println!("Getting current task");
             Response::Ok(TaskPayload::None)

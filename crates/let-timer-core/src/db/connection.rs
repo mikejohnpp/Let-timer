@@ -5,20 +5,69 @@ use rusqlite::Connection;
 use super::error::DbError;
 
 const SCHEMA_SQL: &str = "
-CREATE TABLE IF NOT EXISTS tasks (
+CREATE TABLE IF NOT EXISTS workspaces (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     name            TEXT    NOT NULL,
     description     TEXT,
-    priority        INTEGER NOT NULL DEFAULT 0,
-    status          TEXT    NOT NULL DEFAULT 'pending',
-    estimated_mins  INTEGER,
-    elapsed_secs    INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_tasks_status   ON tasks(status);
-CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
+CREATE TABLE IF NOT EXISTS medias (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT    NOT NULL,
+    description     TEXT,
+    url             TEXT    NOT NULL,
+    type            TEXT    NOT NULL
+                    CHECK (type in (
+                        'image',
+                        'music',
+                        'poem'
+                    )),
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS media_list (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT    NOT NULL,
+    description     TEXT,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS media_media_list (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    media_id        INTEGER NOT NULL,
+    media_list_id   INTEGER NOT NULL,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+
+    FOREIGN KEY (media_id) REFERENCES medias(id),
+    FOREIGN KEY (media_list_id) REFERENCES media_list(id)
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id    INTEGER NOT NULL,
+    media_list_id   INTEGER,
+    name            TEXT    NOT NULL,
+    description     TEXT,
+    priority        INTEGER NOT NULL DEFAULT 0,
+    status          TEXT    NOT NULL DEFAULT 'pending'
+                    CHECK (status IN (
+                             'pending',
+                             'in-progress',
+                             'completed',
+                             'cancelled'
+                            )),
+    estimated_mins  INTEGER,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+    FOREIGN KEY (media_list_id) REFERENCES media_list(id)
+);
 ";
 
 /// Wrapper around a `rusqlite::Connection` that handles opening the database
@@ -67,6 +116,7 @@ impl Database {
         // Performance & safety PRAGMAs.
         self.conn.execute_batch(
             "PRAGMA journal_mode = WAL;
+             PRAGMA foreign_keys = ON;
              PRAGMA foreign_keys = ON;
              PRAGMA busy_timeout = 5000;",
         )?;
