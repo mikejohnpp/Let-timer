@@ -4,6 +4,7 @@ members = [
     "crates/let-timer-core",
     "crates/let-timer-cli",
     "crates/let-timer-daemon",
+    "crates/let-timer-tui",
 ]
 
 [workspace.package]
@@ -22,6 +23,12 @@ clap = { version = "4", features = ["derive"] }
 inquire = { version = "0.9", features = ["fuzzy", "date"] }
 chrono = { version = "0.4", features = ["serde"] }
 color-eyre = "0.6.5"
-crossterm = "0.29.0"
+# `event-stream` is required for `EventStream`; ratatui-crossterm pulls in
+# crossterm without any feature, so the feature has to be enabled here.
+crossterm = { version = "0.29.0", features = ["event-stream"] }
 ratatui = "0.30.2"
+# `StreamExt::next` for reading crossterm events.
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+# Keymap config file parsing.
+toml = "1"
 let-timer-core = { path = "crates/let-timer-core" }
