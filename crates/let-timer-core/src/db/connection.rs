@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS tasks (
                              'cancelled'
                             )),
     estimated_mins  INTEGER,
+    scheduled_on    TEXT,
     created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT    NOT NULL DEFAULT (datetime('now')),
 
@@ -75,6 +76,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     FOREIGN KEY (media_list_id) REFERENCES media_list(id) ON DELETE SET NULL
 );
 ";
+
+/// Current schema version. Bump this whenever `migrate` needs a new step.
+const SCHEMA_VERSION: i64 = 1;
 
 /// Wrapper around a `rusqlite::Connection` that handles opening the database
 /// file, creating the parent directory, running schema migrations, and
@@ -128,6 +132,53 @@ impl Database {
         )?;
 
         self.conn.execute_batch(SCHEMA_SQL)?;
+        self.migrate()?;
+        Ok(())
+    }
+
+    /// Bring an existing database file up to `SCHEMA_VERSION`.
+    ///
+    /// `SCHEMA_SQL` uses `CREATE TABLE IF NOT EXISTS`, so tables that already
+    /// exist are left untouched; columns introduced by later versions have to
+    /// be added explicitly here.
+    fn migrate(&self) -> Result<(), DbError> {
+        let current: i64 = self
+            .conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))?;
+
+        if current < 1 {
+            // v1: `tasks.scheduled_on` (date only, ISO "YYYY-MM-DD").
+            self.add_column_if_missing("tasks", "scheduled_on", "TEXT")?;
+            self.conn.execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_tasks_scheduled_on ON tasks (scheduled_on);",
+            )?;
+        }
+
+        self.conn
+            .execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))?;
+        Ok(())
+    }
+
+    /// Add a column to a table unless the table already has it.
+    fn add_column_if_missing(
+        &self,
+        table: &str,
+        column: &str,
+        declaration: &str,
+    ) -> Result<(), DbError> {
+        let mut stmt = self.conn.prepare(&format!("PRAGMA table_info({table})"))?;
+        let existing: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(stmt);
+
+        if existing.iter().any(|name| name == column) {
+            return Ok(());
+        }
+
+        self.conn.execute_batch(&format!(
+            "ALTER TABLE {table} ADD COLUMN {column} {declaration}"
+        ))?;
         Ok(())
     }
 
@@ -167,5 +218,95 @@ mod tests {
     fn default_db_path_is_reasonable() {
         let path = default_db_path();
         assert!(path.ends_with("let-timer/let-timer.db"));
+    }
+
+    #[test]
+    fn migration_adds_scheduled_on_to_legacy_database() {
+        let dir = std::env::temp_dir().join(format!("let-timer-migration-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let path = dir.join("legacy.db");
+
+        // Simulate a database created before `scheduled_on` existed.
+        {
+            let conn = Connection::open(&path).expect("open legacy db");
+            conn.execute_batch(
+                "CREATE TABLE workspaces (
+                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                     name       TEXT NOT NULL,
+                     description TEXT,
+                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                 );
+                 CREATE TABLE media_list (
+                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                     name       TEXT NOT NULL,
+                     description TEXT,
+                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                 );
+                 CREATE TABLE tasks (
+                     id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                     workspace_id    INTEGER NOT NULL,
+                     media_list_id   INTEGER,
+                     name            TEXT NOT NULL,
+                     description     TEXT,
+                     priority        INTEGER NOT NULL DEFAULT 0,
+                     status          TEXT NOT NULL DEFAULT 'pending',
+                     estimated_mins  INTEGER,
+                     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+                     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+                     FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                     FOREIGN KEY (media_list_id) REFERENCES media_list(id) ON DELETE SET NULL
+                 );
+                 INSERT INTO workspaces (id, name) VALUES (1, 'Legacy WS');
+                 INSERT INTO tasks (id, workspace_id, name)
+                     VALUES (1, 1, 'Legacy task');",
+            )
+            .expect("seed legacy schema");
+        }
+
+        // Opening it must run the migration.
+        let db = Database::open(&path).expect("open and migrate legacy db");
+        let column: Option<String> = db
+            .conn()
+            .query_row("SELECT scheduled_on FROM tasks WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .expect("scheduled_on should exist after migration");
+        assert_eq!(column, None, "existing rows should migrate to NULL");
+
+        let version: i64 = db
+            .conn()
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .expect("read user_version");
+        assert_eq!(version, SCHEMA_VERSION);
+
+        drop(db);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn migration_is_idempotent() {
+        let dir =
+            std::env::temp_dir().join(format!("let-timer-migration-twice-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let path = dir.join("twice.db");
+
+        for _ in 0..2 {
+            let db = Database::open(&path).expect("open db");
+            let count: i64 = db
+                .conn()
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name = 'scheduled_on'",
+                    [],
+                    |row| row.get(0),
+                )
+                .expect("scheduled_on should exist");
+            assert_eq!(count, 1);
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1,9 +1,10 @@
 use std::error::Error;
 use std::fmt;
 
+use chrono::{Local, NaiveDate, Weekday};
 use inquire::error::CustomUserError;
 use inquire::validator::Validation;
-use inquire::{InquireError, Select, Text};
+use inquire::{DateSelect, InquireError, Select, Text};
 use let_timer_core::{
     Command, IpcClient, MediaList, NewMediaList, NewWorkspace, Priority, Response, Workspace,
 };
@@ -87,6 +88,20 @@ pub fn resolve_estimated_mins() -> Result<Option<i64>, Box<dyn Error>> {
         .prompt()
         .map_err(prompt_error)?;
     Ok(trimmed_or_none(&value).and_then(|v| v.parse::<i64>().ok()))
+}
+
+/// Ask which day the task is planned for, via a calendar picker.
+/// Pressing `Esc` means "no scheduled day".
+pub fn resolve_scheduled_on() -> Result<Option<NaiveDate>, Box<dyn Error>> {
+    let today = Local::now().date_naive();
+    let picked = DateSelect::new("Choose date?")
+        .with_default(today)
+        .with_starting_date(today)
+        .with_week_start(Weekday::Mon)
+        .with_help_message("Esc = Leave date to unknown")
+        .prompt_skippable()
+        .map_err(prompt_error)?;
+    Ok(picked)
 }
 
 // ─── Workspaces ──────────────────────────────────────────────────────

@@ -14,3 +14,7 @@ let-timer-core = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
 inquire = { workspace = true }
+chrono = { workspace = true }
+color-eyre = { workspace = true } 
+crossterm = { workspace = true } 
+ratatui = { workspace = true } 

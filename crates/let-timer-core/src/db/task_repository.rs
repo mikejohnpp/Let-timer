@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use rusqlite::{Connection, params};
 
 use crate::SortOrder;
@@ -31,6 +32,7 @@ impl<'a> TaskRepository<'a> {
             priority: Priority::from_i64(priority_raw).unwrap_or(Priority::NotYet),
             status: status_raw.parse().unwrap_or(TaskStatus::Pending),
             estimated_mins: row.get("estimated_mins")?,
+            scheduled_on: row.get::<_, Option<NaiveDate>>("scheduled_on")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })
@@ -91,13 +93,16 @@ impl<'a> TaskRepository<'a> {
                 |row| row.get(0),
             )?;
             if ml_exists == 0 {
-                return Err(DbError::NotFound { entity: "media_list", id: media_list_id });
+                return Err(DbError::NotFound {
+                    entity: "media_list",
+                    id: media_list_id,
+                });
             }
         }
 
         self.conn.execute(
-            "INSERT INTO tasks (workspace_id, media_list_id, name, description, priority, estimated_mins)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO tasks (workspace_id, media_list_id, name, description, priority, estimated_mins, scheduled_on)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 new_task.workspace_id,
                 new_task.media_list_id,
@@ -105,6 +110,7 @@ impl<'a> TaskRepository<'a> {
                 new_task.description,
                 new_task.priority as i64,
                 new_task.estimated_mins,
+                new_task.scheduled_on,
             ],
         )?;
         let id = self.conn.last_insert_rowid();
@@ -142,7 +148,10 @@ impl<'a> TaskRepository<'a> {
                     |row| row.get(0),
                 )?;
                 if ml_exists == 0 {
-                    return Err(DbError::NotFound { entity: "media_list", id: media_list_id });
+                    return Err(DbError::NotFound {
+                        entity: "media_list",
+                        id: media_list_id,
+                    });
                 }
             }
             self.conn.execute(
@@ -172,6 +181,13 @@ impl<'a> TaskRepository<'a> {
             )?;
         }
 
+        if let Some(scheduled_opt) = update.scheduled_on {
+            self.conn.execute(
+                "UPDATE tasks SET scheduled_on = ?1 WHERE id = ?2",
+                params![scheduled_opt, id],
+            )?;
+        }
+
         self.touch_updated_at(id)?;
         self.query_by_id(id)
     }
@@ -189,11 +205,13 @@ impl<'a> TaskRepository<'a> {
 
     // ─── Query ───────────────────────────────────────────────────────
 
-    /// List all tasks (ordered by `created_at` descending).
+    /// List all tasks ordered by scheduled day (unscheduled last), then by
+    /// descending priority.
     pub fn list_all(&self) -> Result<Vec<Task>, DbError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT * FROM tasks ORDER BY created_at DESC")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM tasks
+             ORDER BY scheduled_on IS NULL, scheduled_on, priority DESC, created_at DESC",
+        )?;
         let tasks = stmt
             .query_map([], Self::row_to_task)?
             .collect::<Result<Vec<_>, _>>()?;
@@ -202,9 +220,9 @@ impl<'a> TaskRepository<'a> {
 
     /// List tasks belonging to a workspace.
     pub fn list_by_workspace(&self, workspace_id: i64) -> Result<Vec<Task>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT * FROM tasks WHERE workspace_id = ?1 ORDER BY created_at DESC",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM tasks WHERE workspace_id = ?1 ORDER BY created_at DESC")?;
         let tasks = stmt
             .query_map(params![workspace_id], Self::row_to_task)?
             .collect::<Result<Vec<_>, _>>()?;
@@ -296,6 +314,7 @@ mod tests {
             description: Some("Quarterly report".to_string()),
             priority: Priority::Immediate,
             estimated_mins: Some(30),
+            scheduled_on: None,
         }
     }
 
@@ -331,7 +350,10 @@ mod tests {
         let repo = TaskRepository::new(db.conn());
         assert!(matches!(
             repo.create(&sample_task(999)),
-            Err(DbError::NotFound { entity: "workspace", id: 999 })
+            Err(DbError::NotFound {
+                entity: "workspace",
+                id: 999
+            })
         ));
     }
 
@@ -341,7 +363,10 @@ mod tests {
         let repo = TaskRepository::new(db.conn());
         assert!(matches!(
             repo.get_by_id(999),
-            Err(DbError::NotFound { entity: "task", id: 999 })
+            Err(DbError::NotFound {
+                entity: "task",
+                id: 999
+            })
         ));
     }
 
@@ -388,7 +413,10 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             updated,
-            DbError::NotFound { entity: "media_list", id: 42 }
+            DbError::NotFound {
+                entity: "media_list",
+                id: 42
+            }
         ));
     }
 
@@ -423,6 +451,7 @@ mod tests {
                 description: None,
                 priority: Priority::NotYet,
                 estimated_mins: None,
+                scheduled_on: None,
             })
             .unwrap();
         let _ = (t1, t2);
@@ -449,6 +478,7 @@ mod tests {
             description: None,
             priority: Priority::NotYet,
             estimated_mins: None,
+            scheduled_on: None,
         })
         .unwrap();
         repo.create(&NewTask {
@@ -458,6 +488,7 @@ mod tests {
             description: None,
             priority: Priority::Urgent,
             estimated_mins: None,
+            scheduled_on: None,
         })
         .unwrap();
 
@@ -468,6 +499,103 @@ mod tests {
         let desc = repo.list_sorted_by_priority(SortOrder::Descending).unwrap();
         assert_eq!(desc[0].name, "High");
         assert_eq!(desc[1].name, "Low");
+    }
+
+    #[test]
+    fn create_and_read_scheduled_on() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let day = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+
+        let mut new_task = sample_task(ws_id);
+        new_task.scheduled_on = Some(day);
+        let task = repo.create(&new_task).unwrap();
+        assert_eq!(task.scheduled_on, Some(day));
+
+        let fetched = repo.get_by_id(task.id).unwrap();
+        assert_eq!(fetched.scheduled_on, Some(day));
+
+        let unscheduled = repo.create(&sample_task(ws_id)).unwrap();
+        assert_eq!(unscheduled.scheduled_on, None);
+    }
+
+    #[test]
+    fn update_sets_and_clears_scheduled_on() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
+        let day = NaiveDate::from_ymd_opt(2026, 12, 31).unwrap();
+
+        let set = repo
+            .update(
+                task.id,
+                &UpdateTask {
+                    scheduled_on: Some(Some(day)),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(set.scheduled_on, Some(day));
+
+        // `None` inside `Some` clears the date.
+        let cleared = repo
+            .update(
+                task.id,
+                &UpdateTask {
+                    scheduled_on: Some(None),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(cleared.scheduled_on, None);
+    }
+
+    #[test]
+    fn list_all_orders_by_scheduled_on_with_unscheduled_last() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+
+        let day_late = NaiveDate::from_ymd_opt(2026, 10, 5).unwrap();
+        let day_early = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+
+        let mut later = sample_task(ws_id);
+        later.name = "Later".to_string();
+        later.scheduled_on = Some(day_late);
+        repo.create(&later).unwrap();
+
+        let mut unscheduled = sample_task(ws_id);
+        unscheduled.name = "Unscheduled".to_string();
+        repo.create(&unscheduled).unwrap();
+
+        let mut early_low = sample_task(ws_id);
+        early_low.name = "Early low".to_string();
+        early_low.priority = Priority::NotYet;
+        early_low.scheduled_on = Some(day_early);
+        repo.create(&early_low).unwrap();
+
+        let mut early_high = sample_task(ws_id);
+        early_high.name = "Early high".to_string();
+        early_high.priority = Priority::Urgent;
+        early_high.scheduled_on = Some(day_early);
+        repo.create(&early_high).unwrap();
+
+        let names: Vec<String> = repo
+            .list_all()
+            .unwrap()
+            .into_iter()
+            .map(|t| t.name)
+            .collect();
+
+        assert_eq!(
+            names,
+            vec!["Early high", "Early low", "Later", "Unscheduled"]
+        );
     }
 
     #[test]

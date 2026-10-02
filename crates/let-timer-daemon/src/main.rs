@@ -12,10 +12,12 @@ fn invoke_command(cmd: Command, db: &Arc<Mutex<Database>>) -> Response {
     match cmd {
         Command::Create(new_task) => create_commands(&repo, &new_task),
         Command::Delete { id } => delete_task(&repo, id),
-        Command::Edit { id, update } => {
-            println!("Editing task with id: {}, update: {:?}", id, update);
-            Response::OkEmpty
-        }
+        Command::Edit { id, update } => match repo.update(id, &update) {
+            Ok(task) => Response::Ok(TaskPayload::Some(task)),
+            Err(error) => Response::Error {
+                message: error.to_string(),
+            },
+        },
         Command::Find { query } => find_by_name(&repo, &query),
         Command::List {
             sort_priority,

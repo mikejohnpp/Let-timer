@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 use super::error::DbError;
@@ -195,6 +196,8 @@ pub struct Task {
     pub priority: Priority,
     pub status: TaskStatus,
     pub estimated_mins: Option<i64>,
+    /// Day the task is planned for, if any (`YYYY-MM-DD`).
+    pub scheduled_on: Option<NaiveDate>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -208,6 +211,8 @@ pub struct NewTask {
     pub description: Option<String>,
     pub priority: Priority,
     pub estimated_mins: Option<i64>,
+    /// Day the task is planned for, if any (`YYYY-MM-DD`).
+    pub scheduled_on: Option<NaiveDate>,
 }
 
 /// Fields that can be updated on an existing task.
@@ -216,10 +221,100 @@ pub struct NewTask {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateTask {
     pub name: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "double_option"
+    )]
     pub description: Option<Option<String>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "double_option"
+    )]
     pub media_list_id: Option<Option<i64>>,
     pub priority: Option<Priority>,
     pub status: Option<TaskStatus>,
     pub estimated_mins: Option<i64>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "double_option"
+    )]
+    pub scheduled_on: Option<Option<NaiveDate>>,
 }
 
+/// Serde helper for `Option<Option<T>>` fields.
+///
+/// `None` (leave alone) and `Some(None)` (set NULL) both serialize to `null`,
+/// so a "clear this column" update would be indistinguishable from "leave it
+/// alone" after a round trip through the IPC layer. Skipping `None` keeps the
+/// three states apart: field absent / `null` / a value.
+mod double_option {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S, T>(value: &Option<Option<T>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: Serialize,
+    {
+        value.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Deserialize<'de>,
+    {
+        Option::<T>::deserialize(deserializer).map(Some)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn update_task_round_trip_keeps_clear_distinct_from_no_change() {
+        let day = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+
+        let clear = UpdateTask {
+            scheduled_on: Some(None),
+            ..Default::default()
+        };
+        let set = UpdateTask {
+            scheduled_on: Some(Some(day)),
+            ..Default::default()
+        };
+        let untouched = UpdateTask {
+            name: Some("renamed".to_string()),
+            ..Default::default()
+        };
+
+        for original in [&clear, &set, &untouched] {
+            let json = serde_json::to_string(original).unwrap();
+            let decoded: UpdateTask = serde_json::from_str(&json).unwrap();
+            match &decoded.scheduled_on {
+                Some(inner) => assert_eq!(
+                    *inner,
+                    original.scheduled_on.unwrap(),
+                    "round trip changed the meaning of scheduled_on ({json})"
+                ),
+                None => assert!(
+                    original.scheduled_on.is_none(),
+                    "a value got lost in the round trip ({json})"
+                ),
+            }
+        }
+
+        // "Leave alone" omits the key entirely.
+        let untouched_json = serde_json::to_string(&untouched).unwrap();
+        assert!(!untouched_json.contains("scheduled_on"));
+        // "Clear" sends an explicit null.
+        assert!(
+            serde_json::to_string(&clear)
+                .unwrap()
+                .contains("\"scheduled_on\":null")
+        );
+    }
+}
