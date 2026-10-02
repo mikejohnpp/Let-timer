@@ -33,9 +33,10 @@ impl<'a> MediaListRepository<'a> {
                 Self::row_to_media_list,
             )
             .map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => {
-                    DbError::NotFound { entity: "media_list", id }
-                }
+                rusqlite::Error::QueryReturnedNoRows => DbError::NotFound {
+                    entity: "media_list",
+                    id,
+                },
                 other => DbError::Sqlite(other),
             })
     }
@@ -103,7 +104,10 @@ impl<'a> MediaListRepository<'a> {
             .conn
             .execute("DELETE FROM media_list WHERE id = ?1", params![id])?;
         if rows == 0 {
-            return Err(DbError::NotFound { entity: "media_list", id });
+            return Err(DbError::NotFound {
+                entity: "media_list",
+                id,
+            });
         }
         Ok(())
     }
@@ -259,7 +263,10 @@ mod tests {
         repo.delete(list.id).unwrap();
         assert!(matches!(
             repo.get_by_id(list.id),
-            Err(DbError::NotFound { entity: "media_list", .. })
+            Err(DbError::NotFound {
+                entity: "media_list",
+                ..
+            })
         ));
     }
 
@@ -312,7 +319,10 @@ mod tests {
 
         assert!(matches!(
             list_repo.add_media(list.id, 999),
-            Err(DbError::NotFound { entity: "medias", id: 999 })
+            Err(DbError::NotFound {
+                entity: "medias",
+                id: 999
+            })
         ));
     }
 }

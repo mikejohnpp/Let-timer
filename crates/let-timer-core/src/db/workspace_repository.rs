@@ -31,7 +31,10 @@ impl<'a> WorkspaceRepository<'a> {
                 Self::row_to_workspace,
             )
             .map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => DbError::NotFound { entity: "workspace", id },
+                rusqlite::Error::QueryReturnedNoRows => DbError::NotFound {
+                    entity: "workspace",
+                    id,
+                },
                 other => DbError::Sqlite(other),
             })
     }
@@ -85,7 +88,10 @@ impl<'a> WorkspaceRepository<'a> {
             .conn
             .execute("DELETE FROM workspaces WHERE id = ?1", params![id])?;
         if rows == 0 {
-            return Err(DbError::NotFound { entity: "workspace", id });
+            return Err(DbError::NotFound {
+                entity: "workspace",
+                id,
+            });
         }
         Ok(())
     }
@@ -149,7 +155,10 @@ mod tests {
         let repo = WorkspaceRepository::new(db.conn());
         assert!(matches!(
             repo.get_by_id(999),
-            Err(DbError::NotFound { entity: "workspace", id: 999 })
+            Err(DbError::NotFound {
+                entity: "workspace",
+                id: 999
+            })
         ));
     }
 
@@ -186,7 +195,10 @@ mod tests {
         ));
         assert!(matches!(
             repo.delete(ws.id),
-            Err(DbError::NotFound { entity: "workspace", id: _ })
+            Err(DbError::NotFound {
+                entity: "workspace",
+                id: _
+            })
         ));
     }
 

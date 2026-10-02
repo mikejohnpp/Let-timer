@@ -11,8 +11,9 @@ pub use error::DbError;
 pub use media_list_repository::MediaListRepository;
 pub use media_repository::MediaRepository;
 pub use models::{
-    Media, MediaList, MediaType, NewMedia, NewMediaList, NewTask, NewWorkspace, Priority, Task,
-    TaskStatus, UpdateMedia, UpdateMediaList, UpdateTask, UpdateWorkspace, Workspace,
+    Media, MediaList, MediaType, NewMedia, NewMediaList, NewTask, NewWorkspace, ParsePriorityError,
+    Priority, Task, TaskStatus, UpdateMedia, UpdateMediaList, UpdateTask, UpdateWorkspace,
+    Workspace,
 };
 pub use task_repository::TaskRepository;
 pub use workspace_repository::WorkspaceRepository;

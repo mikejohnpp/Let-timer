@@ -1,3 +1,4 @@
+use std::fmt;
 use std::str::FromStr;
 
 use chrono::NaiveDate;
@@ -15,6 +16,21 @@ pub enum Priority {
     Urgent = 2,
 }
 
+/// A priority value that is not a known priority level.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsePriorityError {
+    /// The value the user supplied.
+    pub value: String,
+}
+
+impl fmt::Display for ParsePriorityError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid priority value: {}", self.value)
+    }
+}
+
+impl std::error::Error for ParsePriorityError {}
+
 impl Priority {
     /// Convert an integer stored in the database to a `Priority`.
     pub fn from_i64(value: i64) -> Result<Self, DbError> {
@@ -25,6 +41,20 @@ impl Priority {
             _ => Err(DbError::InvalidStatus(format!(
                 "unknown priority value: {value}"
             ))),
+        }
+    }
+}
+
+impl FromStr for Priority {
+    type Err = ParsePriorityError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "urgent" => Ok(Priority::Urgent),
+            "immediate" => Ok(Priority::Immediate),
+            "not-yet" => Ok(Priority::NotYet),
+            other => Err(ParsePriorityError {
+                value: other.to_string(),
+            }),
         }
     }
 }
@@ -316,5 +346,34 @@ mod tests {
                 .unwrap()
                 .contains("\"scheduled_on\":null")
         );
+    }
+
+    #[test]
+    fn priority_parses_the_cli_spellings() {
+        assert_eq!("urgent".parse::<Priority>().unwrap(), Priority::Urgent);
+        assert_eq!(
+            "immediate".parse::<Priority>().unwrap(),
+            Priority::Immediate
+        );
+        assert_eq!("not-yet".parse::<Priority>().unwrap(), Priority::NotYet);
+    }
+
+    #[test]
+    fn priority_rejects_unknown_value() {
+        let err = "high".parse::<Priority>().unwrap_err();
+        assert_eq!(err.value, "high");
+        assert_eq!(err.to_string(), "invalid priority value: high");
+    }
+
+    #[test]
+    fn priority_round_trips_through_its_database_integer() {
+        for priority in [Priority::NotYet, Priority::Immediate, Priority::Urgent] {
+            let as_int = match priority {
+                Priority::NotYet => 0,
+                Priority::Immediate => 1,
+                Priority::Urgent => 2,
+            };
+            assert_eq!(Priority::from_i64(as_int).unwrap(), priority);
+        }
     }
 }

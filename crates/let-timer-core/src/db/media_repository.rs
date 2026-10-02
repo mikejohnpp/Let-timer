@@ -28,9 +28,16 @@ impl<'a> MediaRepository<'a> {
 
     fn query_by_id(&self, id: i64) -> Result<Media, DbError> {
         self.conn
-            .query_row("SELECT * FROM medias WHERE id = ?1", params![id], Self::row_to_media)
+            .query_row(
+                "SELECT * FROM medias WHERE id = ?1",
+                params![id],
+                Self::row_to_media,
+            )
             .map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => DbError::NotFound { entity: "media", id },
+                rusqlite::Error::QueryReturnedNoRows => DbError::NotFound {
+                    entity: "media",
+                    id,
+                },
                 other => DbError::Sqlite(other),
             })
     }
@@ -81,7 +88,8 @@ impl<'a> MediaRepository<'a> {
         }
 
         if let Some(ref url) = update.url {
-            self.conn.execute("UPDATE medias SET url = ?1 WHERE id = ?2", params![url, id])?;
+            self.conn
+                .execute("UPDATE medias SET url = ?1 WHERE id = ?2", params![url, id])?;
         }
 
         if let Some(media_type) = update.media_type {
@@ -100,7 +108,10 @@ impl<'a> MediaRepository<'a> {
             .conn
             .execute("DELETE FROM medias WHERE id = ?1", params![id])?;
         if rows == 0 {
-            return Err(DbError::NotFound { entity: "media", id });
+            return Err(DbError::NotFound {
+                entity: "media",
+                id,
+            });
         }
         Ok(())
     }
@@ -175,7 +186,10 @@ mod tests {
         let repo = MediaRepository::new(db.conn());
         assert!(matches!(
             repo.get_by_id(999),
-            Err(DbError::NotFound { entity: "media", id: 999 })
+            Err(DbError::NotFound {
+                entity: "media",
+                id: 999
+            })
         ));
     }
 

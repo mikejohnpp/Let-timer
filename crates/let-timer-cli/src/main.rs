@@ -1,8 +1,9 @@
 mod interactive;
 
-use chrono::{Datelike, Days, Local, NaiveDate, Weekday};
 use clap::{Parser, Subcommand};
-use let_timer_core::{Command, IpcClient, NewTask, Priority, Response, SortOrder, UpdateTask};
+use let_timer_core::{
+    Command, IpcClient, NewTask, Priority, Response, SortOrder, UpdateTask, date_on,
+};
 
 use crate::interactive::{
     resolve_description, resolve_estimated_mins, resolve_media_list, resolve_name,
@@ -76,65 +77,6 @@ enum Commands {
     Done,
 }
 
-fn parse_priority(value: &str) -> Result<Priority, Box<dyn std::error::Error>> {
-    match value {
-        "urgent" => Ok(Priority::Urgent),
-        "immediate" => Ok(Priority::Immediate),
-        "not-yet" => Ok(Priority::NotYet),
-        other => Err(format!("invalid priority value: {other}").into()),
-    }
-}
-
-/// Resolve the weekday shortcut used by `--on`: `mon`..`sun`.
-fn weekday_from_alias(alias: &str) -> Option<Weekday> {
-    match alias {
-        "mon" | "monday" | "thu-2" => Some(Weekday::Mon),
-        "tue" | "tuesday" | "thu-3" => Some(Weekday::Tue),
-        "wed" | "wednesday" | "thu-4" => Some(Weekday::Wed),
-        "thu" | "thursday" | "thu-5" => Some(Weekday::Thu),
-        "fri" | "friday" | "thu-6" => Some(Weekday::Fri),
-        "sat" | "saturday" | "thu-7" => Some(Weekday::Sat),
-        "sun" | "sunday" | "chu-nhat" => Some(Weekday::Sun),
-        _ => None,
-    }
-}
-
-/// Parse a `--on` value into a day.
-///
-/// Accepted: `none`/empty (unscheduled), an ISO date (`2026-10-01`),
-/// `today`, `tomorrow`, or a weekday (`mon`..`sun`) resolving to the next
-/// occurrence, today included.
-fn parse_date_on(value: &str) -> Result<Option<NaiveDate>, Box<dyn std::error::Error>> {
-    let value = value.trim();
-    if value.is_empty() || value.eq_ignore_ascii_case("none") {
-        return Ok(None);
-    }
-
-    let today = Local::now().date_naive();
-
-    if value.eq_ignore_ascii_case("today") {
-        return Ok(Some(today));
-    }
-    if value.eq_ignore_ascii_case("tomorrow") {
-        return Ok(Some(today + Days::new(1)));
-    }
-
-    if let Some(weekday) = weekday_from_alias(&value.to_ascii_lowercase()) {
-        let days_ahead =
-            (weekday.num_days_from_monday() + 7 - today.weekday().num_days_from_monday()) % 7;
-        return Ok(Some(today + Days::new(days_ahead as u64)));
-    }
-
-    NaiveDate::parse_from_str(value, "%Y-%m-%d")
-        .map(Some)
-        .map_err(|_| {
-            format!(
-                "invalid date: {value} (expected YYYY-MM-DD, today, tomorrow, mon..sun, or none)"
-            )
-            .into()
-        })
-}
-
 /// Build a `NewTask`, prompting for any field the user did not pass on the CLI.
 ///
 /// Order: name -> scheduled day -> workspace -> media list -> priority ->
@@ -162,7 +104,7 @@ async fn build_new_task(
     };
 
     let scheduled_on = match on {
-        Some(value) => parse_date_on(value)?,
+        Some(value) => date_on(value)?,
         None if no_interactive => None,
         None => resolve_scheduled_on()?,
     };
@@ -189,7 +131,7 @@ async fn build_new_task(
     };
 
     let priority = match priority {
-        Some(p) => parse_priority(p)?,
+        Some(p) => p.parse()?,
         None if no_interactive => Priority::NotYet,
         None => resolve_priority()?,
     };
@@ -264,11 +206,11 @@ async fn parse_cli_command_to_protocol(
                     _ => Some(description.clone()),
                 },
                 priority: match priority {
-                    Some(p) => Some(parse_priority(p)?),
+                    Some(p) => Some(p.parse()?),
                     None => None,
                 },
                 scheduled_on: match on {
-                    Some(value) => Some(parse_date_on(value)?),
+                    Some(value) => Some(date_on(value)?),
                     None => None,
                 },
                 ..Default::default()
@@ -366,79 +308,5 @@ async fn main() {
             eprintln!("Error: {e}");
             std::process::exit(1);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_on_accepts_none_and_empty() {
-        assert_eq!(parse_date_on("none").unwrap(), None);
-        assert_eq!(parse_date_on("NONE").unwrap(), None);
-        assert_eq!(parse_date_on("  ").unwrap(), None);
-    }
-
-    #[test]
-    fn parse_on_accepts_iso_date() {
-        let expected = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
-        assert_eq!(parse_date_on("2026-10-01").unwrap(), Some(expected));
-    }
-
-    #[test]
-    fn parse_on_accepts_relative_days() {
-        let today = Local::now().date_naive();
-        assert_eq!(parse_date_on("today").unwrap(), Some(today));
-        assert_eq!(
-            parse_date_on("tomorrow").unwrap(),
-            Some(today + Days::new(1))
-        );
-    }
-
-    #[test]
-    fn parse_on_resolves_weekday_to_next_occurrence() {
-        let today = Local::now().date_naive();
-        let same_day = today.weekday();
-        let alias = match same_day {
-            Weekday::Mon => "mon",
-            Weekday::Tue => "tue",
-            Weekday::Wed => "wed",
-            Weekday::Thu => "thu",
-            Weekday::Fri => "fri",
-            Weekday::Sat => "sat",
-            Weekday::Sun => "sun",
-        };
-
-        // Today's weekday resolves to today, never to next week.
-        assert_eq!(parse_date_on(alias).unwrap(), Some(today));
-
-        // The day after tomorrow resolves to tomorrow.
-        let next_alias = match same_day {
-            Weekday::Mon => "tue",
-            Weekday::Tue => "wed",
-            Weekday::Wed => "thu",
-            Weekday::Thu => "fri",
-            Weekday::Fri => "sat",
-            Weekday::Sat => "sun",
-            Weekday::Sun => "mon",
-        };
-        assert_eq!(
-            parse_date_on(next_alias).unwrap(),
-            Some(today + Days::new(1))
-        );
-    }
-
-    #[test]
-    fn parse_on_rejects_garbage() {
-        assert!(parse_date_on("01/10/2026").is_err());
-        assert!(parse_date_on("2026-13-01").is_err());
-        assert!(parse_date_on("funday").is_err());
-    }
-
-    #[test]
-    fn parse_priority_rejects_unknown_value() {
-        assert!(parse_priority("high").is_err());
-        assert_eq!(parse_priority("urgent").unwrap(), Priority::Urgent);
     }
 }
