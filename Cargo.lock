@@ -907,6 +907,7 @@ dependencies = [
  "let-timer-core",
  "ratatui",
  "serde",
+ "serde_json",
  "tokio",
  "toml",
 ]
