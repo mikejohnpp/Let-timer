@@ -6,6 +6,7 @@
 //! only ever read a read-only `Snapshot` of the state.
 
 pub mod action;
+pub mod config;
 pub mod dispatcher;
 pub mod effect;
 pub mod ipc;
