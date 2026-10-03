@@ -113,11 +113,24 @@ impl<T: Identified> ListState<T> {
     pub fn replace(&mut self, rows: Vec<T>) {
         let selected_id = self.selected_row().map(Identified::id);
         self.rows = rows;
-        self.selected =
-            match selected_id.and_then(|id| self.rows.iter().position(|row| row.id() == id)) {
-                Some(index) => index,
-                None => self.selected.min(self.rows.len().saturating_sub(1)),
-            };
+        match selected_id {
+            Some(id) if self.select_id(id) => {}
+            _ => self.selected = self.selected.min(self.rows.len().saturating_sub(1)),
+        }
+    }
+
+    /// Put the highlight on the row with this id, if it is still there.
+    ///
+    /// Says whether it was found, so a caller can tell "moved there" from "was
+    /// never there" and decide what to do about the difference.
+    pub fn select_id(&mut self, id: i64) -> bool {
+        match self.rows.iter().position(|row| row.id() == id) {
+            Some(index) => {
+                self.selected = index;
+                true
+            }
+            None => false,
+        }
     }
 
     /// Put a saved row into the list, replacing the row with the same id.
