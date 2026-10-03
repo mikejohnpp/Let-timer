@@ -80,11 +80,12 @@ fn invoke_command(cmd: Command, db: &Arc<Mutex<Database>>) -> Response {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let path = "/tmp/let-timer.sock";
+    let path = let_timer_core::ipc::socket_path();
+    let path = path.to_string_lossy().into_owned();
     let database = Arc::new(Mutex::new(
         Database::open_default().expect("Failed to open database"),
     ));
-    let server = IpcServer::new(path, move |cmd| invoke_command(cmd, &database)).await?;
+    let server = IpcServer::new(&path, move |cmd| invoke_command(cmd, &database)).await?;
     server.run().await?;
     println!("daemon exited cleanly");
     Ok(())

@@ -22,6 +22,12 @@ pub struct TaskStore {
     /// Whether a list request is still in flight, so ticks do not pile up
     /// another one behind a slow daemon.
     pending: bool,
+    /// The task a delete dialog is asking about.
+    ///
+    /// Held here rather than in the UI store because this is the store that
+    /// knows how to delete, and because the dialog is about a record rather
+    /// than about the screen.
+    pending_delete: Option<Task>,
     effects: EffectQueue,
 }
 
@@ -29,6 +35,11 @@ impl TaskStore {
     /// An empty task list with the first row highlighted.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The task a delete dialog is asking about, if one is open.
+    pub fn pending_delete(&self) -> Option<&Task> {
+        self.pending_delete.as_ref()
     }
 
     /// Ask for tasks sorted and filtered a particular way.
@@ -93,6 +104,22 @@ impl Store for TaskStore {
             // on its way.
             Action::Tick => self.request_list(),
 
+            Action::ConfirmDelete(task) => self.pending_delete = Some(*task),
+
+            // The answer to the delete dialog. Submitting takes the task out of
+            // the store's hands and sends it to the daemon; anything else leaves
+            // the list exactly as it was, since nothing has been sent yet.
+            Action::Submit => {
+                if let Some(task) = self.pending_delete.take() {
+                    self.effects
+                        .push(Effect::Send(Command::Delete { id: task.id }));
+                }
+            }
+
+            // The question was declined, or the overlay was closed by something
+            // else. Either way the task is put back.
+            Action::Cancel => self.pending_delete = None,
+
             Action::Select(index) => self.list.select_row(index),
             Action::MoveSelection(delta) => self.list.move_selection(delta),
             _ => {}
@@ -123,6 +150,72 @@ mod tests {
     use crate::store::test_util::{task_with_id, tasks};
 
     use super::*;
+
+    #[test]
+    fn a_delete_dialog_asks_about_the_task_it_was_given() {
+        let mut store = TaskStore::new();
+
+        store.update(Action::ConfirmDelete(Box::new(task_with_id(7))));
+
+        assert_eq!(store.pending_delete().map(|task| task.id), Some(7));
+    }
+
+    #[test]
+    fn confirming_a_delete_asks_the_daemon_to_delete_that_task() {
+        let mut store = TaskStore::new();
+        store.update(Action::ConfirmDelete(Box::new(task_with_id(7))));
+
+        let mut effects = store.take_effects();
+        store.update(Action::Submit);
+        effects.extend(store.take_effects());
+
+        assert!(
+            effects
+                .iter()
+                .any(|effect| matches!(effect, Effect::Send(Command::Delete { id: 7 }))),
+            "found {effects:?}"
+        );
+        assert!(
+            store.pending_delete().is_none(),
+            "the question has been answered and cannot be answered twice"
+        );
+    }
+
+    #[test]
+    fn declining_a_delete_sends_nothing_at_all() {
+        let mut store = TaskStore::new();
+        store.update(Action::ConfirmDelete(Box::new(task_with_id(7))));
+
+        store.update(Action::Cancel);
+        let effects = store.take_effects();
+
+        assert!(effects.is_empty(), "found {effects:?}");
+        assert!(store.pending_delete().is_none());
+    }
+
+    #[test]
+    fn a_submit_with_nothing_pending_deletes_nothing() {
+        let mut store = TaskStore::new();
+
+        store.update(Action::Submit);
+
+        assert!(store.take_effects().is_empty());
+    }
+
+    #[test]
+    fn a_refresh_while_the_question_is_open_does_not_answer_it() {
+        let mut store = TaskStore::new();
+        store.update(Action::ConfirmDelete(Box::new(task_with_id(7))));
+
+        store.update(Action::Tick);
+        store.update(Action::TaskListLoaded(tasks(2)));
+
+        assert_eq!(
+            store.pending_delete().map(|task| task.id),
+            Some(7),
+            "a list arriving from the daemon is not an answer"
+        );
+    }
 
     #[test]
     fn starts_empty() {

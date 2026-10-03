@@ -31,8 +31,13 @@ pub enum Target {
     NextField,
     PreviousField,
     OpenCalendar,
+    /// Unresolved: needs the day the calendar has on it.
     PickDate,
     ClearDate,
+    CalendarPrevDay,
+    CalendarNextDay,
+    CalendarPrevWeek,
+    CalendarNextWeek,
     Submit,
     Cancel,
     Refresh,
@@ -56,6 +61,10 @@ impl Target {
             Target::PreviousField => "previous_field",
             Target::OpenCalendar => "open_calendar",
             Target::PickDate => "pick_date",
+            Target::CalendarPrevDay => "calendar_prev_day",
+            Target::CalendarNextDay => "calendar_next_day",
+            Target::CalendarPrevWeek => "calendar_prev_week",
+            Target::CalendarNextWeek => "calendar_next_week",
             Target::ClearDate => "clear_date",
             Target::Submit => "submit",
             Target::Cancel => "cancel",
@@ -64,6 +73,20 @@ impl Target {
             Target::DismissToast => "dismiss_toast",
             Target::Quit => "quit",
         }
+    }
+
+    /// Whether this target only moves the highlight around.
+    ///
+    /// A form swallows everything except the keys it has a use for, so a key it
+    /// has no use for has to be asked whether it is safe to let through. Only
+    /// navigation is: `d` pressed while a form is open, with the focus on a
+    /// field that cannot be typed into, would otherwise open a delete dialog
+    /// over somebody's half-written name.
+    pub fn is_navigation(self) -> bool {
+        matches!(
+            self,
+            Target::MoveDown | Target::MoveUp | Target::GoToTop | Target::GoToBottom
+        )
     }
 
     /// Read a name from a config file, or `None` if there is no such action.
@@ -75,7 +98,7 @@ impl Target {
     }
 
     /// Every action a binding may name, so a config can be checked against them.
-    pub const ALL: [Target; 18] = [
+    pub const ALL: [Target; 22] = [
         Target::MoveDown,
         Target::MoveUp,
         Target::GoToTop,
@@ -88,6 +111,10 @@ impl Target {
         Target::OpenCalendar,
         Target::PickDate,
         Target::ClearDate,
+        Target::CalendarPrevDay,
+        Target::CalendarNextDay,
+        Target::CalendarPrevWeek,
+        Target::CalendarNextWeek,
         Target::Submit,
         Target::Cancel,
         Target::Refresh,
@@ -112,15 +139,20 @@ impl Target {
             Target::NextField => Some(Action::FormNextField),
             Target::PreviousField => Some(Action::FormPrevField),
             Target::OpenCalendar => Some(Action::OpenCalendar),
-            Target::PickDate => Some(Action::PickDate),
             Target::ClearDate => Some(Action::ClearDate),
+            Target::CalendarPrevDay => Some(Action::CalendarMove(-1)),
+            Target::CalendarNextDay => Some(Action::CalendarMove(1)),
+            Target::CalendarPrevWeek => Some(Action::CalendarMove(-7)),
+            Target::CalendarNextWeek => Some(Action::CalendarMove(7)),
             Target::Submit => Some(Action::Submit),
             Target::Cancel => Some(Action::Cancel),
             Target::Refresh => Some(Action::Tick),
             Target::Help => Some(Action::Help),
             Target::DismissToast => Some(Action::DismissToast),
             Target::Quit => Some(Action::Quit),
-            Target::OpenEdit | Target::ConfirmDelete => None,
+            // A date is not a thing a key can name: the day the calendar has on
+            // it is only known once the calendar is open.
+            Target::OpenEdit | Target::ConfirmDelete | Target::PickDate => None,
         }
     }
 }
@@ -390,6 +422,8 @@ pub enum Context {
     Normal,
     /// The list drawn inline in the terminal.
     Inline,
+    /// The date picker, drawn over a form.
+    Calendar,
 }
 
 impl Context {
@@ -398,6 +432,7 @@ impl Context {
         match self {
             Context::Normal => "normal",
             Context::Inline => "inline",
+            Context::Calendar => "calendar",
         }
     }
 
@@ -406,19 +441,35 @@ impl Context {
         match name {
             "normal" => Some(Context::Normal),
             "inline" => Some(Context::Inline),
+            "calendar" => Some(Context::Calendar),
             _ => None,
         }
     }
 
     /// Every section, so a config file can be checked against them.
-    pub const ALL: [Context; 2] = [Context::Normal, Context::Inline];
+    pub const ALL: [Context; 3] = [Context::Normal, Context::Inline, Context::Calendar];
+
+    /// How many sections there are, so the keymap can hold one list each.
+    pub const COUNT: usize = 3;
+
+    /// Which slot of the keymap holds this context's bindings.
+    ///
+    /// The order has to match [`Context::ALL`], which is the order a config
+    /// file's sections are checked in.
+    fn index(self) -> usize {
+        match self {
+            Context::Normal => 0,
+            Context::Inline => 1,
+            Context::Calendar => 2,
+        }
+    }
 }
 
 /// Which keys do what.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct KeyMap {
-    normal: Vec<Binding>,
-    inline: Vec<Binding>,
+    /// One list per [`Context`], indexed by [`Context::index`].
+    contexts: [Vec<Binding>; Context::COUNT],
 }
 
 impl KeyMap {
@@ -427,33 +478,50 @@ impl KeyMap {
     /// Nothing here can fail to parse, since every key is written out in full.
     pub fn defaults() -> Self {
         Self {
-            normal: bindings(&[
-                ("j, down", Target::MoveDown),
-                ("k, up", Target::MoveUp),
-                ("g, home", Target::GoToTop),
-                ("G, end", Target::GoToBottom),
-                ("n", Target::OpenCreate),
-                ("e", Target::OpenEdit),
-                ("d", Target::ConfirmDelete),
-                ("tab", Target::NextField),
-                ("shift-tab", Target::PreviousField),
-                ("c", Target::OpenCalendar),
-                ("enter", Target::Submit),
-                ("r", Target::Refresh),
-                ("esc", Target::Cancel),
-                ("?", Target::Help),
-                ("q, ctrl-c", Target::Quit),
-            ]),
-            inline: bindings(&[
-                ("up", Target::MoveUp),
-                ("down", Target::MoveDown),
-                ("tab", Target::NextField),
-                ("shift-tab", Target::PreviousField),
-                ("enter", Target::Submit),
-                ("esc", Target::Cancel),
-                ("?", Target::Help),
-                ("ctrl-c", Target::Quit),
-            ]),
+            contexts: [
+                bindings(&[
+                    ("j, down", Target::MoveDown),
+                    ("k, up", Target::MoveUp),
+                    ("g, home", Target::GoToTop),
+                    ("G, end", Target::GoToBottom),
+                    ("n", Target::OpenCreate),
+                    ("e", Target::OpenEdit),
+                    ("d", Target::ConfirmDelete),
+                    ("tab", Target::NextField),
+                    ("shift-tab", Target::PreviousField),
+                    ("c", Target::OpenCalendar),
+                    ("enter", Target::Submit),
+                    ("r", Target::Refresh),
+                    ("esc", Target::Cancel),
+                    ("?", Target::Help),
+                    ("q, ctrl-c", Target::Quit),
+                ]),
+                bindings(&[
+                    ("up", Target::MoveUp),
+                    ("down", Target::MoveDown),
+                    ("tab", Target::NextField),
+                    ("shift-tab", Target::PreviousField),
+                    // An inline form has a date field too, so it needs the picker;
+                    // otherwise the calendar would be one binding away in one mode
+                    // and unreachable in the other.
+                    ("c", Target::OpenCalendar),
+                    ("enter", Target::Submit),
+                    ("esc", Target::Cancel),
+                    ("?", Target::Help),
+                    ("ctrl-c", Target::Quit),
+                ]),
+                bindings(&[
+                    // The picker is a modal of its own, so the arrows that move a
+                    // list move the day here instead. Without its own context they
+                    // would have to fight over the same keys.
+                    ("left", Target::CalendarPrevDay),
+                    ("right", Target::CalendarNextDay),
+                    ("up", Target::CalendarPrevWeek),
+                    ("down", Target::CalendarNextWeek),
+                    ("enter", Target::Submit),
+                    ("esc", Target::Cancel),
+                ]),
+            ],
         }
     }
 
@@ -474,20 +542,24 @@ impl KeyMap {
     /// quitting, or the file would only ever add keys. So the default binding
     /// for this action goes, and the new one takes its place at the end.
     pub fn override_binding(&mut self, context: Context, binding: Binding) {
-        let list = match context {
-            Context::Normal => &mut self.normal,
-            Context::Inline => &mut self.inline,
-        };
+        let list = &mut self.contexts[context.index()];
         list.retain(|existing| existing.target() != binding.target());
         list.push(binding);
     }
 
     /// The bindings in force for `context`.
     pub fn bindings(&self, context: Context) -> &[Binding] {
-        match context {
-            Context::Normal => &self.normal,
-            Context::Inline => &self.inline,
-        }
+        &self.contexts[context.index()]
+    }
+
+    /// The same list, for a caller that has to change its order.
+    ///
+    /// Only the tests want this. Every other caller uses `override_binding`,
+    /// which replaces whatever was bound before instead of shadowing it, and a
+    /// keymap with two bindings on one key cannot be written any other way.
+    #[cfg(test)]
+    fn bindings_mut(&mut self, context: Context) -> &mut Vec<Binding> {
+        &mut self.contexts[context.index()]
     }
 
     /// A key that two actions in the same context both claim.
@@ -796,7 +868,7 @@ mod tests {
         names.dedup();
 
         assert_eq!(names.len(), count, "two actions share a name");
-        assert_eq!(Target::ALL.len(), 18);
+        assert_eq!(Target::ALL.len(), 22, "every target is in the list");
     }
 
     #[test]
@@ -875,9 +947,15 @@ mod tests {
             action_of(Target::OpenCalendar),
             Some(Action::OpenCalendar)
         ));
+        // A date is looked up in the calendar, not built from a key.
+        assert!(action_of(Target::PickDate).is_none());
         assert!(matches!(
-            action_of(Target::PickDate),
-            Some(Action::PickDate)
+            action_of(Target::CalendarNextDay),
+            Some(Action::CalendarMove(1))
+        ));
+        assert!(matches!(
+            action_of(Target::CalendarPrevWeek),
+            Some(Action::CalendarMove(-7))
         ));
         assert!(matches!(
             action_of(Target::ClearDate),
@@ -1014,7 +1092,7 @@ mod tests {
     #[test]
     fn the_first_binding_that_matches_wins() {
         let mut map = KeyMap::defaults();
-        map.normal
+        map.bindings_mut(Context::Normal)
             .insert(0, Binding::new("j", Target::GoToTop).unwrap());
         assert_eq!(
             map.resolve(Context::Normal, &press(KeyCode::Char('j'))),
@@ -1040,7 +1118,11 @@ mod tests {
         let total = map.all().count();
         assert_eq!(
             total,
-            map.bindings(Context::Normal).len() + map.bindings(Context::Inline).len()
+            Context::ALL
+                .iter()
+                .map(|context| map.bindings(*context).len())
+                .sum::<usize>(),
+            "every binding belongs to exactly one section"
         );
         assert!(total > 0);
     }

@@ -32,6 +32,15 @@ impl fmt::Display for ParsePriorityError {
 impl std::error::Error for ParsePriorityError {}
 
 impl Priority {
+    /// Database string representation.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Priority::NotYet => "not-yet",
+            Priority::Immediate => "immediate",
+            Priority::Urgent => "urgent",
+        }
+    }
+
     /// Convert an integer stored in the database to a `Priority`.
     pub fn from_i64(value: i64) -> Result<Self, DbError> {
         match value {

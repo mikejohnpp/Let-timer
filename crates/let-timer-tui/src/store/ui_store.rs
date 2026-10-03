@@ -2,6 +2,8 @@
 //! overlay is open, what the user was last told, and whether the daemon is
 //! reachable.
 
+use chrono::{Local, NaiveDate, TimeDelta};
+
 use crate::action::Action;
 use crate::effect::Effect;
 use crate::store::{EffectQueue, Store};
@@ -32,6 +34,8 @@ pub enum Popup {
     Calendar,
     /// The key bindings list.
     Help,
+    /// Asking whether a task should really be deleted.
+    Confirm,
 }
 
 /// State of the connection to the daemon.
@@ -60,6 +64,8 @@ pub struct UiStore {
     popup: Popup,
     toast: Option<Toast>,
     connection: Connection,
+    /// The day the calendar has highlighted, while the calendar is open.
+    calendar: Option<NaiveDate>,
     effects: EffectQueue,
 }
 
@@ -77,6 +83,7 @@ impl UiStore {
             popup: Popup::None,
             toast: None,
             connection: Connection::Connecting,
+            calendar: None,
             effects: EffectQueue::default(),
         }
     }
@@ -101,6 +108,14 @@ impl UiStore {
         self.connection
     }
 
+    /// The day the calendar has highlighted, if the calendar is open.
+    ///
+    /// This is where a key press asking to pick a date gets the date from: the
+    /// loop cannot know which day the user left the highlight on.
+    pub fn calendar(&self) -> Option<NaiveDate> {
+        self.calendar
+    }
+
     /// Whether an overlay is open. Views use this to decide whether to
     /// swallow plain keys.
     pub fn has_popup(&self) -> bool {
@@ -121,6 +136,40 @@ impl Store for UiStore {
                 };
             }
 
+            // Deleting is the one thing here that cannot be undone from the
+            // keyboard, so it asks first. The task itself waits in the store
+            // that owns it; this store only remembers that a question is open.
+            Action::ConfirmDelete(_) => self.popup = Popup::Confirm,
+
+            // The picker opens on today rather than on whatever the field
+            // already says. Seeding it from the field would need the field, and
+            // a store cannot read another store; the user can walk to it with
+            // the arrows in two presses rather than in thirty.
+            Action::OpenCalendar => {
+                self.calendar = Some(Local::now().date_naive());
+                self.popup = Popup::Calendar;
+            }
+
+            Action::CalendarMove(days) => {
+                if let Some(day) = self.calendar
+                    && let Some(moved) = day.checked_add_signed(TimeDelta::days(i64::from(days)))
+                {
+                    self.calendar = Some(moved);
+                }
+            }
+
+            // Answering the question closes it, whichever way it was answered.
+            // The store holding the task reads the same action and does the work.
+            Action::Submit if self.popup == Popup::Confirm => self.popup = Popup::None,
+
+            // A day cannot be picked without the picker having been open, so the
+            // picker is the one thing that could be asked: submitting in the
+            // calendar means the day it has highlighted.
+            Action::Submit | Action::PickDate(_) if self.popup == Popup::Calendar => {
+                self.popup = Popup::Calendar.close();
+                self.calendar = None;
+            }
+
             // Cancel unwinds one layer at a time. In inline mode there is
             // nothing left to unwind once no overlay is open, so the panel
             // closes; in fullscreen there is no panel to close, so nothing
@@ -130,7 +179,12 @@ impl Store for UiStore {
                     self.effects.push(Effect::Quit);
                 }
                 Popup::None => {}
-                other => self.popup = other.close(),
+                other => {
+                    self.popup = other.close();
+                    // The highlight was only ever meant for the picker that is
+                    // now gone, and a stale one would answer the next open.
+                    self.calendar = None;
+                }
             },
 
             Action::DismissToast => self.toast = None,
@@ -149,6 +203,8 @@ impl Store for UiStore {
             | Action::WorkspaceListLoaded(_)
             | Action::MediaListLoaded(_)
             | Action::TaskSaved(_) => self.connection = Connection::Connected,
+
+            Action::Toast(ref message) => self.show_toast(message),
 
             // An empty message means the daemon answered with nothing to
             // report, which is not an error and not worth a toast.
@@ -171,10 +227,50 @@ impl Store for UiStore {
 
 impl UiStore {
     fn show_toast(&mut self, message: &str) {
+        // Nothing to say is not worth a box on the screen saying nothing.
+        if message.is_empty() {
+            return;
+        }
         self.toast = Some(Toast {
             message: message.to_string(),
             ticks_left: TOAST_TICKS,
         });
+    }
+}
+
+#[cfg(test)]
+mod toast_tests {
+    use super::*;
+
+    #[test]
+    fn a_toast_action_shows_a_message() {
+        let mut ui = UiStore::new(Mode::Fullscreen);
+
+        ui.update(Action::Toast("saved".to_string()));
+
+        assert_eq!(ui.toast(), Some("saved"));
+    }
+
+    #[test]
+    fn an_empty_toast_is_worthless() {
+        let mut ui = UiStore::new(Mode::Fullscreen);
+
+        ui.update(Action::Toast(String::new()));
+
+        assert_eq!(ui.toast(), None);
+    }
+
+    #[test]
+    fn a_toast_fades_like_any_other() {
+        let mut ui = UiStore::new(Mode::Fullscreen);
+        ui.update(Action::Toast("saved".to_string()));
+
+        for _ in 0..TOAST_TICKS {
+            assert_eq!(ui.toast(), Some("saved"));
+            ui.update(Action::Tick);
+        }
+
+        assert_eq!(ui.toast(), None);
     }
 }
 
@@ -304,6 +400,82 @@ mod tests {
         let effects = send(&mut store, Action::Cancel);
         assert!(effects.is_empty());
         assert_eq!(store.connection(), Connection::Connecting);
+    }
+
+    #[test]
+    fn the_picker_opens_on_today_with_the_highlight_on_it() {
+        let mut store = UiStore::default();
+
+        send(&mut store, Action::OpenCalendar);
+
+        assert_eq!(store.popup(), Popup::Calendar);
+        assert_eq!(store.calendar(), Some(chrono::Local::now().date_naive()));
+    }
+
+    #[test]
+    fn moving_the_highlight_keeps_the_picker_open() {
+        let mut store = UiStore::default();
+        send(&mut store, Action::OpenCalendar);
+        let today = store.calendar().unwrap();
+
+        send(&mut store, Action::CalendarMove(1));
+        assert_eq!(store.calendar(), Some(today.succ_opt().unwrap()));
+        assert_eq!(store.popup(), Popup::Calendar);
+
+        // A week back from tomorrow: six days before today.
+        send(&mut store, Action::CalendarMove(-7));
+        assert_eq!(
+            store.calendar(),
+            today
+                .succ_opt()
+                .unwrap()
+                .checked_sub_signed(TimeDelta::days(7)),
+        );
+    }
+
+    #[test]
+    fn a_highlight_that_would_leave_the_calendar_does_not_move() {
+        let mut store = UiStore::default();
+        send(&mut store, Action::OpenCalendar);
+        let today = store.calendar().unwrap();
+
+        // Two billion days is no day at all, and a highlight with nowhere to
+        // stand is better than one wrapped round to the other end.
+        send(&mut store, Action::CalendarMove(i32::MAX));
+
+        assert_eq!(store.calendar(), Some(today));
+    }
+
+    #[test]
+    fn moving_before_the_picker_is_open_does_nothing() {
+        let mut store = UiStore::default();
+        send(&mut store, Action::CalendarMove(3));
+        assert_eq!(store.calendar(), None);
+    }
+
+    #[test]
+    fn cancelling_the_picker_forgets_the_day() {
+        let mut store = UiStore::default();
+        send(&mut store, Action::OpenCalendar);
+
+        send(&mut store, Action::Cancel);
+
+        assert_eq!(store.popup(), Popup::None);
+        assert_eq!(store.calendar(), None, "the highlight outlived the picker");
+    }
+
+    #[test]
+    fn a_picked_day_also_closes_the_picker() {
+        let mut store = UiStore::default();
+        send(&mut store, Action::OpenCalendar);
+
+        send(
+            &mut store,
+            Action::PickDate(NaiveDate::from_ymd_opt(2026, 3, 17).unwrap()),
+        );
+
+        assert_eq!(store.popup(), Popup::None);
+        assert_eq!(store.calendar(), None);
     }
 
     #[test]

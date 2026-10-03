@@ -873,7 +873,9 @@ dependencies = [
  "crossterm",
  "inquire",
  "let-timer-core",
+ "let-timer-tui",
  "ratatui",
+ "serde_json",
  "tokio",
 ]
 

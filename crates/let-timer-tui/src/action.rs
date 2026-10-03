@@ -59,12 +59,23 @@ pub enum Action {
     /// not read each other: the event loop reads the selected row out of the
     /// snapshot and hands it over here.
     OpenEdit(Box<Task>),
-    /// Open the delete confirmation for the task at this index.
-    ConfirmDelete(usize),
+    /// Open the delete confirmation for this task.
+    ///
+    /// The task is passed by value for the same reason as [`Action::OpenEdit`]:
+    /// a refresh between opening the confirmation and pressing yes would
+    /// otherwise leave the index pointing at a different task, and the wrong
+    /// one would be deleted.
+    ConfirmDelete(Box<Task>),
     /// Open the calendar popup on the focused form field.
     OpenCalendar,
     /// Toggle the help overlay.
     Help,
+    /// Show a message to the user for a few ticks.
+    ///
+    /// This is how an [`Effect::Toast`](crate::effect::Effect::Toast) reaches
+    /// the user: effects cannot write to a store, so the loop turns one into
+    /// this action and routes it like any other.
+    Toast(String),
     /// Close whatever overlay is on top: calendar, then help, then the panel.
     Cancel,
     /// Submit the current form or confirm the current action.
@@ -81,8 +92,18 @@ pub enum Action {
     FormInput(char),
     /// Delete the character before the cursor.
     FormBackspace,
-    /// Pick the calendar's highlighted day.
-    PickDate,
+    /// Move the highlighted day, by however many days.
+    ///
+    /// One action with a signed number rather than four variants: the calendar
+    /// only ever moves by a day or a week, and a number is what the key bindings
+    /// can be written as directly.
+    CalendarMove(i32),
+    /// Put the calendar's highlighted day into the date field.
+    ///
+    /// The day travels with the action because a key press cannot name a date:
+    /// only the calendar, which is where the user left the highlight, knows
+    /// which one it is.
+    PickDate(chrono::NaiveDate),
     /// Clear the focused date field.
     ClearDate,
 

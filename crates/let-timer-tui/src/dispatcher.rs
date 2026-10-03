@@ -70,7 +70,16 @@ impl Dispatcher {
         // form and the panel on the same key press.
         if matches!(action, Action::Cancel) {
             if self.ui.has_popup() {
-                return Self::collect_from(&mut self.ui, action);
+                let mut effects = Self::collect_from(&mut self.ui, action.clone());
+                // An overlay can be asking about something a store is holding,
+                // and closing it has to reach that store too, or the store keeps
+                // a pending delete that nothing will ever confirm. The form is
+                // left out on purpose: the overlay was on top of it, so it is not
+                // the layer being closed.
+                effects.extend(Self::collect_from(&mut self.tasks, action.clone()));
+                effects.extend(Self::collect_from(&mut self.workspaces, action.clone()));
+                effects.extend(Self::collect_from(&mut self.media_lists, action));
+                return effects;
             }
             if self.form.is_open() {
                 return Self::collect_from(&mut self.form, action);

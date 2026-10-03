@@ -85,6 +85,21 @@ impl Field {
             touched: false,
         }
     }
+
+    /// Which value this field holds.
+    pub fn kind(&self) -> FieldKind {
+        self.kind
+    }
+
+    /// The text in the field, which is not yet a valid value of anything.
+    pub fn value(&self) -> &str {
+        &self.value
+    }
+
+    /// Whether the user changed it. Untouched fields are left out of an edit.
+    pub fn is_touched(&self) -> bool {
+        self.touched
+    }
 }
 
 /// An open form: its kind, its fields, and which one has focus.
@@ -137,6 +152,11 @@ impl Draft {
 
     fn field_mut(&mut self, kind: FieldKind) -> Option<&mut Field> {
         self.fields.iter_mut().find(|field| field.kind == kind)
+    }
+
+    /// Whether the form has this field at all.
+    fn has(&self, kind: FieldKind) -> bool {
+        self.field(kind).is_some()
     }
 
     /// Append a character to the focused field, marking it touched.
@@ -317,11 +337,6 @@ impl Draft {
         }
     }
 
-    /// Whether the form has this field at all.
-    fn has(&self, kind: FieldKind) -> bool {
-        self.field(kind).is_some()
-    }
-
     /// A field's text, or empty when the form has no such field.
     fn text(&self, kind: FieldKind) -> &str {
         self.value(kind).unwrap_or_default()
@@ -338,7 +353,7 @@ impl Draft {
             fields: vec![
                 Field::new(FieldKind::Name, ""),
                 Field::new(FieldKind::Description, ""),
-                Field::new(FieldKind::Priority, priority_name(Priority::NotYet)),
+                Field::new(FieldKind::Priority, Priority::NotYet.as_str()),
                 Field::new(FieldKind::EstimatedMins, ""),
                 Field::new(FieldKind::ScheduledOn, ""),
                 Field::new(FieldKind::WorkspaceId, ""),
@@ -358,7 +373,7 @@ impl Draft {
                     FieldKind::Description,
                     task.description.clone().unwrap_or_default(),
                 ),
-                Field::new(FieldKind::Priority, priority_name(task.priority)),
+                Field::new(FieldKind::Priority, task.priority.as_str()),
                 Field::new(FieldKind::Status, task.status.as_str()),
                 Field::new(
                     FieldKind::EstimatedMins,
@@ -478,6 +493,16 @@ impl Store for FormStore {
             // Clearing the date field is the one edit a typed form cannot
             // express: backspacing "2026-10-05" down to empty already works,
             // but this does it in one keystroke.
+            // The day the user left the highlight on in the calendar. A form
+            // with no date field, or no form at all, has nothing to do with it.
+            Action::PickDate(day) => {
+                if let Some(draft) = self.draft.as_mut()
+                    && draft.field(FieldKind::ScheduledOn).is_some()
+                {
+                    draft.set(FieldKind::ScheduledOn, day.format("%Y-%m-%d").to_string());
+                }
+            }
+
             Action::ClearDate => {
                 if let Some(draft) = &mut self.draft {
                     draft.set(FieldKind::ScheduledOn, "");
@@ -547,14 +572,6 @@ fn parse_date(value: &str) -> Result<Option<NaiveDate>, String> {
 }
 
 /// The name shown and typed for a priority.
-pub(crate) fn priority_name(priority: Priority) -> &'static str {
-    match priority {
-        Priority::NotYet => "not-yet",
-        Priority::Immediate => "immediate",
-        Priority::Urgent => "urgent",
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::effect::Effect;
@@ -901,6 +918,69 @@ mod tests {
         let draft = store.draft().unwrap();
         assert_eq!(draft.value(FieldKind::ScheduledOn), Some(""));
         assert!(draft.is_touched(FieldKind::ScheduledOn));
+    }
+
+    #[test]
+    fn a_picked_day_lands_in_the_date_field() {
+        let mut store = FormStore::new();
+        send(&mut store, Action::OpenCreate(Component::Task));
+
+        send(
+            &mut store,
+            Action::PickDate(chrono::NaiveDate::from_ymd_opt(2026, 3, 17).unwrap()),
+        );
+
+        let draft = store.draft().unwrap();
+        assert_eq!(draft.value(FieldKind::ScheduledOn), Some("2026-03-17"));
+        assert!(
+            draft.is_touched(FieldKind::ScheduledOn),
+            "a day picked from the calendar counts as typed"
+        );
+    }
+
+    #[test]
+    fn a_picked_day_edits_a_date_that_is_already_there() {
+        let mut task = task_with_id(1);
+        task.scheduled_on = chrono::NaiveDate::from_ymd_opt(2026, 10, 5);
+        let mut store = FormStore::new();
+        send(&mut store, Action::OpenEdit(Box::new(task)));
+
+        send(
+            &mut store,
+            Action::PickDate(chrono::NaiveDate::from_ymd_opt(2026, 12, 25).unwrap()),
+        );
+
+        assert_eq!(
+            store.draft().unwrap().value(FieldKind::ScheduledOn),
+            Some("2026-12-25")
+        );
+    }
+
+    #[test]
+    fn a_form_with_no_date_field_ignores_a_picked_day() {
+        let mut store = FormStore::new();
+        send(&mut store, Action::OpenCreate(Component::Workspace));
+
+        send(
+            &mut store,
+            Action::PickDate(chrono::NaiveDate::from_ymd_opt(2026, 3, 17).unwrap()),
+        );
+
+        let draft = store.draft().unwrap();
+        assert!(draft.value(FieldKind::ScheduledOn).is_none());
+        assert!(!draft.is_touched(FieldKind::ScheduledOn));
+    }
+
+    #[test]
+    fn a_picked_day_with_no_form_open_is_dropped() {
+        let mut store = FormStore::new();
+
+        send(
+            &mut store,
+            Action::PickDate(chrono::NaiveDate::from_ymd_opt(2026, 3, 17).unwrap()),
+        );
+
+        assert!(!store.is_open());
     }
 
     // ── validation ─────────────────────────────────────────────────────

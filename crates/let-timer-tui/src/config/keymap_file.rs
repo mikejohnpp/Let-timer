@@ -30,6 +30,7 @@ const FILE_NAME: &str = "keymap.toml";
 struct File {
     normal: Option<BTreeMap<String, String>>,
     inline: Option<BTreeMap<String, String>>,
+    calendar: Option<BTreeMap<String, String>>,
 }
 
 impl File {
@@ -37,6 +38,7 @@ impl File {
         match context {
             Context::Normal => self.normal.as_ref(),
             Context::Inline => self.inline.as_ref(),
+            Context::Calendar => self.calendar.as_ref(),
         }
     }
 }
@@ -280,6 +282,22 @@ mod tests {
             map.resolve(Context::Normal, &key(KeyCode::Char('j'))),
             Some(Target::MoveDown)
         );
+    }
+
+    #[test]
+    fn the_calendar_can_be_rebound_on_its_own() {
+        let file = scratch("calendar").with("[calendar]\ncalendar_next_day = \"l\"\n");
+        let map = load_from(&file.0).unwrap();
+
+        assert_eq!(
+            map.resolve(Context::Calendar, &key(KeyCode::Char('l'))),
+            Some(Target::CalendarNextDay)
+        );
+        // The default arrow went with it, and the letter did not leak into the
+        // list behind: a picker is its own context.
+        assert_eq!(map.resolve(Context::Calendar, &key(KeyCode::Right)), None);
+        assert_eq!(map.resolve(Context::Normal, &key(KeyCode::Right)), None);
+        assert_eq!(map.resolve(Context::Normal, &key(KeyCode::Char('l'))), None);
     }
 
     #[test]
