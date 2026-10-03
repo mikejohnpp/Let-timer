@@ -47,7 +47,20 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) -> bool {
 }
 
 /// The selected record as lines, or nothing when no row is selected.
+///
+/// The panel describes whatever has the highlight, which is why it looks at the
+/// focus first: with the sidebar focused that is a workspace, and a panel that
+/// went on describing the task behind it would be answering a question nobody
+/// asked.
 fn lines(app: &App) -> Option<Vec<Line<'static>>> {
+    if app.dispatcher().ui().focus() == crate::store::Focus::Sidebar {
+        return app
+            .dispatcher()
+            .workspaces()
+            .selected_workspace()
+            .map(workspace_lines);
+    }
+
     match app.component() {
         Component::Task => app.dispatcher().tasks().selected_task().map(task_lines),
         Component::Workspace => app
@@ -124,6 +137,41 @@ mod tests {
 
     fn app(component: Component) -> App {
         App::new(component, KeyMap::defaults())
+    }
+
+    // ── the panel follows the focus ─────────────────────────────────────
+
+    #[test]
+    fn the_panel_describes_the_sidebar_when_the_sidebar_is_focused() {
+        let mut app = app(Component::Task);
+        app.react(Action::WorkspaceListLoaded(test_util::workspaces(2)));
+        app.react(Action::TaskListLoaded(test_util::tasks(1)));
+        app.react(Action::FocusNextPane);
+
+        let lines = super::lines(&app).expect("a highlighted workspace has things to say");
+
+        assert!(
+            lines
+                .iter()
+                .any(|line| { line.spans.iter().any(|span| span.content == "Workspace 1") }),
+            "found {lines:?}"
+        );
+    }
+
+    #[test]
+    fn the_panel_describes_the_task_when_the_list_is_focused() {
+        let mut app = app(Component::Task);
+        app.react(Action::WorkspaceListLoaded(test_util::workspaces(2)));
+        app.react(Action::TaskListLoaded(test_util::tasks(1)));
+
+        let lines = super::lines(&app).expect("a selected task has things to say");
+
+        assert!(
+            lines
+                .iter()
+                .any(|line| { line.spans.iter().any(|span| span.content == "Task 1") }),
+            "found {lines:?}"
+        );
     }
 
     fn drawn(app: &App, width: u16, height: u16) -> (Buffer, bool) {

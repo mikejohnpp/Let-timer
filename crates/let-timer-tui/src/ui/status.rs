@@ -27,6 +27,14 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
 
     let mut spans = vec![Span::from(connection(app.dispatcher().ui().connection()))];
 
+    if let Some(filter) = workspace_filter(app) {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(
+            filter,
+            Style::default().add_modifier(Modifier::DIM),
+        ));
+    }
+
     if let Some(message) = app.dispatcher().ui().toast() {
         spans.push(Span::raw("  "));
         spans.push(Span::styled(
@@ -51,6 +59,30 @@ fn connection(connection: Connection) -> &'static str {
         Connection::Connected => "connected",
         Connection::Disconnected => "daemon not reachable",
     }
+}
+
+/// What to say about the workspace filter, if one is on.
+///
+/// Said here as well as in the sidebar because a filtered list that has quietly
+/// emptied looks exactly like a list with nothing in it, and on a window too
+/// narrow for a sidebar the mark on the row is not on screen to say so.
+fn workspace_filter(app: &App) -> Option<String> {
+    let workspace_id = app.dispatcher().tasks().workspace_filter()?;
+
+    let name = app
+        .dispatcher()
+        .workspaces()
+        .workspaces()
+        .iter()
+        .find(|workspace| workspace.id == workspace_id)
+        .map(|workspace| workspace.name.clone());
+
+    Some(match name {
+        Some(name) => format!("filter: {name}"),
+        // The workspace is not in the list yet, or has gone. Saying so is more
+        // use than printing an id the user would have to look up.
+        None => "filter: a workspace that is not loaded".to_string(),
+    })
 }
 
 /// What the list is waiting for, if anything.
@@ -174,6 +206,57 @@ mod tests {
 
         assert!(text.contains("workspace deleted"), "found {text:?}");
         assert!(!text.contains("loading"), "found {text:?}");
+    }
+
+    // ── the workspace filter ────────────────────────────────────────────
+
+    #[test]
+    fn a_filtered_list_says_which_workspace_it_is_showing() {
+        let mut app = app();
+        app.react(Action::WorkspaceListLoaded(test_util::workspaces(2)));
+        app.react(Action::TaskListLoaded(test_util::tasks(3)));
+        app.react(Action::SetWorkspaceFilter(Some(2)));
+
+        let text = line(&app, 60);
+
+        assert!(text.contains("filter: Workspace 2"), "found {text:?}");
+    }
+
+    #[test]
+    fn an_unfiltered_list_says_nothing_about_a_filter() {
+        let mut app = app();
+        app.react(Action::WorkspaceListLoaded(test_util::workspaces(2)));
+        app.react(Action::TaskListLoaded(test_util::tasks(3)));
+
+        assert!(
+            !line(&app, 60).contains("filter:"),
+            "there is no filter to report on"
+        );
+    }
+
+    #[test]
+    fn a_filter_on_a_workspace_that_is_not_loaded_says_so_rather_than_printing_an_id() {
+        let mut app = app();
+        app.react(Action::SetWorkspaceFilter(Some(99)));
+
+        let text = line(&app, 80);
+
+        assert!(
+            text.contains("not loaded"),
+            "an id the user would have to look up is not an explanation, found {text:?}"
+        );
+    }
+
+    #[test]
+    fn a_filter_does_not_hide_the_connection() {
+        let mut app = app();
+        app.react(Action::WorkspaceListLoaded(test_util::workspaces(2)));
+        app.react(Action::SetWorkspaceFilter(Some(1)));
+
+        let text = line(&app, 60);
+
+        assert!(text.contains("connected"), "found {text:?}");
+        assert!(text.contains("filter: Workspace 1"), "found {text:?}");
     }
 
     #[test]
