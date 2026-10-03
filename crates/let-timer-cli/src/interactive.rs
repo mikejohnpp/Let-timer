@@ -49,10 +49,14 @@ fn trimmed_or_none(value: &str) -> Option<String> {
 
 // ─── Task fields ─────────────────────────────────────────────────────
 
-/// Ask for the task name (non-empty).
-pub fn resolve_name() -> Result<String, Box<dyn Error>> {
-    Ok(Text::new("Task name")
-        .with_placeholder("e.g. Write the quarterly report")
+/// Ask for a name (non-empty).
+///
+/// `label` and `placeholder` are the two halves of the prompt, and they are
+/// passed in because a task, a workspace and a media list all have a name and
+/// only one of them is being asked about at a time.
+pub fn resolve_name(label: &str, placeholder: &str) -> Result<String, Box<dyn Error>> {
+    Ok(Text::new(label)
+        .with_placeholder(placeholder)
         .with_validator(required_text("name cannot be empty"))
         .prompt()
         .map_err(prompt_error)?

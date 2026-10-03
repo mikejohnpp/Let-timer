@@ -1,13 +1,14 @@
 //! `let-timer`: the interface, and the one-shot commands that go with it.
 //!
-//! There are two kinds of run here, and they are told apart by whether a command
-//! was given. With one, the daemon is asked to do a thing and the answer is
-//! printed and the program exits. Without one, the terminal belongs to the
-//! interface for as long as the user is looking at it, and the daemon is only
-//! ever spoken to through it.
+//! There are two kinds of run here, and they are told apart by what was named
+//! under the component. With a command, the daemon is asked to do a thing and
+//! the answer is printed and the program exits. Without one, the terminal
+//! belongs to the interface for as long as the user is looking at it, and the
+//! daemon is only ever spoken to through it.
 //!
-//! That is also why a view is a positional argument rather than a flag: saying
-//! what to look at is not asking the daemon to do anything.
+//! The component is read first in both, because it is what the command acts on:
+//! `tasks create` and `workspaces create` reach different builders, and there
+//! is no line that reaches either one without saying which it meant.
 
 mod cli;
 mod interactive;
@@ -18,11 +19,12 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use let_timer_core::{
-    Command, IpcClient, NewTask, Priority, Response, SortOrder, TaskStatus, UpdateTask, date_on,
+    Command, IpcClient, NewMediaList, NewTask, NewWorkspace, Priority, Response, SortOrder,
+    TaskStatus, UpdateTask, date_on,
 };
 use let_timer_tui::run::Launch;
 
-use crate::cli::{Cli, Commands};
+use crate::cli::{Cli, Commands, MediaListCommand, TaskCommand, View, WorkspaceCommand};
 use crate::interactive::{
     resolve_description, resolve_estimated_mins, resolve_media_list, resolve_name,
     resolve_priority, resolve_scheduled_on, resolve_workspace,
@@ -51,7 +53,7 @@ impl std::fmt::Display for Failure {
             // message, because the alternative is a shell that appears frozen.
             Failure::NoTerminal => write!(
                 f,
-                "let-timer needs a terminal to draw in; run `let-timer list` for the same list as text"
+                "let-timer needs a terminal to draw in; run `let-timer tasks list` for the same list as text"
             ),
         }
     }
@@ -74,34 +76,41 @@ async fn main() -> ExitCode {
 
 /// Show the interface, or do what the command says.
 ///
-/// The one branch in the program: a command is something to do once, and no
-/// command is something to look at until the user stops looking.
+/// The component is read first and decides everything: nothing reaches the
+/// daemon without one having been named, because naming it is what decides
+/// which commands exist.
 async fn run(cli: &Cli) -> Result<(), Failure> {
-    match &cli.command {
-        Some(command) => once(cli, command).await,
-        None => look(cli).await,
+    let Some(component) = &cli.component else {
+        // Nothing named at all: the task list is what this program is for, and
+        // it is the one run that takes the whole screen.
+        return look(Launch::fullscreen(View::Task.into())).await;
+    };
+
+    let view = component.kind();
+    match component.command() {
+        // Named, with nothing asked of it: show that component, inline. Asking
+        // for `let-timer tasks` is a choice about what to look at rather than a
+        // longer way of saying `let-timer`, so it does not take the screen.
+        None => {
+            println!("Jump to look\nwith component {:?}", component);
+            look(Launch::inline(view.into())).await
+        }
+        Some(commands) => {
+            println!("Jump to once\nwith component {:?}", component);
+            once(cli, &commands).await
+        }
     }
 }
 
 /// Hand the terminal to the interface.
 ///
-/// Which view is a choice the user made by typing it; whether it takes the
-/// whole screen is a choice they made by naming one, and asking for
-/// `let-timer tasks` should not be the way to say `let-timer`. That is the one
-/// rule here worth stating out loud, because both readings are reasonable and
-/// only one of them can be right.
-async fn look(cli: &Cli) -> Result<(), Failure> {
+/// The launch already says which component and whether it is inline, because
+/// that was decided by whether a component was named at all -- repeating it
+/// here would be a second place to get it wrong.
+async fn look(launch: Launch) -> Result<(), Failure> {
     if !std::io::stdout().is_terminal() {
         return Err(Failure::NoTerminal);
     }
-
-    let component = cli.view.into();
-    let launch = match cli.view {
-        // Only one view is not a choice: the task list is what this program is
-        // for, so it is what an unqualified `let-timer` shows, full screen.
-        cli::View::Tasks => Launch::fullscreen(component),
-        cli::View::Workspaces | cli::View::MediaLists => Launch::inline(component),
-    };
 
     let_timer_tui::run::run(launch)
         .await
@@ -152,7 +161,7 @@ async fn build_command(
     no_interactive: bool,
 ) -> Result<Command, Box<dyn std::error::Error>> {
     match command {
-        Commands::Create {
+        Commands::Task(TaskCommand::Create {
             name,
             on,
             workspace_id,
@@ -160,7 +169,7 @@ async fn build_command(
             description,
             priority,
             estimated_mins,
-        } => Ok(Command::Create(
+        }) => Ok(Command::Create(
             build_new_task(
                 client,
                 no_interactive,
@@ -175,15 +184,15 @@ async fn build_command(
             .await?,
         )),
 
-        Commands::Delete { id } => Ok(Command::Delete { id: *id }),
+        Commands::Task(TaskCommand::Delete { id }) => Ok(Command::Delete { id: *id }),
 
-        Commands::Edit {
+        Commands::Task(TaskCommand::Edit {
             id,
             name,
             description,
             priority,
             on,
-        } => Ok(Command::Edit {
+        }) => Ok(Command::Edit {
             id: *id,
             update: UpdateTask {
                 name: name.clone(),
@@ -207,11 +216,11 @@ async fn build_command(
             },
         }),
 
-        Commands::Find { query } => Ok(Command::Find {
+        Commands::Task(TaskCommand::Find { query }) => Ok(Command::Find {
             query: query.clone(),
         }),
 
-        Commands::List { priority, status } => Ok(Command::List {
+        Commands::Task(TaskCommand::List { priority, status }) => Ok(Command::List {
             sort_priority: match priority.as_deref() {
                 Some("ascending") => Some(SortOrder::Ascending),
                 Some("descending") => Some(SortOrder::Descending),
@@ -228,10 +237,35 @@ async fn build_command(
             },
         }),
 
-        Commands::Current => Ok(Command::Current),
-        Commands::Start { id } => Ok(Command::Start { id: *id }),
-        Commands::Stop => Ok(Command::Stop),
-        Commands::Done => Ok(Command::Done),
+        Commands::Task(TaskCommand::Current) => Ok(Command::Current),
+        Commands::Task(TaskCommand::Start { id }) => Ok(Command::Start { id: *id }),
+        Commands::Task(TaskCommand::Stop) => Ok(Command::Stop),
+        Commands::Task(TaskCommand::Done) => Ok(Command::Done),
+
+        // The other two components answer with their own records, so these
+        // need nothing from the task builder.
+        Commands::Workspace(WorkspaceCommand::List) => Ok(Command::ListWorkspaces),
+        Commands::Workspace(WorkspaceCommand::Create { name, description }) => {
+            let (name, description) = build_named(
+                "workspace",
+                "Workspace name",
+                name,
+                description,
+                no_interactive,
+            )?;
+            Ok(Command::CreateWorkspace(NewWorkspace { name, description }))
+        }
+        Commands::MediaList(MediaListCommand::List) => Ok(Command::ListMediaLists),
+        Commands::MediaList(MediaListCommand::Create { name, description }) => {
+            let (name, description) = build_named(
+                "media list",
+                "Media list name",
+                name,
+                description,
+                no_interactive,
+            )?;
+            Ok(Command::CreateMediaList(NewMediaList { name, description }))
+        }
     }
 }
 
@@ -272,19 +306,30 @@ enum Asked<'a> {
     Ask,
 }
 
-/// A field a task cannot do without.
+/// A field a record cannot do without.
 ///
 /// With nobody to ask, the answer is an error naming the flag: "required" on its
 /// own would leave the user to guess which of the eleven flags they had left
-/// out.
-fn required<'a>(value: &'a Option<String>, flag: &str, no_interactive: bool) -> Asked<'a> {
+/// out. `noun` is what the record is called in that sentence, so a workspace is
+/// never told it is short of a task name.
+fn required<'a>(
+    value: &'a Option<String>,
+    noun: &str,
+    flag: &str,
+    no_interactive: bool,
+) -> Asked<'a> {
     match Given::of(value) {
         Given::Yes(value) => Asked::Given(value),
         Given::Blank if no_interactive => Asked::Refuse(format!("{flag} cannot be blank")),
-        Given::Missing if no_interactive => Asked::Refuse(format!(
-            "a task needs a {what}: pass {flag} <VALUE>",
-            what = flag.trim_start_matches("--")
-        )),
+        Given::Missing if no_interactive => {
+            // The placeholder is the flag's own name in capitals, so the refusal
+            // can be typed straight back: `pass --name <NAME>`.
+            let what = flag.trim_start_matches("--");
+            let placeholder = what.replace('-', "_").to_uppercase();
+            Asked::Refuse(format!(
+                "a {noun} needs a {what}: pass {flag} <{placeholder}>"
+            ))
+        }
         _ => Asked::Ask,
     }
 }
@@ -306,10 +351,10 @@ async fn build_new_task(
     priority: &Option<String>,
     estimated_mins: &Option<i64>,
 ) -> Result<NewTask, Box<dyn std::error::Error>> {
-    let name = match required(name, "--name", no_interactive) {
+    let name = match required(name, "task", "--name", no_interactive) {
         Asked::Given(name) => name.to_string(),
         Asked::Refuse(message) => return Err(message.into()),
-        Asked::Ask => resolve_name()?,
+        Asked::Ask => resolve_name("Task name", "e.g. Write the quarterly report")?,
     };
 
     let scheduled_on = match on {
@@ -371,6 +416,36 @@ async fn build_new_task(
     })
 }
 
+/// Build the name and description of something simpler than a task.
+///
+/// A workspace or a media list has two fields and no schedule, so it shares the
+/// task's name rules -- blank is not a name, and with nobody to ask the refusal
+/// names the flag -- and nothing else. Returns the pair rather than either
+/// record so both callers read the same way.
+fn build_named(
+    noun: &str,
+    label: &str,
+    name: &Option<String>,
+    description: &Option<String>,
+    no_interactive: bool,
+) -> Result<(String, Option<String>), Box<dyn std::error::Error>> {
+    let name = match required(name, noun, "--name", no_interactive) {
+        Asked::Given(name) => name.to_string(),
+        Asked::Refuse(message) => return Err(message.into()),
+        Asked::Ask => resolve_name(label, &format!("e.g. the name of a {noun}"))?,
+    };
+
+    // A description the user left as a space is not one they meant.
+    let description = match description {
+        Some(description) if description.trim().is_empty() => None,
+        Some(description) => Some(description.trim().to_string()),
+        None if no_interactive => None,
+        None => resolve_description()?,
+    };
+
+    Ok((name, description))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -388,7 +463,7 @@ mod tests {
         };
 
         let error = build_command(
-            &Commands::Create {
+            &Commands::Task(TaskCommand::Create {
                 name: None,
                 workspace_id: Some(1),
                 media_list_id: None,
@@ -396,7 +471,7 @@ mod tests {
                 priority: None,
                 estimated_mins: None,
                 on: None,
-            },
+            }),
             &mut client,
             true,
         )
@@ -406,26 +481,70 @@ mod tests {
         assert!(error.to_string().contains("--name"), "{error}");
     }
 
+    #[tokio::test]
+    async fn a_workspace_without_a_name_is_refused_in_its_own_words() {
+        // The workspace builder used to be the task builder, so a missing name
+        // here would have been told to pass a task flag.
+        let mut client = match connect().await {
+            Ok(client) => client,
+            Err(_) => return,
+        };
+
+        let error = build_command(
+            &Commands::Workspace(WorkspaceCommand::Create {
+                name: None,
+                description: None,
+            }),
+            &mut client,
+            true,
+        )
+        .await
+        .unwrap_err();
+
+        let message = error.to_string();
+        assert!(message.contains("a workspace needs a name"), "{message}");
+        assert!(!message.contains("task"), "{message}");
+    }
+
     #[test]
     fn a_blank_name_is_a_name_that_was_not_given() {
         // Whitespace is what an unquoted shell argument turns into, and it is
-        // not a task name.
-        let error = blank("   ", true);
-        assert!(error.contains("--name"), "{error}");
+        // not a name. Tested against `required` itself rather than a copy of
+        // it, which is what this used to be.
+        let blank = Some("   ".to_string());
 
-        let error = blank("", true);
-        assert!(error.contains("--name"), "{error}");
+        assert_eq!(
+            required(&blank, "task", "--name", true),
+            Asked::Refuse("--name cannot be blank".into())
+        );
+        assert_eq!(
+            required(&Some(String::new()), "task", "--name", true),
+            Asked::Refuse("--name cannot be blank".into())
+        );
+        assert_eq!(
+            required(&None, "task", "--name", true),
+            Asked::Refuse("a task needs a name: pass --name <NAME>".into())
+        );
     }
 
-    /// The name half of `build_new_task`, without a client or a terminal.
-    fn blank(name: &str, no_interactive: bool) -> String {
-        let name = Some(name.to_string());
-        match name {
-            Some(name) if !name.trim().is_empty() => "named".to_string(),
-            Some(_) if no_interactive => "--name cannot be blank".to_string(),
-            _ if no_interactive => "a task needs a name: pass --name <NAME>".to_string(),
-            _ => "prompted".to_string(),
-        }
+    #[test]
+    fn a_record_is_named_in_its_own_words_when_it_has_no_name() {
+        assert_eq!(
+            required(&None, "media list", "--name", true),
+            Asked::Refuse("a media list needs a name: pass --name <NAME>".into())
+        );
+    }
+
+    #[test]
+    fn a_name_that_was_given_is_never_a_question() {
+        let given = Some("  side project  ".to_string());
+
+        assert_eq!(
+            required(&given, "workspace", "--name", true),
+            Asked::Given("side project")
+        );
+        // Nobody to ask is only a refusal for a field that is missing.
+        assert_eq!(required(&None, "workspace", "--name", false), Asked::Ask);
     }
 
     #[test]
@@ -448,6 +567,8 @@ mod tests {
     fn no_terminal_says_what_to_run_instead() {
         let message = Failure::NoTerminal.to_string();
 
-        assert!(message.contains("let-timer list"), "{message}");
+        // The suggestion has to be a line this program still accepts, which is
+        // why it names the component now.
+        assert!(message.contains("let-timer tasks list"), "{message}");
     }
 }
