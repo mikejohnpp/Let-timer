@@ -128,143 +128,143 @@ impl<T: Identified> ListState<T> {
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use super::*;
 
-    // #[derive(Debug)]
-    // struct Row {
-    //     id: i64,
-    // }
-    //
-    // impl Identified for Row {
-    //     fn id(&self) -> i64 {
-    //         self.id
-    //     }
-    // }
-    //
-    // fn rows(ids: &[i64]) -> Vec<Row> {
-    //     ids.iter().map(|id| Row { id: *id }).collect()
-    // }
-    //
-    // #[test]
-    // fn starts_empty() {
-    //     let list = ListState::<Row>::new();
-    //     assert!(list.is_empty());
-    //     assert_eq!(list.len(), 0);
-    //     assert_eq!(list.selected(), 0);
-    //     assert!(list.selected_row().is_none());
-    // }
-    //
-    // #[test]
-    // fn the_highlight_follows_the_same_row_across_a_refresh() {
-    //     let mut list = ListState::new();
-    //     list.replace(rows(&[1, 2, 3, 4]));
-    //     list.select_row(2);
-    //     assert_eq!(list.selected_row().map(|row| row.id), Some(3));
-    //
-    //     list.replace(rows(&[4, 3, 2, 1]));
-    //
-    //     assert_eq!(list.selected_row().map(|row| row.id), Some(3));
-    //     assert_eq!(list.selected(), 1, "row 3 now sits at row 1");
-    // }
-    //
-    // #[test]
-    // fn a_vanished_highlight_clamps_to_the_new_end() {
-    //     let mut list = ListState::new();
-    //     list.replace(rows(&[1, 2, 3, 4, 5]));
-    //     list.select_row(4);
-    //
-    //     list.replace(rows(&[1, 2]));
-    //
-    //     assert_eq!(list.selected(), 1, "clamped to the last of two rows");
-    //     assert_eq!(list.selected_row().map(|row| row.id), Some(2));
-    // }
-    //
-    // #[test]
-    // fn the_first_load_lands_on_the_first_row() {
-    //     let mut list = ListState::new();
-    //     list.replace(rows(&[1, 2, 3]));
-    //
-    //     assert_eq!(
-    //         list.selected(),
-    //         0,
-    //         "nothing was selected before, so the top row wins"
-    //     );
-    // }
-    //
-    // #[test]
-    // fn an_emptied_list_leaves_nothing_selected() {
-    //     let mut list = ListState::new();
-    //     list.replace(rows(&[1, 2, 3]));
-    //     list.select_row(2);
-    //
-    //     list.replace(vec![]);
-    //
-    //     assert!(list.is_empty());
-    //     assert_eq!(list.selected(), 0);
-    //     assert!(list.selected_row().is_none());
-    // }
-    //
-    // #[test]
-    // fn moving_stops_at_both_ends() {
-    //     let mut list = ListState::new();
-    //     list.replace(rows(&[1, 2, 3]));
-    //
-    //     list.move_selection(-5);
-    //     assert_eq!(list.selected(), 0);
-    //
-    //     list.move_selection(99);
-    //     assert_eq!(list.selected(), 2);
-    // }
-    //
-    // #[test]
-    // fn moving_within_an_empty_list_is_harmless() {
-    //     let mut list = ListState::<Row>::new();
-    //
-    //     list.move_selection(1);
-    //     assert_eq!(list.selected(), 0);
-    //     assert!(list.selected_row().is_none());
-    //
-    //     list.move_selection(-1);
-    //     assert_eq!(list.selected(), 0);
-    //     assert!(list.selected_row().is_none());
-    // }
-    //
-    // #[test]
-    // fn saving_a_new_row_appends_and_selects_it() {
-    //     let mut list = ListState::new();
-    //     list.replace(rows(&[1, 2]));
-    //
-    //     list.save(Row { id: 99 });
-    //
-    //     assert_eq!(list.len(), 3);
-    //     assert_eq!(list.selected_row().map(|row| row.id), Some(99));
-    // }
-    //
-    // #[test]
-    // fn saving_over_a_loaded_row_replaces_it_without_moving_the_highlight() {
-    //     let mut list = ListState::new();
-    //     list.replace(rows(&[1, 2, 3]));
-    //     assert_eq!(list.selected(), 0);
-    //
-    //     list.save(Row { id: 2 });
-    //
-    //     assert_eq!(list.len(), 3, "no duplicate row");
-    //     assert_eq!(list.rows()[1].id, 2);
-    //     assert_eq!(
-    //         list.selected(),
-    //         0,
-    //         "a replace leaves the highlight on the user's row"
-    //     );
-    // }
-    //
-    // #[test]
-    // fn saving_onto_an_empty_list_selects_the_row() {
-    //     let mut list = ListState::<Row>::new();
-    //
-    //     list.save(Row { id: 7 });
-    //
-    //     assert_eq!(list.len(), 1);
-    //     assert_eq!(list.selected(), 0);
-    //     assert_eq!(list.selected_row().map(|row| row.id), Some(7));
-    // }
+    #[derive(Debug)]
+    struct Row {
+        id: i64,
+    }
+
+    impl Identified for Row {
+        fn id(&self) -> i64 {
+            self.id
+        }
+    }
+
+    fn rows(ids: &[i64]) -> Vec<Row> {
+        ids.iter().map(|id| Row { id: *id }).collect()
+    }
+
+    #[test]
+    fn starts_empty() {
+        let list = ListState::<Row>::new();
+        assert!(list.is_empty());
+        assert_eq!(list.len(), 0);
+        assert_eq!(list.selected(), 0);
+        assert!(list.selected_row().is_none());
+    }
+
+    #[test]
+    fn the_highlight_follows_the_same_row_across_a_refresh() {
+        let mut list = ListState::new();
+        list.replace(rows(&[1, 2, 3, 4]));
+        list.select_row(2);
+        assert_eq!(list.selected_row().map(|row| row.id), Some(3));
+
+        list.replace(rows(&[4, 3, 2, 1]));
+
+        assert_eq!(list.selected_row().map(|row| row.id), Some(3));
+        assert_eq!(list.selected(), 1, "row 3 now sits at row 1");
+    }
+
+    #[test]
+    fn a_vanished_highlight_clamps_to_the_new_end() {
+        let mut list = ListState::new();
+        list.replace(rows(&[1, 2, 3, 4, 5]));
+        list.select_row(4);
+
+        list.replace(rows(&[1, 2]));
+
+        assert_eq!(list.selected(), 1, "clamped to the last of two rows");
+        assert_eq!(list.selected_row().map(|row| row.id), Some(2));
+    }
+
+    #[test]
+    fn the_first_load_lands_on_the_first_row() {
+        let mut list = ListState::new();
+        list.replace(rows(&[1, 2, 3]));
+
+        assert_eq!(
+            list.selected(),
+            0,
+            "nothing was selected before, so the top row wins"
+        );
+    }
+
+    #[test]
+    fn an_emptied_list_leaves_nothing_selected() {
+        let mut list = ListState::new();
+        list.replace(rows(&[1, 2, 3]));
+        list.select_row(2);
+
+        list.replace(vec![]);
+
+        assert!(list.is_empty());
+        assert_eq!(list.selected(), 0);
+        assert!(list.selected_row().is_none());
+    }
+
+    #[test]
+    fn moving_stops_at_both_ends() {
+        let mut list = ListState::new();
+        list.replace(rows(&[1, 2, 3]));
+
+        list.move_selection(-5);
+        assert_eq!(list.selected(), 0);
+
+        list.move_selection(99);
+        assert_eq!(list.selected(), 2);
+    }
+
+    #[test]
+    fn moving_within_an_empty_list_is_harmless() {
+        let mut list = ListState::<Row>::new();
+
+        list.move_selection(1);
+        assert_eq!(list.selected(), 0);
+        assert!(list.selected_row().is_none());
+
+        list.move_selection(-1);
+        assert_eq!(list.selected(), 0);
+        assert!(list.selected_row().is_none());
+    }
+
+    #[test]
+    fn saving_a_new_row_appends_and_selects_it() {
+        let mut list = ListState::new();
+        list.replace(rows(&[1, 2]));
+
+        list.save(Row { id: 99 });
+
+        assert_eq!(list.len(), 3);
+        assert_eq!(list.selected_row().map(|row| row.id), Some(99));
+    }
+
+    #[test]
+    fn saving_over_a_loaded_row_replaces_it_without_moving_the_highlight() {
+        let mut list = ListState::new();
+        list.replace(rows(&[1, 2, 3]));
+        assert_eq!(list.selected(), 0);
+
+        list.save(Row { id: 2 });
+
+        assert_eq!(list.len(), 3, "no duplicate row");
+        assert_eq!(list.rows()[1].id, 2);
+        assert_eq!(
+            list.selected(),
+            0,
+            "a replace leaves the highlight on the user's row"
+        );
+    }
+
+    #[test]
+    fn saving_onto_an_empty_list_selects_the_row() {
+        let mut list = ListState::<Row>::new();
+
+        list.save(Row { id: 7 });
+
+        assert_eq!(list.len(), 1);
+        assert_eq!(list.selected(), 0);
+        assert_eq!(list.selected_row().map(|row| row.id), Some(7));
+    }
 }

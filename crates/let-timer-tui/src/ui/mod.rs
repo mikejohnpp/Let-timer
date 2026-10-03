@@ -47,146 +47,121 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
 #[cfg(test)]
 mod tests {
-    // use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
-    //
-    // use super::*;
-    // use crate::action::{Action, Component};
-    // use crate::config::keymap::KeyMap;
-    // use crate::store::test_util;
-    //
-    // fn screen(app: &App, width: u16, height: u16) -> Buffer {
-    //     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    //     terminal.draw(|frame| draw(frame, app)).unwrap();
-    //     terminal.backend().buffer().clone()
-    // }
-    //
-    // fn row(buffer: &Buffer, y: u16) -> String {
-    //     (0..buffer.area.width)
-    //         .map(|x| buffer[(x, y)].symbol())
-    //         .collect()
-    // }
-    //
-    // fn app(component: Component) -> App {
-    //     App::new(component, KeyMap::defaults())
-    // }
-    //
-    // #[test]
-    // fn the_list_lands_inside_the_frame_rather_than_over_its_border() {
-    //     let mut app = app(Component::Task);
-    //     app.react(Action::TaskListLoaded(test_util::tasks(1)));
-    //
-    //     let buffer = screen(&app, 30, 5);
-    //
-    //     assert!(row(&buffer, 0).contains('╭'), "found {:?}", row(&buffer, 0));
-    //     // The border takes the first and last rows; the list starts just
-    //     // inside the top one and never writes over either.
-    //     assert!(
-    //         row(&buffer, 1).contains("Task 1"),
-    //         "the first row belongs inside the frame, found {:?}",
-    //         row(&buffer, 1)
-    //     );
-    //     assert!(
-    //         !row(&buffer, 0).contains("Task 1") && !row(&buffer, 4).contains("Task 1"),
-    //         "a row written over the border is a row nobody can read"
-    //     );
-    // }
-    //
-    // #[test]
-    // fn inline_starts_at_the_first_column_because_there_is_no_frame() {
-    //     let mut app = app(Component::Task);
-    //     app.react(Action::TaskListLoaded(test_util::tasks(1)));
-    //
-    //     let buffer = screen(&app, 30, 3);
-    //
-    //     assert!(
-    //         row(&buffer, 0).starts_with("Task 1"),
-    //         "found {:?}",
-    //         row(&buffer, 0)
-    //     );
-    // }
-    //
-    // #[test]
-    // fn a_form_takes_over_the_body_from_the_list() {
-    //     let mut app = app(Component::Task);
-    //     app.react(Action::TaskListLoaded(test_util::tasks(1)));
-    //     app.react(Action::OpenCreate(Component::Task));
-    //     app.react(Action::FormInput('x'));
-    //
-    //     let buffer = screen(&app, 40, 10);
-    //     let all: String = (0..buffer.area.height)
-    //         .map(|y| row(&buffer, y))
-    //         .collect::<Vec<_>>()
-    //         .join("\n");
-    //
-    //     assert!(all.contains("New task"), "found {all:?}");
-    //     assert!(
-    //         !all.contains("Task 1"),
-    //         "the list has no business on screen while a form is open, found {all:?}"
-    //     );
-    // }
-    //
-    // #[test]
-    // fn the_list_and_the_panel_share_the_screen_when_something_is_selected() {
-    //     let mut app = app(Component::Task);
-    //     app.react(Action::TaskListLoaded(test_util::tasks(2)));
-    //
-    //     let buffer = screen(&app, 40, 14);
-    //     let all: String = (0..buffer.area.height)
-    //         .map(|y| row(&buffer, y))
-    //         .collect::<Vec<_>>()
-    //         .join("\n");
-    //
-    //     assert!(all.contains("Task 1"), "found {all:?}");
-    //     assert!(all.contains("Priority:"), "found {all:?}");
-    //     assert!(
-    //         all.find("Task 1") < all.find("Priority:"),
-    //         "the list is above the panel, found {all:?}"
-    //     );
-    // }
-    //
-    // #[test]
-    // fn inline_draws_no_frame_and_no_status_line() {
-    //     let mut app = app(Component::Task);
-    //     app.react(Action::TaskListLoaded(test_util::tasks(2)));
-    //
-    //     let buffer = screen(&app, 40, 8);
-    //     let all: String = (0..buffer.area.height)
-    //         .map(|y| row(&buffer, y))
-    //         .collect::<Vec<_>>()
-    //         .join("\n");
-    //
-    //     assert!(all.contains("Task 1"), "found {all:?}");
-    //     assert!(
-    //         !all.contains("connected") && !all.contains("Details"),
-    //         "inline leaves the shell's screen alone, found {all:?}"
-    //     );
-    // }
-    //
-    // #[test]
-    // fn fullscreen_says_whether_the_daemon_is_answering() {
-    //     let app = app(Component::Task);
-    //
-    //     let buffer = screen(&app, 40, 10);
-    //     let all: String = (0..buffer.area.height)
-    //         .map(|y| row(&buffer, y))
-    //         .collect::<Vec<_>>()
-    //         .join("\n");
-    //
-    //     assert!(
-    //         all.contains("connecting"),
-    //         "the status line is where a user looks when nothing is happening, found {all:?}"
-    //     );
-    // }
-    //
-    // #[test]
-    // fn an_empty_screen_in_every_mode_draws_the_message_and_not_a_crash() {
-    //     for component in [Component::Task, Component::Workspace] {
-    //         let buffer = screen(&app(mode, Component::Task), 40, 4);
-    //         let all: String = (0..buffer.area.height)
-    //             .map(|y| row(&buffer, y))
-    //             .collect::<Vec<_>>()
-    //             .join("\n");
-    //         assert!(all.contains("No tasks yet"), "found {all:?}");
-    //     }
-    // }
+    use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
+
+    use super::*;
+    use crate::action::{Action, Component};
+    use crate::config::keymap::KeyMap;
+    use crate::store::test_util;
+
+    fn screen(app: &App, width: u16, height: u16) -> Buffer {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal.draw(|frame| draw(frame, app)).unwrap();
+        terminal.backend().buffer().clone()
+    }
+
+    fn row(buffer: &Buffer, y: u16) -> String {
+        (0..buffer.area.width)
+            .map(|x| buffer[(x, y)].symbol())
+            .collect()
+    }
+
+    /// Every row of the buffer as one string, for looking at with human eyes.
+    fn all_rows(buffer: &Buffer) -> String {
+        (0..buffer.area.height)
+            .map(|y| row(buffer, y))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn app(component: Component) -> App {
+        App::new(component, KeyMap::defaults())
+    }
+
+    #[test]
+    fn the_list_lands_inside_the_frame_rather_than_over_its_border() {
+        let mut app = app(Component::Task);
+        app.react(Action::TaskListLoaded(test_util::tasks(1)));
+
+        let buffer = screen(&app, 30, 5);
+
+        assert!(row(&buffer, 0).contains('╭'), "found {:?}", row(&buffer, 0));
+        // The border takes the first and last rows; the list starts just
+        // inside the top one and never writes over either.
+        assert!(
+            row(&buffer, 1).contains("Task 1"),
+            "the first row belongs inside the frame, found {:?}",
+            row(&buffer, 1)
+        );
+        assert!(
+            !row(&buffer, 0).contains("Task 1") && !row(&buffer, 4).contains("Task 1"),
+            "a row written over the border is a row nobody can read"
+        );
+    }
+
+    #[test]
+    fn a_form_takes_over_the_body_from_the_list() {
+        let mut app = app(Component::Task);
+        app.react(Action::TaskListLoaded(test_util::tasks(1)));
+        app.react(Action::OpenCreate(Component::Task));
+        app.react(Action::FormInput('x'));
+
+        let all = all_rows(&screen(&app, 40, 10));
+
+        assert!(all.contains("New task"), "found {all:?}");
+        assert!(
+            !all.contains("Task 1"),
+            "the list has no business on screen while a form is open, found {all:?}"
+        );
+    }
+
+    #[test]
+    fn the_list_and_the_panel_share_the_screen_when_something_is_selected() {
+        let mut app = app(Component::Task);
+        app.react(Action::TaskListLoaded(test_util::tasks(2)));
+
+        let all = all_rows(&screen(&app, 40, 14));
+
+        assert!(all.contains("Task 1"), "found {all:?}");
+        assert!(all.contains("Priority:"), "found {all:?}");
+        assert!(
+            all.find("Task 1") < all.find("Priority:"),
+            "the list is above the panel, found {all:?}"
+        );
+    }
+
+    #[test]
+    fn the_frame_and_the_status_line_are_drawn_in_fullscreen() {
+        let mut app = app(Component::Task);
+        app.react(Action::TaskListLoaded(test_util::tasks(2)));
+
+        let all = all_rows(&screen(&app, 40, 8));
+
+        assert!(all.contains("Task 1"), "found {all:?}");
+        assert!(
+            all.contains("connected"),
+            "the status line is part of the screen the application owns, found {all:?}"
+        );
+    }
+
+    #[test]
+    fn fullscreen_says_whether_the_daemon_is_answering() {
+        let app = app(Component::Task);
+
+        let all = all_rows(&screen(&app, 40, 10));
+
+        assert!(
+            all.contains("connecting"),
+            "the status line is where a user looks when nothing is happening, found {all:?}"
+        );
+    }
+
+    #[test]
+    fn an_empty_screen_draws_the_message_and_not_a_crash() {
+        let buffer = screen(&app(Component::Task), 40, 4);
+
+        let all = all_rows(&buffer);
+
+        assert!(all.contains("No tasks yet"), "found {all:?}");
+    }
 }
