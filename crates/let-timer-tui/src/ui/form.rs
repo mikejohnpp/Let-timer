@@ -171,10 +171,10 @@ mod tests {
     use crate::action::{Action, Component};
     use crate::app::App;
     use crate::config::keymap::KeyMap;
-    use crate::store::{Mode, test_util};
+    use crate::store::test_util;
 
     fn app_with_form() -> App {
-        let mut app = App::new(Mode::Fullscreen, Component::Task, KeyMap::defaults());
+        let mut app = App::new(Component::Task, KeyMap::defaults());
         app.react(Action::OpenCreate(Component::Task));
         app
     }
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn no_form_means_nothing_is_drawn_over_the_list() {
-        let app = App::new(Mode::Fullscreen, Component::Task, KeyMap::defaults());
+        let app = App::new(Component::Task, KeyMap::defaults());
 
         let buffer = screen(&app, 30, 6);
 

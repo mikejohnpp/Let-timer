@@ -20,7 +20,6 @@ use ratatui::{
 
 use crate::action::Component;
 use crate::app::App;
-use crate::store::Mode;
 
 /// Draw the records on screen into `area`.
 pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
@@ -83,10 +82,8 @@ fn rows(app: &App) -> Vec<Line<'static>> {
 
 /// What a list with nothing in it says.
 ///
-/// The fullscreen hint names a key because there is room for it and somebody is
-/// looking at the whole screen. Inline says only that there is nothing here: the
-/// letters are not bound in inline mode, and telling somebody to press one
-/// would be a lie.
+/// The hint names a key because there is room for it, somebody is looking at
+/// the whole screen, and `n` is bound to one.
 fn empty_message(app: &App) -> Line<'static> {
     let text = match app.component() {
         Component::Task => "No tasks yet",
@@ -94,12 +91,7 @@ fn empty_message(app: &App) -> Line<'static> {
         Component::MediaList => "No media lists yet",
     };
 
-    let hint = match app.dispatcher().ui().mode() {
-        Mode::Fullscreen => " -- press n to add one",
-        Mode::Inline { .. } => "",
-    };
-
-    Line::from(format!("{text}{hint}"))
+    Line::from(format!("{text} -- press n to add one"))
 }
 
 /// A task: what it is, when it is for, and how badly it wants doing.
@@ -170,12 +162,12 @@ mod tests {
     use crate::config::keymap::KeyMap;
     use crate::store::test_util;
 
-    fn app(mode: Mode, component: Component) -> App {
-        App::new(mode, component, KeyMap::defaults())
+    fn app(component: Component) -> App {
+        App::new(component, KeyMap::defaults())
     }
 
     fn task_app() -> App {
-        let mut app = app(Mode::Fullscreen, Component::Task);
+        let mut app = app(Component::Task);
         app.react(Action::TaskListLoaded(test_util::tasks(3)));
         app
     }
@@ -205,7 +197,7 @@ mod tests {
 
     #[test]
     fn a_task_row_says_the_name_the_day_and_the_priority() {
-        let mut app = app(Mode::Fullscreen, Component::Task);
+        let mut app = app(Component::Task);
         let mut tasks = test_util::tasks(1);
         tasks[0].name = "write the parser".to_string();
         tasks[0].priority = Priority::Urgent;
@@ -223,7 +215,7 @@ mod tests {
 
     #[test]
     fn a_task_with_no_day_says_so_instead_of_leaving_a_hole() {
-        let mut app = app(Mode::Fullscreen, Component::Task);
+        let mut app = app(Component::Task);
         let mut tasks = test_util::tasks(1);
         tasks[0].scheduled_on = None;
         app.react(Action::TaskListLoaded(tasks));
@@ -273,7 +265,7 @@ mod tests {
 
     #[test]
     fn a_list_longer_than_the_screen_scrolls_to_the_selection() {
-        let mut app = app(Mode::Fullscreen, Component::Task);
+        let mut app = app(Component::Task);
         app.react(Action::TaskListLoaded(test_util::tasks(50)));
         app.react(Action::MoveSelection(40));
 
@@ -292,7 +284,7 @@ mod tests {
 
     #[test]
     fn an_empty_fullscreen_list_says_how_to_fill_it() {
-        let app = app(Mode::Fullscreen, Component::Task);
+        let app = app(Component::Task);
 
         let buffer = draw_list(&app, 60, 3);
 
@@ -304,21 +296,19 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_inline_list_does_not_ask_for_a_key_it_refuses_to_read() {
-        let app = app(Mode::Inline { max_height: 10 }, Component::Task);
+    fn an_empty_list_says_how_to_add_one() {
+        let app = app(Component::Task);
 
         let buffer = draw_list(&app, 60, 3);
 
-        assert!(text(&buffer).contains("No tasks yet"));
-        assert!(
-            !text(&buffer).contains("press n"),
-            "n is not a command inline, so suggesting it is wrong"
-        );
+        let all = text(&buffer);
+        assert!(all.contains("No tasks yet"), "found {all:?}");
+        assert!(all.contains("press n"), "found {all:?}");
     }
 
     #[test]
     fn a_workspace_row_carries_its_description_when_there_is_one() {
-        let mut app = app(Mode::Fullscreen, Component::Workspace);
+        let mut app = app(Component::Workspace);
         let mut workspaces = test_util::workspaces(2);
         workspaces[0].description = Some("deep work".to_string());
         app.react(Action::WorkspaceListLoaded(workspaces));
@@ -340,7 +330,7 @@ mod tests {
 
     #[test]
     fn a_media_list_row_reads_the_same_way_a_workspace_does() {
-        let mut app = app(Mode::Fullscreen, Component::MediaList);
+        let mut app = app(Component::MediaList);
         app.react(Action::MediaListLoaded(test_util::media_lists(1)));
 
         let buffer = draw_list(&app, 60, 2);

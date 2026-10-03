@@ -79,10 +79,10 @@ mod tests {
     use super::*;
     use crate::action::{Action, Component};
     use crate::config::keymap::KeyMap;
-    use crate::store::{Mode, test_util};
+    use crate::store::test_util;
 
     fn app() -> App {
-        App::new(Mode::Fullscreen, Component::Task, KeyMap::defaults())
+        App::new(Component::Task, KeyMap::defaults())
     }
 
     fn line(app: &App, width: u16) -> String {

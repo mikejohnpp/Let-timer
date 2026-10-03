@@ -140,6 +140,7 @@ where
                 from_terminal = self.terminal.next() => match from_terminal {
                     Some(Ok(event)) => {
                         if let Some(event) = AppEvent::from_terminal(event) {
+                            // println!("Has an event with {:?}",event);
                             return Ok(Some(event));
                         }
                     }

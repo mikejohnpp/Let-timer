@@ -135,10 +135,9 @@ mod tests {
     use super::*;
     use crate::action::{Action, Component};
     use crate::config::keymap::KeyMap;
-    use crate::store::Mode;
 
     fn app() -> App {
-        App::new(Mode::Fullscreen, Component::Task, KeyMap::defaults())
+        App::new(Component::Task, KeyMap::defaults())
     }
 
     fn open_on(app: &mut App, day: NaiveDate) {

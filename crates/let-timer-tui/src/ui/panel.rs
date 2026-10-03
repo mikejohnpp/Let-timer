@@ -120,10 +120,10 @@ mod tests {
     use super::*;
     use crate::action::Action;
     use crate::config::keymap::KeyMap;
-    use crate::store::{Mode, test_util};
+    use crate::store::test_util;
 
     fn app(component: Component) -> App {
-        App::new(Mode::Fullscreen, component, KeyMap::defaults())
+        App::new(component, KeyMap::defaults())
     }
 
     fn drawn(app: &App, width: u16, height: u16) -> (Buffer, bool) {

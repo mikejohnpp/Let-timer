@@ -1,6 +1,5 @@
-//! State about the chrome around the data: which screen is showing, which
-//! overlay is open, what the user was last told, and whether the daemon is
-//! reachable.
+//! State about the chrome around the data: which overlay is open, what the
+//! user was last told, and whether the daemon is reachable.
 
 use chrono::{Local, NaiveDate, TimeDelta};
 
@@ -13,16 +12,6 @@ use crate::store::{EffectQueue, Store};
 /// Counting ticks instead of wall-clock seconds keeps the behaviour testable
 /// and independent of how fast the terminal is.
 const TOAST_TICKS: u8 = 4;
-
-/// Which screen the TUI is running as.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
-    /// Takes over the whole terminal. Used when no subcommand was given.
-    Fullscreen,
-    /// A panel drawn inline in the terminal flow, sized to its content.
-    /// `max_height` comes from the config file.
-    Inline { max_height: u16 },
-}
 
 /// An overlay drawn on top of the current screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -60,7 +49,6 @@ struct Toast {
 /// UI chrome state.
 #[derive(Debug)]
 pub struct UiStore {
-    mode: Mode,
     popup: Popup,
     toast: Option<Toast>,
     connection: Connection,
@@ -71,26 +59,20 @@ pub struct UiStore {
 
 impl Default for UiStore {
     fn default() -> Self {
-        Self::new(Mode::Fullscreen)
+        Self::new()
     }
 }
 
 impl UiStore {
-    /// A UI store showing `mode`, with nothing overlaid.
-    pub fn new(mode: Mode) -> Self {
+    /// A UI store with nothing overlaid.
+    pub fn new() -> Self {
         Self {
-            mode,
             popup: Popup::None,
             toast: None,
             connection: Connection::Connecting,
             calendar: None,
             effects: EffectQueue::default(),
         }
-    }
-
-    /// Which screen the TUI is running as.
-    pub fn mode(&self) -> Mode {
-        self.mode
     }
 
     /// The overlay currently open.
@@ -170,14 +152,11 @@ impl Store for UiStore {
                 self.calendar = None;
             }
 
-            // Cancel unwinds one layer at a time. In inline mode there is
-            // nothing left to unwind once no overlay is open, so the panel
-            // closes; in fullscreen there is no panel to close, so nothing
-            // happens.
+            // Cancel unwinds one layer at a time. Once no overlay is open
+            // there is nothing left to unwind and nothing to close either:
+            // the interface is the whole screen, and it is left up. Quitting
+            // is `q` or `ctrl-c`, which say so on the way out.
             Action::Cancel => match self.popup {
-                Popup::None if matches!(self.mode, Mode::Inline { .. }) => {
-                    self.effects.push(Effect::Quit);
-                }
                 Popup::None => {}
                 other => {
                     self.popup = other.close();
@@ -244,7 +223,7 @@ mod toast_tests {
 
     #[test]
     fn a_toast_action_shows_a_message() {
-        let mut ui = UiStore::new(Mode::Fullscreen);
+        let mut ui = UiStore::new();
 
         ui.update(Action::Toast("saved".to_string()));
 
@@ -253,7 +232,7 @@ mod toast_tests {
 
     #[test]
     fn an_empty_toast_is_worthless() {
-        let mut ui = UiStore::new(Mode::Fullscreen);
+        let mut ui = UiStore::new();
 
         ui.update(Action::Toast(String::new()));
 
@@ -262,7 +241,7 @@ mod toast_tests {
 
     #[test]
     fn a_toast_fades_like_any_other() {
-        let mut ui = UiStore::new(Mode::Fullscreen);
+        let mut ui = UiStore::new();
         ui.update(Action::Toast("saved".to_string()));
 
         for _ in 0..TOAST_TICKS {
@@ -293,9 +272,8 @@ mod tests {
     }
 
     #[test]
-    fn starts_in_fullscreen_with_nothing_overlaid() {
+    fn starts_with_nothing_overlaid() {
         let store = UiStore::default();
-        assert_eq!(store.mode(), Mode::Fullscreen);
         assert_eq!(store.popup(), Popup::None);
         assert_eq!(store.toast(), None);
         assert_eq!(store.connection(), Connection::Connecting);
@@ -388,14 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn cancel_with_nothing_open_closes_an_inline_panel() {
-        let mut store = UiStore::new(Mode::Inline { max_height: 20 });
-        let effects = send(&mut store, Action::Cancel);
-        assert!(matches!(effects.as_slice(), [Effect::Quit]));
-    }
-
-    #[test]
-    fn cancel_with_nothing_open_does_nothing_in_fullscreen() {
+    fn cancel_with_nothing_open_does_nothing() {
         let mut store = UiStore::default();
         let effects = send(&mut store, Action::Cancel);
         assert!(effects.is_empty());

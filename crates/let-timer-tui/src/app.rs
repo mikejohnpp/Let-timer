@@ -21,7 +21,7 @@ use crate::dispatcher::Dispatcher;
 use crate::effect::Effect;
 use crate::event::{AppEvent, EventError, Events};
 use crate::ipc::IpcActor;
-use crate::store::{FieldKind, Mode, Popup};
+use crate::store::{FieldKind, Popup};
 use crate::terminal::{Screen, TerminalError};
 
 /// Something that arrived while the loop was waiting.
@@ -82,17 +82,12 @@ pub struct App {
 
 impl App {
     /// An application showing `component`, reading keys with `keymap`.
-    pub fn new(mode: Mode, component: Component, keymap: KeyMap) -> Self {
+    pub fn new(component: Component, keymap: KeyMap) -> Self {
         Self {
-            dispatcher: Dispatcher::new(mode),
+            dispatcher: Dispatcher::new(),
             keymap,
             component,
-            // Inline is the context with letters left free, because inline is
-            // where somebody's shell is on the other side of the panel.
-            context: match mode {
-                Mode::Fullscreen => Context::Normal,
-                Mode::Inline { .. } => Context::Inline,
-            },
+            context: Context::Normal,
         }
     }
 
@@ -369,8 +364,8 @@ mod tests {
         KeyEvent::new(code, KeyModifiers::CONTROL)
     }
 
-    fn app(mode: Mode) -> App {
-        App::new(mode, Component::Task, KeyMap::defaults())
+    fn app() -> App {
+        App::new(Component::Task, KeyMap::defaults())
     }
 
     /// One task with the given id, for actions that carry a record.
@@ -392,7 +387,7 @@ mod tests {
 
     #[test]
     fn a_command_key_does_what_it_says() {
-        let app = app(Mode::Fullscreen);
+        let app = app();
 
         assert!(matches!(
             app.action_for_key(key(KeyCode::Char('j'))),
@@ -406,7 +401,7 @@ mod tests {
 
     #[test]
     fn an_arrow_key_and_its_letter_agree() {
-        let app = app(Mode::Fullscreen);
+        let app = app();
 
         assert!(matches!(
             app.action_for_key(key(KeyCode::Down)),
@@ -416,7 +411,7 @@ mod tests {
 
     #[test]
     fn ctrl_c_quits() {
-        let app = app(Mode::Fullscreen);
+        let app = app();
         assert!(matches!(
             app.action_for_key(ctrl(KeyCode::Char('c'))),
             Some(Action::Quit)
@@ -425,7 +420,7 @@ mod tests {
 
     #[test]
     fn a_bound_key_the_user_pressed_becomes_the_components_create_form() {
-        let app = App::new(Mode::Fullscreen, Component::Workspace, KeyMap::defaults());
+        let app = App::new(Component::Workspace, KeyMap::defaults());
 
         assert!(matches!(
             app.action_for_key(key(KeyCode::Char('n'))),
@@ -435,47 +430,22 @@ mod tests {
 
     #[test]
     fn an_unbound_key_does_nothing() {
-        let app = app(Mode::Fullscreen);
+        let app = app();
         assert!(app.action_for_key(key(KeyCode::F(9))).is_none());
-    }
-
-    // ── inline leaves letters alone ────────────────────────────────────
-
-    #[test]
-    fn a_letter_on_an_inline_list_is_not_a_command() {
-        // There is no form open, so a letter has nothing to type into and
-        // nothing to do.
-        let app = app(Mode::Inline { max_height: 10 });
-
-        assert!(app.action_for_key(key(KeyCode::Char('j'))).is_none());
-    }
-
-    #[test]
-    fn inline_still_reads_the_arrows_and_escape() {
-        let app = app(Mode::Inline { max_height: 10 });
-
-        assert!(matches!(
-            app.action_for_key(key(KeyCode::Down)),
-            Some(Action::MoveSelection(1))
-        ));
-        assert!(matches!(
-            app.action_for_key(key(KeyCode::Esc)),
-            Some(Action::Cancel)
-        ));
     }
 
     // ── keys that need a selected row ──────────────────────────────────
 
     #[test]
     fn edit_with_nothing_selected_does_nothing() {
-        let app = app(Mode::Fullscreen);
+        let app = app();
 
         assert!(app.action_for_key(key(KeyCode::Char('e'))).is_none());
     }
 
     #[test]
     fn edit_opens_the_selected_task() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         with_tasks(&mut app, 3);
         app.react(Action::Select(1));
 
@@ -489,7 +459,7 @@ mod tests {
     fn delete_carries_the_task_not_a_row_number() {
         // A refresh between asking to delete and saying yes would otherwise
         // leave a row number pointing at a different task.
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         with_tasks(&mut app, 3);
         app.react(Action::Select(2));
 
@@ -501,7 +471,7 @@ mod tests {
 
     #[test]
     fn delete_with_nothing_selected_does_nothing() {
-        let app = app(Mode::Fullscreen);
+        let app = app();
         assert!(app.action_for_key(key(KeyCode::Char('d'))).is_none());
     }
 
@@ -510,7 +480,7 @@ mod tests {
         // The workspace form has nothing to fill in yet, so offering one would
         // be a dead end.
         for component in [Component::Workspace, Component::MediaList] {
-            let app = App::new(Mode::Fullscreen, component, KeyMap::defaults());
+            let app = App::new(component, KeyMap::defaults());
             assert!(
                 app.action_for_key(key(KeyCode::Char('e'))).is_none(),
                 "{component:?}"
@@ -526,7 +496,7 @@ mod tests {
 
     #[test]
     fn a_letter_types_into_an_open_form() {
-        let mut app = app(Mode::Inline { max_height: 10 });
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
 
         for letter in "hi".chars() {
@@ -539,7 +509,7 @@ mod tests {
 
     #[test]
     fn a_letter_becomes_a_command_once_the_form_is_closed() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
         assert!(
             matches!(
@@ -562,7 +532,7 @@ mod tests {
 
     #[test]
     fn space_types_a_space() {
-        let mut app = app(Mode::Inline { max_height: 10 });
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
 
         assert!(matches!(
@@ -573,7 +543,7 @@ mod tests {
 
     #[test]
     fn backspace_deletes_rather_than_types() {
-        let mut app = app(Mode::Inline { max_height: 10 });
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
 
         assert!(matches!(
@@ -584,7 +554,7 @@ mod tests {
 
     #[test]
     fn ctrl_a_does_not_type_an_a() {
-        let mut app = app(Mode::Inline { max_height: 10 });
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
 
         assert!(app.action_for_key(ctrl(KeyCode::Char('a'))).is_none());
@@ -592,7 +562,7 @@ mod tests {
 
     #[test]
     fn tab_moves_between_fields_instead_of_typing() {
-        let mut app = app(Mode::Inline { max_height: 10 });
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
 
         assert!(matches!(
@@ -607,7 +577,7 @@ mod tests {
 
     #[test]
     fn enter_submits_and_escape_leaves() {
-        let mut app = app(Mode::Inline { max_height: 10 });
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
 
         assert!(matches!(
@@ -623,7 +593,7 @@ mod tests {
     #[test]
     fn the_letter_q_is_not_quit_while_a_form_is_open() {
         // Otherwise nobody could type a q into a task name.
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
 
         assert!(matches!(
@@ -642,7 +612,7 @@ mod tests {
 
     #[test]
     fn pressing_d_then_enter_deletes_the_task_the_dialog_named() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         with_tasks(&mut app, 3);
         app.react(Action::MoveSelection(1));
 
@@ -672,7 +642,7 @@ mod tests {
 
     #[test]
     fn pressing_d_then_escape_deletes_nothing() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         with_tasks(&mut app, 3);
         app.react(Action::ConfirmDelete(Box::new(test_tasks(1).remove(0))));
 
@@ -688,7 +658,7 @@ mod tests {
 
     #[test]
     fn a_key_press_while_the_question_is_open_does_not_reach_the_list() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         with_tasks(&mut app, 3);
         app.react(Action::ConfirmDelete(Box::new(test_tasks(1).remove(0))));
 
@@ -712,7 +682,7 @@ mod tests {
 
     #[test]
     fn a_command_pressed_on_a_field_that_cannot_be_typed_into_is_dropped() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Task));
         // Walk the focus onto the priority field, which is picked by cycling
         // rather than typed into.
@@ -730,7 +700,7 @@ mod tests {
 
     #[test]
     fn ctrl_c_still_quits_while_a_form_is_open() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
 
         assert!(matches!(
@@ -743,7 +713,7 @@ mod tests {
     fn a_field_that_is_picked_rather_than_typed_swallows_nothing() {
         // Priority is chosen by cycling. Filling it with letters would only
         // produce a value the daemon refuses.
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Task));
         // Focus lands on the name first; move to priority.
         while form(&app).focused_kind() != FieldKind::Priority {
@@ -756,7 +726,7 @@ mod tests {
 
     #[test]
     fn a_choice_field_still_lets_tab_through() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Task));
         // The new-task form picks priority by cycling, so this is the one
         // field that cannot be typed into.
@@ -772,7 +742,7 @@ mod tests {
 
     #[test]
     fn arrows_reach_the_list_while_a_form_is_open() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
 
         assert!(matches!(
@@ -785,7 +755,7 @@ mod tests {
 
     #[test]
     fn an_overlay_keeps_the_keys_underneath_off() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         with_tasks(&mut app, 3);
         app.react(Action::Help);
         assert_eq!(app.dispatcher().ui().popup(), Popup::Help);
@@ -797,7 +767,7 @@ mod tests {
 
     #[test]
     fn an_overlay_still_closes() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::Help);
 
         assert!(matches!(
@@ -808,7 +778,7 @@ mod tests {
 
     #[test]
     fn an_overlay_on_top_of_a_form_swallows_typing() {
-        let mut app = app(Mode::Inline { max_height: 10 });
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Workspace));
         app.react(Action::Help);
 
@@ -817,7 +787,7 @@ mod tests {
 
     #[test]
     fn an_overlay_leaves_the_keys_working_once_it_is_closed() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::Help);
         app.react(Action::Cancel);
         assert_eq!(app.dispatcher().ui().popup(), Popup::None);
@@ -832,7 +802,7 @@ mod tests {
 
     #[test]
     fn the_picker_opens_only_from_a_form_with_a_date_to_fill_in() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         with_tasks(&mut app, 3);
 
         // No form, so there is no date field: the key does nothing rather than
@@ -848,7 +818,7 @@ mod tests {
 
     #[test]
     fn the_picker_becomes_the_context_the_next_key_is_read_against() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Task));
         app.react(Action::OpenCalendar);
 
@@ -864,7 +834,7 @@ mod tests {
 
     #[test]
     fn inside_the_picker_the_arrows_move_the_day_and_not_the_list() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         with_tasks(&mut app, 3);
         app.react(Action::OpenCreate(Component::Task));
         app.react(Action::OpenCalendar);
@@ -891,7 +861,7 @@ mod tests {
 
     #[test]
     fn pressing_enter_in_the_picker_picks_the_day_it_has_highlighted() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Task));
         app.react(Action::OpenCalendar);
         app.react(Action::CalendarMove(1));
@@ -909,7 +879,7 @@ mod tests {
 
     #[test]
     fn the_day_the_picker_gave_the_form_is_in_the_date_field() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Task));
         app.react(Action::OpenCalendar);
         let day = app.dispatcher().ui().calendar().unwrap();
@@ -934,7 +904,7 @@ mod tests {
 
     #[test]
     fn the_picker_closes_on_escape_without_touching_the_field() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::OpenCreate(Component::Task));
         app.react(Action::OpenCalendar);
 
@@ -960,7 +930,7 @@ mod tests {
 
     #[test]
     fn reacting_to_quit_says_so() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
 
         let effects = app.react(Action::Quit);
 
@@ -969,7 +939,7 @@ mod tests {
 
     #[test]
     fn reacting_to_a_tick_asks_the_daemon_for_the_list() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
 
         let effects = app.react(Action::Tick);
 
@@ -982,7 +952,7 @@ mod tests {
 
     #[test]
     fn reacting_to_a_reply_keeps_it() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         let tasks = crate::store::test_util::tasks(2);
 
         let effects = app.react(Action::TaskListLoaded(tasks));

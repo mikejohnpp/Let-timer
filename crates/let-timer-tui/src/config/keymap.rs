@@ -412,16 +412,13 @@ fn code_from_config_name(code: &KeyCode) -> String {
 
 /// Which key bindings apply right now.
 ///
-/// The two places keys are read behave differently. A fullscreen list has
-/// nothing to type into, so letters are free to be commands. An inline list is
-/// sitting in a shell where a form may be open at any moment, so binding bare
-/// letters there would steal them from whoever is typing.
+/// The two places keys are read behave differently. A list has nothing to type
+/// into, so letters are free to be commands. The date picker is a modal of its
+/// own, so the arrows that move a list move the day in it instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Context {
-    /// The fullscreen interface.
+    /// The list, with a form over it or not.
     Normal,
-    /// The list drawn inline in the terminal.
-    Inline,
     /// The date picker, drawn over a form.
     Calendar,
 }
@@ -431,7 +428,6 @@ impl Context {
     pub fn as_str(&self) -> &'static str {
         match self {
             Context::Normal => "normal",
-            Context::Inline => "inline",
             Context::Calendar => "calendar",
         }
     }
@@ -440,17 +436,16 @@ impl Context {
     pub fn from_name(name: &str) -> Option<Context> {
         match name {
             "normal" => Some(Context::Normal),
-            "inline" => Some(Context::Inline),
             "calendar" => Some(Context::Calendar),
             _ => None,
         }
     }
 
     /// Every section, so a config file can be checked against them.
-    pub const ALL: [Context; 3] = [Context::Normal, Context::Inline, Context::Calendar];
+    pub const ALL: [Context; 2] = [Context::Normal, Context::Calendar];
 
     /// How many sections there are, so the keymap can hold one list each.
-    pub const COUNT: usize = 3;
+    pub const COUNT: usize = 2;
 
     /// Which slot of the keymap holds this context's bindings.
     ///
@@ -459,8 +454,7 @@ impl Context {
     fn index(self) -> usize {
         match self {
             Context::Normal => 0,
-            Context::Inline => 1,
-            Context::Calendar => 2,
+            Context::Calendar => 1,
         }
     }
 }
@@ -495,20 +489,6 @@ impl KeyMap {
                     ("esc", Target::Cancel),
                     ("?", Target::Help),
                     ("q, ctrl-c", Target::Quit),
-                ]),
-                bindings(&[
-                    ("up", Target::MoveUp),
-                    ("down", Target::MoveDown),
-                    ("tab", Target::NextField),
-                    ("shift-tab", Target::PreviousField),
-                    // An inline form has a date field too, so it needs the picker;
-                    // otherwise the calendar would be one binding away in one mode
-                    // and unreachable in the other.
-                    ("c", Target::OpenCalendar),
-                    ("enter", Target::Submit),
-                    ("esc", Target::Cancel),
-                    ("?", Target::Help),
-                    ("ctrl-c", Target::Quit),
                 ]),
                 bindings(&[
                     // The picker is a modal of its own, so the arrows that move a
@@ -983,10 +963,14 @@ mod tests {
     #[test]
     fn a_context_is_found_by_section_name() {
         assert_eq!(Context::from_name("normal"), Some(Context::Normal));
-        assert_eq!(Context::from_name("inline"), Some(Context::Inline));
+        assert_eq!(Context::from_name("calendar"), Some(Context::Calendar));
         assert_eq!(Context::from_name("form"), None);
+        // The panel that used to be drawn in the terminal is not a context
+        // any more, so a file still carrying its section is refused rather than
+        // half read.
+        assert_eq!(Context::from_name("inline"), None);
         assert_eq!(Context::Normal.as_str(), "normal");
-        assert_eq!(Context::Inline.as_str(), "inline");
+        assert_eq!(Context::Calendar.as_str(), "calendar");
     }
 
     #[test]
@@ -1035,15 +1019,19 @@ mod tests {
     }
 
     #[test]
-    fn ctrl_c_quits_in_both_contexts() {
+    fn ctrl_c_quits_from_the_list_and_only_from_the_list() {
         let map = KeyMap::defaults();
         let ctrl_c = modified(KeyCode::Char('c'), KeyModifiers::CONTROL);
+
         assert_eq!(map.resolve(Context::Normal, &ctrl_c), Some(Target::Quit));
-        assert_eq!(map.resolve(Context::Inline, &ctrl_c), Some(Target::Quit));
+        // The picker is left with the keys that dismiss it rather than the one
+        // that ends the program, so a stray ctrl-c over a form does not take
+        // the work with it.
+        assert_eq!(map.resolve(Context::Calendar, &ctrl_c), None);
     }
 
     #[test]
-    fn a_bare_letter_is_a_command_in_the_fullscreen_interface() {
+    fn a_bare_letter_is_a_command() {
         let map = KeyMap::defaults();
         assert_eq!(
             map.resolve(Context::Normal, &press(KeyCode::Char('n'))),
@@ -1052,29 +1040,14 @@ mod tests {
     }
 
     #[test]
-    fn a_bare_letter_is_left_free_inline_so_it_can_be_typed() {
-        // Inline sits in somebody's shell with a form possibly open, so `n`
-        // must not be a command there: it has to reach the form instead.
-        let map = KeyMap::defaults();
-        for letter in ['n', 'e', 'd', 'q', 'j', 'k', 'g'] {
-            assert_eq!(
-                map.resolve(Context::Inline, &press(KeyCode::Char(letter))),
-                None,
-                "{letter} should not be a command inline"
-            );
-            assert_eq!(typed_char(&press(KeyCode::Char(letter))), Some(letter));
-        }
-    }
-
-    #[test]
-    fn inline_keeps_the_arrow_keys_for_moving_around() {
+    fn the_arrow_keys_move_the_list() {
         let map = KeyMap::defaults();
         assert_eq!(
-            map.resolve(Context::Inline, &press(KeyCode::Up)),
+            map.resolve(Context::Normal, &press(KeyCode::Up)),
             Some(Target::MoveUp)
         );
         assert_eq!(
-            map.resolve(Context::Inline, &press(KeyCode::Down)),
+            map.resolve(Context::Normal, &press(KeyCode::Down)),
             Some(Target::MoveDown)
         );
     }
@@ -1102,14 +1075,16 @@ mod tests {
 
     #[test]
     fn the_two_contexts_keep_separate_bindings() {
+        // The same key has to be allowed to mean different things in the two
+        // places, or the picker could never have had the arrows to itself.
         let map = KeyMap::defaults();
-        let tab = press(KeyCode::Tab);
-        assert_eq!(map.resolve(Context::Normal, &tab), Some(Target::NextField));
-        assert_eq!(map.resolve(Context::Inline, &tab), Some(Target::NextField));
-
         let down = press(KeyCode::Down);
+
         assert_eq!(map.resolve(Context::Normal, &down), Some(Target::MoveDown));
-        assert_eq!(map.resolve(Context::Inline, &down), Some(Target::MoveDown));
+        assert_eq!(
+            map.resolve(Context::Calendar, &down),
+            Some(Target::CalendarNextWeek)
+        );
     }
 
     #[test]

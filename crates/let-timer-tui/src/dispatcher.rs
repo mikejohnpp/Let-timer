@@ -6,7 +6,6 @@
 
 use crate::action::Action;
 use crate::effect::Effect;
-use crate::store::ui_store::Mode;
 use crate::store::{FormStore, MediaListStore, Store, TaskStore, UiStore, WorkspaceStore};
 
 /// Routes actions to the stores and gathers the resulting effects.
@@ -21,15 +20,15 @@ pub struct Dispatcher {
 
 impl Default for Dispatcher {
     fn default() -> Self {
-        Self::new(Mode::Fullscreen)
+        Self::new()
     }
 }
 
 impl Dispatcher {
-    /// A dispatcher with empty stores, running as `mode`.
-    pub fn new(mode: Mode) -> Self {
+    /// A dispatcher with empty stores.
+    pub fn new() -> Self {
         Self {
-            ui: UiStore::new(mode),
+            ui: UiStore::new(),
             tasks: TaskStore::new(),
             workspaces: WorkspaceStore::new(),
             media_lists: MediaListStore::new(),
@@ -110,18 +109,17 @@ mod tests {
     use let_timer_core::Command;
 
     use crate::action::Component;
-    use crate::store::Mode;
     use crate::store::test_util::{task_with_id, tasks};
 
     use super::*;
 
-    fn dispatcher(mode: Mode) -> Dispatcher {
-        Dispatcher::new(mode)
+    fn dispatcher() -> Dispatcher {
+        Dispatcher::new()
     }
 
     #[test]
     fn a_fresh_dispatcher_has_empty_stores() {
-        let dispatcher = dispatcher(Mode::Fullscreen);
+        let dispatcher = dispatcher();
 
         assert!(dispatcher.tasks().is_empty());
         assert!(dispatcher.workspaces().is_empty());
@@ -132,7 +130,7 @@ mod tests {
 
     #[test]
     fn a_tick_reaches_every_list_store() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+        let mut dispatcher = dispatcher();
 
         let effects = dispatcher.dispatch(Action::Tick);
 
@@ -158,7 +156,7 @@ mod tests {
 
     #[test]
     fn an_ipc_reply_lands_in_the_right_store_and_in_the_ui_store() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+        let mut dispatcher = dispatcher();
 
         let effects = dispatcher.dispatch(Action::TaskListLoaded(tasks(3)));
 
@@ -177,7 +175,7 @@ mod tests {
 
     #[test]
     fn a_failure_reaches_the_ui_store_and_every_pending_list() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+        let mut dispatcher = dispatcher();
         dispatcher.dispatch(Action::Tick);
 
         let effects = dispatcher.dispatch(Action::IpcFailed("boom".to_string()));
@@ -193,7 +191,7 @@ mod tests {
 
     #[test]
     fn a_reply_lets_every_list_refresh_again() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+        let mut dispatcher = dispatcher();
         dispatcher.dispatch(Action::Tick);
         assert!(dispatcher.tasks().is_pending());
 
@@ -210,7 +208,7 @@ mod tests {
 
     #[test]
     fn quitting_produces_exactly_one_quit_effect() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+        let mut dispatcher = dispatcher();
 
         let effects = dispatcher.dispatch(Action::Quit);
 
@@ -220,7 +218,7 @@ mod tests {
 
     #[test]
     fn a_task_reply_fills_the_list_and_the_selection_follows_it() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+        let mut dispatcher = dispatcher();
 
         dispatcher.dispatch(Action::TaskListLoaded(tasks(3)));
         dispatcher.dispatch(Action::Select(2));
@@ -235,7 +233,7 @@ mod tests {
 
     #[test]
     fn selecting_moves_the_task_highlight() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+        let mut dispatcher = dispatcher();
         dispatcher.dispatch(Action::TaskListLoaded(tasks(4)));
 
         dispatcher.dispatch(Action::MoveSelection(2));
@@ -245,7 +243,7 @@ mod tests {
 
     #[test]
     fn submitting_a_filled_form_sends_its_command() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+        let mut dispatcher = dispatcher();
         dispatcher.dispatch(Action::OpenCreate(Component::Workspace));
         for character in "Side quest".chars() {
             dispatcher.dispatch(Action::FormInput(character));
@@ -263,7 +261,7 @@ mod tests {
 
     #[test]
     fn a_refused_form_stays_open_with_its_complaints() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+        let mut dispatcher = dispatcher();
         dispatcher.dispatch(Action::OpenCreate(Component::Workspace));
 
         let effects = dispatcher.dispatch(Action::Submit);
@@ -274,22 +272,22 @@ mod tests {
     }
 
     #[test]
-    fn esc_closes_the_form_before_it_closes_the_panel() {
-        let mut dispatcher = dispatcher(Mode::Inline { max_height: 20 });
+    fn esc_closes_the_form_before_it_closes_the_list() {
+        let mut dispatcher = dispatcher();
         dispatcher.dispatch(Action::OpenCreate(Component::Workspace));
 
         let effects = dispatcher.dispatch(Action::Cancel);
 
         assert!(
             effects.is_empty(),
-            "the panel must survive while a form is open"
+            "the list must survive while a form is open"
         );
         assert!(!dispatcher.form().is_open());
     }
 
     #[test]
     fn esc_closes_an_overlay_before_it_closes_the_form() {
-        let mut dispatcher = dispatcher(Mode::Inline { max_height: 20 });
+        let mut dispatcher = dispatcher();
         dispatcher.dispatch(Action::OpenCreate(Component::Workspace));
         dispatcher.dispatch(Action::Help);
 
@@ -303,17 +301,8 @@ mod tests {
     }
 
     #[test]
-    fn esc_with_nothing_open_closes_an_inline_panel() {
-        let mut dispatcher = dispatcher(Mode::Inline { max_height: 20 });
-
-        let effects = dispatcher.dispatch(Action::Cancel);
-
-        assert!(matches!(effects.as_slice(), [Effect::Quit]));
-    }
-
-    #[test]
-    fn esc_with_nothing_open_does_nothing_in_fullscreen() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+    fn esc_with_nothing_open_does_nothing() {
+        let mut dispatcher = dispatcher();
 
         let effects = dispatcher.dispatch(Action::Cancel);
 
@@ -322,7 +311,7 @@ mod tests {
 
     #[test]
     fn effects_are_drained_between_dispatches() {
-        let mut dispatcher = dispatcher(Mode::Fullscreen);
+        let mut dispatcher = dispatcher();
 
         assert!(!dispatcher.dispatch(Action::Quit).is_empty());
         assert!(

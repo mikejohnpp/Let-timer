@@ -68,10 +68,10 @@ mod tests {
     use super::*;
     use crate::action::{Action, Component};
     use crate::config::keymap::KeyMap;
-    use crate::store::{Mode, test_util};
+    use crate::store::test_util;
 
     fn app() -> App {
-        let mut app = App::new(Mode::Fullscreen, Component::Task, KeyMap::defaults());
+        let mut app = App::new(Component::Task, KeyMap::defaults());
         app.react(Action::TaskListLoaded(test_util::tasks(3)));
         app
     }

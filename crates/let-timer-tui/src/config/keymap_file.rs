@@ -9,7 +9,7 @@
 //! quit = "ctrl-q"
 //! open_create = "c"
 //!
-//! [inline]
+//! [calendar]
 //! help = "f1"
 //! ```
 
@@ -25,11 +25,19 @@ use super::keymap::{Binding, Context, KeyMap, Target};
 const FILE_NAME: &str = "keymap.toml";
 
 /// A keymap file, as written down.
+///
+/// `inline` is no longer a context, but it is still a name this file is allowed
+/// to contain. Refusing it would leave anybody who had one unable to start the
+/// interface at all until they had edited a config file by hand to remove two
+/// lines, so it is read and thrown away instead. `deny_unknown_fields` is there
+/// to catch a mistyped section, and this one is not a typo: it is a section that
+/// used to mean something.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct File {
     normal: Option<BTreeMap<String, String>>,
-    inline: Option<BTreeMap<String, String>>,
+    #[serde(default, rename = "inline")]
+    _inline: Option<BTreeMap<String, String>>,
     calendar: Option<BTreeMap<String, String>>,
 }
 
@@ -37,7 +45,6 @@ impl File {
     fn section(&self, context: Context) -> Option<&BTreeMap<String, String>> {
         match context {
             Context::Normal => self.normal.as_ref(),
-            Context::Inline => self.inline.as_ref(),
             Context::Calendar => self.calendar.as_ref(),
         }
     }
@@ -270,8 +277,8 @@ mod tests {
 
     #[test]
     fn a_missing_section_keeps_the_defaults() {
-        // Only inline is written; normal must come through untouched.
-        let file = scratch("missing-section").with("[inline]\nhelp = \"f1\"\n");
+        // Only the picker is written; the list must come through untouched.
+        let file = scratch("missing-section").with("[calendar]\nhelp = \"f1\"\n");
         let map = load_from(&file.0).unwrap();
 
         assert_eq!(
@@ -302,7 +309,8 @@ mod tests {
 
     #[test]
     fn both_sections_can_be_written_at_once() {
-        let file = scratch("both").with("[normal]\nquit = \"ctrl-q\"\n\n[inline]\nhelp = \"f1\"\n");
+        let file =
+            scratch("both").with("[normal]\nquit = \"ctrl-q\"\n\n[calendar]\nhelp = \"f1\"\n");
         let map = load_from(&file.0).unwrap();
 
         assert_eq!(
@@ -313,10 +321,33 @@ mod tests {
             Some(Target::Quit)
         );
         assert_eq!(
-            map.resolve(Context::Inline, &key(KeyCode::F(1))),
+            map.resolve(Context::Calendar, &key(KeyCode::F(1))),
             Some(Target::Help)
         );
-        assert_eq!(map.resolve(Context::Inline, &key(KeyCode::Char('?'))), None);
+        assert_eq!(
+            map.resolve(Context::Calendar, &key(KeyCode::Char('?'))),
+            None
+        );
+    }
+
+    #[test]
+    fn a_file_still_carrying_an_inline_section_starts_the_interface() {
+        // The panel that section belonged to is gone, so the section is read and
+        // discarded. Refusing the file instead would leave a config written
+        // against an older build unable to run at all, over two lines nobody
+        // was looking at.
+        let file = scratch("stale-inline").with("[inline]\nhelp = \"f1\"\n");
+        let map = load_from(&file.0).expect("a section that used to exist is not a typo");
+
+        // Nothing came out of it, so `?` is still the way to reach help.
+        assert_eq!(
+            map.resolve(Context::Normal, &key(KeyCode::Char('?'))),
+            Some(Target::Help)
+        );
+        assert_eq!(
+            targets(&map, Context::Normal),
+            targets(&KeyMap::defaults(), Context::Normal)
+        );
     }
 
     #[test]
@@ -418,17 +449,17 @@ mod tests {
         assert!(matches!(error, ConfigError::Read { .. }), "{error:?}");
     }
 
-    // ── inline stays typeable ──────────────────────────────────────────
+    // ── letters typed into a form ─────────────────────────────────────
 
     #[test]
     fn an_override_cannot_steal_a_letter_from_someone_typing() {
-        // Binding `n` inline would make the letter untypable in a form, so the
-        // inline section refuses plain letters.
-        let file = scratch("steal").with("[inline]\nopen_create = \"n\"\n");
+        // A letter bound as a command is a letter the user can no longer type
+        // into a form, which the interface answers to somewhere else.
+        let file = scratch("steal").with("[normal]\nopen_create = \"n\"\n");
         let map = load_from(&file.0).unwrap();
 
         let typed = typed_char(&key(KeyCode::Char('n')));
-        let action = map.resolve(Context::Inline, &key(KeyCode::Char('n')));
+        let action = map.resolve(Context::Normal, &key(KeyCode::Char('n')));
 
         assert!(
             typed.is_some() && action.is_some(),
@@ -483,7 +514,7 @@ mod conflict_tests {
     fn the_defaults_load_cleanly() {
         // The same check, but through the file path, so a default that nobody
         // could ever type is caught here rather than by a user.
-        let file = scratch("defaults").with("[inline]\nhelp = \"f1\"\n");
+        let file = scratch("defaults").with("[calendar]\nhelp = \"f1\"\n");
         let map = load_from(&file.0).unwrap();
         for context in Context::ALL {
             assert_eq!(map.find_conflict(context), None, "{context:?}");
@@ -538,9 +569,10 @@ mod conflict_tests {
 
     #[test]
     fn the_same_key_in_two_different_contexts_is_fine() {
-        // `q` quitting in fullscreen and doing nothing inline is not a clash:
+        // `x` quitting from the list and paging the picker on is not a clash:
         // the two never apply at the same moment.
-        let file = scratch("two-contexts").with("[normal]\nquit = \"x\"\n[inline]\nhelp = \"x\"\n");
+        let file =
+            scratch("two-contexts").with("[normal]\nquit = \"x\"\n[calendar]\nhelp = \"x\"\n");
         let map = load_from(&file.0).expect("different contexts never conflict");
 
         assert_eq!(
@@ -548,7 +580,7 @@ mod conflict_tests {
             Some(Target::Quit)
         );
         assert_eq!(
-            map.resolve(Context::Inline, &key(KeyCode::Char('x'))),
+            map.resolve(Context::Calendar, &key(KeyCode::Char('x'))),
             Some(Target::Help)
         );
     }

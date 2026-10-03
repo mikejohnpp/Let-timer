@@ -1,73 +1,24 @@
 //! Starting the interface: the one place that knows how the parts go together.
 //!
-//! Everything else in this crate is handed its parts. [`App`] is given a mode, a
+//! Everything else in this crate is handed its parts. [`App`] is given a
 //! component and a keymap; the terminal is set up by [`Screen::enter`]; events
 //! come from [`Events::new`]. This module is the piece that reads the config
 //! files, picks those parts, and hands them over, so that the binary calling in
 //! from `main` has one job and does not have to know the order.
+//!
+//! There is one thing to start here, not a choice between several: the
+//! interface takes the whole terminal. A panel drawn in the flow of somebody's
+//! shell used to be a second way in, and everything it needed -- a second
+//! viewport, a second keymap context with the letters left free, a height from
+//! a settings file -- existed only to serve it. What the shell runs now is a
+//! question with a printed answer, which is this crate's job elsewhere.
 
 use crate::action::Component;
 use crate::app::{App, AppError};
 use crate::config::{ConfigError, keymap_file, settings};
 use crate::event::Events;
-use crate::store::Mode;
 use crate::terminal::Screen;
 use crate::ui;
-
-/// What to show, and how much of the terminal to take.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Launch {
-    component: Component,
-    inline: bool,
-}
-
-impl Launch {
-    /// Take over the terminal and show `component`.
-    ///
-    /// This is what running `let-timer` with nothing else to do should mean.
-    pub fn fullscreen(component: Component) -> Self {
-        Self {
-            component,
-            inline: false,
-        }
-    }
-
-    /// Draw `component` in the flow of the terminal, where the command was
-    /// typed and the shell is still there underneath it.
-    ///
-    /// How many rows that is comes from the settings file rather than from
-    /// here: whoever types `let-timer tasks` has asked for a panel, not for a
-    /// number of rows.
-    pub fn inline(component: Component) -> Self {
-        Self {
-            component,
-            inline: true,
-        }
-    }
-
-    /// The component this launch shows.
-    pub fn component(&self) -> Component {
-        self.component
-    }
-
-    /// Whether this launch takes the whole terminal.
-    pub fn is_fullscreen(&self) -> bool {
-        !self.inline
-    }
-}
-
-/// The mode a launch asks for, given the height the settings allow.
-///
-/// Only the height is asked about: fullscreen has no height to choose, and an
-/// inline panel with no height cannot be drawn at all.
-fn mode_for(launch: Launch, inline_max_height: u16) -> Mode {
-    match launch.inline {
-        false => Mode::Fullscreen,
-        true => Mode::Inline {
-            max_height: inline_max_height,
-        },
-    }
-}
 
 /// Why the interface did not start, or stopped early.
 #[derive(Debug)]
@@ -120,17 +71,13 @@ impl From<crate::terminal::TerminalError> for RunError {
 /// that cannot be parsed is worth saying on a terminal that is still a terminal,
 /// where the message can be read, and is not worth a screen that flashes up and
 /// disappears again.
-pub async fn run(launch: Launch) -> Result<(), RunError> {
+pub async fn run(component: Component) -> Result<(), RunError> {
     let keymap = keymap_file::load()?;
     let settings = settings::load()?;
 
-    // `let-timer tasks` means "inline, please", and how tall that is belongs to
-    // the settings file rather than to whoever typed the command.
-    let mode = mode_for(launch, settings.inline_max_height());
-
-    let mut screen = Screen::enter(mode)?;
+    let mut screen = Screen::enter()?;
     let mut events = Events::new(settings.poll_interval());
-    let app = App::new(mode, launch.component, keymap);
+    let app = App::new(component, keymap);
 
     let result = app.run(&mut screen, &mut events, ui::draw).await;
     screen.close();
@@ -141,40 +88,6 @@ pub async fn run(launch: Launch) -> Result<(), RunError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_fullscreen_launch_is_fullscreen() {
-        let launch = Launch::fullscreen(Component::Task);
-
-        assert!(launch.is_fullscreen());
-        assert_eq!(launch.component(), Component::Task);
-    }
-
-    #[test]
-    fn an_inline_launch_is_not_fullscreen() {
-        let launch = Launch::inline(Component::Workspace);
-
-        assert!(!launch.is_fullscreen());
-        assert_eq!(launch.component(), Component::Workspace);
-    }
-
-    #[test]
-    fn the_settings_decide_how_tall_an_inline_panel_is() {
-        // The height is not asked about in the launch, so it cannot be got
-        // wrong by whoever is calling: there is only one place it comes from.
-        assert_eq!(
-            mode_for(Launch::inline(Component::Task), 9),
-            Mode::Inline { max_height: 9 }
-        );
-    }
-
-    #[test]
-    fn the_settings_cannot_make_a_fullscreen_launch_inline() {
-        assert_eq!(
-            mode_for(Launch::fullscreen(Component::Task), 9),
-            Mode::Fullscreen
-        );
-    }
 
     #[test]
     fn a_config_file_error_says_which_file_it_was() {
@@ -195,7 +108,6 @@ mod tests {
     #[test]
     fn a_terminal_failure_is_reported_as_an_app_failure() {
         let error = RunError::from(AppError::Terminal(crate::terminal::TerminalError::Enter {
-            mode: Mode::Fullscreen,
             stage: "raw mode",
             source: std::io::Error::other("no terminal here"),
         }));

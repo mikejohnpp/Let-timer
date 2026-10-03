@@ -1,9 +1,9 @@
 //! The command line, as written down.
 //!
 //! One rule runs through all of it: a component is the first thing named, and
-//! everything after it acts on that component and nothing else. `tasks create`
-//! makes a task, `workspaces create` makes a workspace, and there is no way to
-//! write one of them without saying which.
+//! everything after it acts on that component and nothing else. `tasks find`
+//! looks for a task, `workspaces list` lists workspaces, and there is no way to
+//! write one of them without saying which it meant.
 //!
 //! That is why a component is a subcommand rather than a flag or a positional.
 //! A positional with a default value is always filled in, so it can never tell
@@ -11,14 +11,16 @@
 //! As a subcommand the component has to be there: clap refuses the line before
 //! any of this program's code runs, and says what was expected instead.
 //!
-//! Two kinds of run fall out of that. A component with nothing under it is the
-//! interface, and the terminal belongs to the user for as long as they are
-//! looking at it. A component with a command under it is one request, one
-//! printed answer, and the process is done.
+//! A component with nothing under it is that component's list, so
+//! `let-timer tasks` is a longer way of saying `let-timer tasks list`. Only a
+//! run that is asked for no component at all hands over the terminal, because
+//! the task list is what this program is for. Everything else answers one
+//! question, prints it, and is done -- which is also why nothing here needs a
+//! terminal, and nothing here asks the user a question.
 
 use clap::{Parser, Subcommand};
 
-/// Show a list, or manage one item, and print the answer.
+/// Show a list, or report on one item.
 #[derive(Parser, Debug)]
 #[command(
     name = "let-timer",
@@ -26,10 +28,6 @@ use clap::{Parser, Subcommand};
     version
 )]
 pub struct Cli {
-    /// Never prompt: use defaults for missing fields, error on missing required ones.
-    #[arg(long, global = true)]
-    pub no_interactive: bool,
-
     /// Print the answer as JSON, for a script to read.
     #[arg(long, global = true)]
     pub json: bool,
@@ -42,11 +40,14 @@ pub struct Cli {
     pub component: Option<Component>,
 }
 
-/// The three kinds of thing there are, and the commands each of them has.
+/// The three kinds of thing there are, and what can be asked of each.
 ///
-/// Each variant carries its own commands, which is the point: a workspace has no
-/// `edit` because the daemon has no command to answer one with, so clap will
-/// not offer it.
+/// Each variant carries its own commands, which is the point: nothing is
+/// offered here that the daemon has no command to answer, and nothing is
+/// offered that the interface already does better. A workspace cannot be edited
+/// because there is no protocol command that would answer one, and no component
+/// can be created from here because that is a form with a field list in it,
+/// not something to be typed on one line.
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
 pub enum Component {
     /// Tasks, in a schedule.
@@ -67,45 +68,29 @@ pub enum Component {
 }
 
 impl Component {
-    /// The kind of record this run is about, whatever was asked of it.
-    pub fn kind(&self) -> View {
-        match self {
-            Component::Tasks { .. } => View::Task,
-            Component::Workspaces { .. } => View::Workspace,
-            Component::MediaLists { .. } => View::MediaList,
-        }
-    }
-
     /// What to do about it, with the component's own nesting flattened away.
     ///
-    /// `None` means the component was named and nothing else, which is the
-    /// interface and not a command.
-    pub fn command(&self) -> Option<Commands> {
+    /// Nothing under the component is not a third kind of run: it is the list,
+    /// which is the one thing asked of every component and the only thing left
+    /// to ask of them. Deciding that here means `run` has one answer rather
+    /// than two, and no way to reach a screen that has been taken away.
+    pub fn command(&self) -> Commands {
         match self {
-            Component::Tasks { command } => command.clone().map(Commands::Task),
-            Component::Workspaces { command } => command.clone().map(Commands::Workspace),
-            Component::MediaLists { command } => command.clone().map(Commands::MediaList),
-        }
-    }
-}
-
-/// One kind of record, with nothing asked of it yet.
-///
-/// Singular because it is one kind at a time: the word on the command line is
-/// plural (`tasks`), the thing on screen is not.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum View {
-    Task,
-    Workspace,
-    MediaList,
-}
-
-impl From<View> for let_timer_tui::action::Component {
-    fn from(view: View) -> Self {
-        match view {
-            View::Task => Self::Task,
-            View::Workspace => Self::Workspace,
-            View::MediaList => Self::MediaList,
+            Component::Tasks { command } => match command {
+                Some(command) => Commands::Task(command.clone()),
+                None => Commands::Task(TaskCommand::List {
+                    priority: None,
+                    status: None,
+                }),
+            },
+            Component::Workspaces { command } => match command {
+                Some(command) => Commands::Workspace(command.clone()),
+                None => Commands::Workspace(WorkspaceCommand::List),
+            },
+            Component::MediaLists { command } => match command {
+                Some(command) => Commands::MediaList(command.clone()),
+                None => Commands::MediaList(MediaListCommand::List),
+            },
         }
     }
 }
@@ -122,47 +107,12 @@ pub enum Commands {
 }
 
 /// What can be asked of a task.
+///
+/// Nothing here creates, edits or deletes: those are the interface's forms, and
+/// a line of flags is not a worse way of filling one in so much as a different
+/// thing to maintain twice.
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
 pub enum TaskCommand {
-    /// Create a task.
-    Create {
-        #[arg(short, long)]
-        name: Option<String>,
-        #[arg(short = 'w', long)]
-        workspace_id: Option<i64>,
-        #[arg(short = 'm', long, value_name = "ID|none")]
-        media_list_id: Option<String>, // "none" skips; numeric picks a list
-        #[arg(short, long)]
-        description: Option<String>,
-        #[arg(short, long)]
-        priority: Option<String>, // "urgent" | "immediate" | "not-yet"
-        #[arg(short = 't', long, value_name = "MINUTES")]
-        estimated_mins: Option<i64>,
-        /// Day the task is planned for: `2026-10-01`, `today`, `tomorrow`,
-        /// a weekday (`mon`..`sun`), or `none` to leave it unscheduled.
-        #[arg(short = 'o', long, value_name = "DATE|none")]
-        on: Option<String>,
-    },
-    /// Delete a task by id.
-    Delete {
-        #[arg(short, long)]
-        id: i64,
-    },
-    /// Edit one task by id. Fields left out are not changed.
-    Edit {
-        #[arg(short, long)]
-        id: i64,
-        #[arg(short, long)]
-        name: Option<String>,
-        #[arg(short, long)]
-        description: Option<String>,
-        #[arg(short, long)]
-        priority: Option<String>,
-        /// Reschedule: `2026-10-01`, `today`, `tomorrow`, `mon`..`sun`, or
-        /// `none` to clear the scheduled day.
-        #[arg(short = 'o', long, value_name = "DATE|none")]
-        on: Option<String>,
-    },
     /// Search tasks by name.
     Find { query: String },
     /// Show the schedule.
@@ -187,33 +137,21 @@ pub enum TaskCommand {
 
 /// What can be asked of a workspace.
 ///
-/// `edit` and `delete` are missing on purpose: the protocol has no command to
-/// answer them with, so offering them would only move the failure.
+/// `create`, `edit` and `delete` are all missing on purpose: the first belongs
+/// to a form, and the other two have no protocol command to answer them with.
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
 pub enum WorkspaceCommand {
     /// Show every workspace.
     List,
-    /// Create a workspace.
-    Create {
-        #[arg(short, long)]
-        name: Option<String>,
-        #[arg(short, long)]
-        description: Option<String>,
-    },
 }
 
 /// What can be asked of a media list.
+///
+/// Missing `create`, `edit` and `delete` for the same reasons as a workspace's.
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
 pub enum MediaListCommand {
     /// Show every media list.
     List,
-    /// Create a media list.
-    Create {
-        #[arg(short, long)]
-        name: Option<String>,
-        #[arg(short, long)]
-        description: Option<String>,
-    },
 }
 
 #[cfg(test)]
@@ -233,20 +171,49 @@ mod tests {
     }
 
     #[test]
-    fn a_component_with_no_subcommand_is_a_screen() {
-        // This is the whole point of nesting: saying what to look at is not
-        // asking the daemon to do anything, and it is still the thing that was
-        // named.
+    fn a_component_with_no_subcommand_is_its_list() {
+        // Naming what to look at is not a longer way of naming the screen. It
+        // is the same answer as asking for the list by name, and it does not
+        // take the terminal to get it.
         let cli = Cli::parse_from(["let-timer", "workspaces"]);
         let component = cli.component.expect("a component was named");
 
         assert_eq!(
             component,
             Component::Workspaces { command: None },
-            "a component with nothing under it is a screen"
+            "a component with nothing under it is its list"
         );
-        assert_eq!(component.kind(), View::Workspace);
-        assert_eq!(component.command(), None);
+        assert_eq!(
+            component.command(),
+            Commands::Workspace(WorkspaceCommand::List)
+        );
+    }
+
+    #[test]
+    fn every_component_answers_with_its_own_list() {
+        // The same decision three times: without this, naming a component and
+        // naming its list would be two different questions.
+        let cases = [
+            (
+                "tasks",
+                Commands::Task(TaskCommand::List {
+                    priority: None,
+                    status: None,
+                }),
+            ),
+            ("workspaces", Commands::Workspace(WorkspaceCommand::List)),
+            ("media-lists", Commands::MediaList(MediaListCommand::List)),
+        ];
+
+        for (name, expected) in cases {
+            let cli = Cli::parse_from(["let-timer", name]);
+
+            assert_eq!(
+                cli.component.as_ref().map(Component::command),
+                Some(expected),
+                "{name}"
+            );
+        }
     }
 
     #[test]
@@ -274,69 +241,19 @@ mod tests {
     }
 
     #[test]
-    fn a_creating_task_lives_under_tasks() {
-        let cli = Cli::parse_from(["let-timer", "tasks", "create", "--name", "wash up"]);
-
-        assert_eq!(
-            cli.component,
-            Some(Component::Tasks {
-                command: Some(TaskCommand::Create {
-                    name: Some("wash up".into()),
-                    workspace_id: None,
-                    media_list_id: None,
-                    description: None,
-                    priority: None,
-                    estimated_mins: None,
-                    on: None,
-                })
-            })
-        );
-    }
-
-    #[test]
-    fn a_workspace_create_is_not_a_task_create() {
-        // The line this shape exists to stop: with the component beside the
-        // command instead of above it, `workspaces create` reached the task
-        // builder and made a task.
-        let cli = Cli::parse_from(["let-timer", "workspaces", "create", "-n", "side"]);
-
-        assert_eq!(
-            cli.component.and_then(|component| component.command()),
-            Some(Commands::Workspace(WorkspaceCommand::Create {
-                name: Some("side".into()),
-                description: None,
-            }))
-        );
-    }
-
-    #[test]
-    fn a_media_list_create_is_not_a_task_create() {
-        let cli = Cli::parse_from([
-            "let-timer",
-            "media-lists",
-            "create",
-            "-n",
-            "books",
-            "-d",
-            "to read this year",
-        ]);
-
-        assert_eq!(
-            cli.component.and_then(|component| component.command()),
-            Some(Commands::MediaList(MediaListCommand::Create {
-                name: Some("books".into()),
-                description: Some("to read this year".into()),
-            }))
-        );
-    }
-
-    #[test]
-    fn each_component_only_offers_what_the_daemon_has() {
+    fn each_component_only_offers_what_is_still_on_offer() {
         // Refused here rather than at the daemon, so the user is told what to
-        // type instead of hearing that a workspace cannot be edited.
+        // type instead of hearing that a workspace cannot be edited. The
+        // removed three are in this list too: a line that used to work has to
+        // stop with a message rather than quietly meaning something else.
         let refused = [
+            ["let-timer", "tasks", "create"],
+            ["let-timer", "tasks", "delete"],
+            ["let-timer", "tasks", "edit"],
+            ["let-timer", "workspaces", "create"],
             ["let-timer", "workspaces", "edit"],
             ["let-timer", "workspaces", "start"],
+            ["let-timer", "media-lists", "create"],
             ["let-timer", "media-lists", "delete"],
             ["let-timer", "media-lists", "list-extra"],
         ];
@@ -348,6 +265,19 @@ mod tests {
     }
 
     #[test]
+    fn the_inline_flags_are_gone_from_the_line() {
+        // Nothing here takes over the terminal, so nothing here needs a
+        // terminal, and there is no field left that a prompt could fill in.
+        let help = Cli::command().render_long_help().to_string();
+
+        assert!(!help.contains("--no-interactive"), "{help}");
+
+        let error =
+            Cli::try_parse_from(["let-timer", "tasks", "list", "--no-interactive"]).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::UnknownArgument);
+    }
+
+    #[test]
     fn json_is_global_through_the_nesting() {
         // `global = true` has to reach past a subcommand inside a subcommand,
         // because a script should not have to know where it put the flag.
@@ -355,39 +285,16 @@ mod tests {
         assert!(Cli::parse_from(["let-timer", "tasks", "current", "--json"]).json);
         assert!(Cli::parse_from(["let-timer", "--json"]).json);
         assert!(!Cli::parse_from(["let-timer", "tasks", "current"]).json);
+        // And it works on the run that needs no subcommand at all, which is
+        // the one a script is most likely to reach for.
+        assert!(Cli::parse_from(["let-timer", "--json", "tasks"]).json);
     }
 
     #[test]
-    fn every_command_the_daemon_has_is_reachable() {
-        // One row per `Command` in the protocol. A refactor that drops one, or
+    fn every_command_that_is_left_is_reachable() {
+        // One row per subcommand in this file. A refactor that drops one, or
         // files it under the wrong component, fails here.
-        let reachable: [(&[&str], Commands); 13] = [
-            (
-                &["tasks", "create", "-n", "wash up"],
-                Commands::Task(TaskCommand::Create {
-                    name: Some("wash up".into()),
-                    workspace_id: None,
-                    media_list_id: None,
-                    description: None,
-                    priority: None,
-                    estimated_mins: None,
-                    on: None,
-                }),
-            ),
-            (
-                &["tasks", "delete", "--id", "1"],
-                Commands::Task(TaskCommand::Delete { id: 1 }),
-            ),
-            (
-                &["tasks", "edit", "--id", "1"],
-                Commands::Task(TaskCommand::Edit {
-                    id: 1,
-                    name: None,
-                    description: None,
-                    priority: None,
-                    on: None,
-                }),
-            ),
+        let reachable: [(&[&str], Commands); 8] = [
             (
                 &["tasks", "find", "needle"],
                 Commands::Task(TaskCommand::Find {
@@ -413,22 +320,8 @@ mod tests {
                 Commands::Workspace(WorkspaceCommand::List),
             ),
             (
-                &["workspaces", "create", "-n", "side"],
-                Commands::Workspace(WorkspaceCommand::Create {
-                    name: Some("side".into()),
-                    description: None,
-                }),
-            ),
-            (
                 &["media-lists", "list"],
                 Commands::MediaList(MediaListCommand::List),
-            ),
-            (
-                &["media-lists", "create", "-n", "books"],
-                Commands::MediaList(MediaListCommand::Create {
-                    name: Some("books".into()),
-                    description: None,
-                }),
             ),
         ];
 
@@ -438,9 +331,7 @@ mod tests {
             let cli = Cli::parse_from(&argv);
 
             assert_eq!(
-                cli.component
-                    .as_ref()
-                    .and_then(|component| component.command()),
+                cli.component.as_ref().map(Component::command),
                 Some(expected),
                 "{argv:?}"
             );

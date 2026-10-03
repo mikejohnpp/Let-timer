@@ -3,9 +3,6 @@
 //! ```toml
 //! # How often the list is refreshed from the daemon.
 //! poll_interval_ms = 3000
-//!
-//! # How tall an inline list may grow before it starts scrolling.
-//! inline_max_height = 15
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -24,17 +21,10 @@ const FILE_NAME: &str = "settings.toml";
 /// benefit; the numbers only change when somebody edits them.
 pub const MIN_POLL_INTERVAL_MS: u64 = 100;
 
-/// The shortest inline list worth drawing.
-///
-/// A list needs a line for its heading and at least one row, and anything
-/// shorter shows nothing useful.
-pub const MIN_INLINE_MAX_HEIGHT: u16 = 3;
-
 /// The numbers the interface runs on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {
     poll_interval: Duration,
-    inline_max_height: u16,
 }
 
 impl Settings {
@@ -42,31 +32,20 @@ impl Settings {
     pub fn defaults() -> Self {
         Self {
             poll_interval: Duration::from_secs(3),
-            inline_max_height: 15,
         }
     }
 
     /// Build settings directly, for a caller that already knows the numbers.
-    pub fn new(poll_interval: Duration, inline_max_height: u16) -> Option<Self> {
-        if poll_interval < Duration::from_millis(MIN_POLL_INTERVAL_MS)
-            || inline_max_height < MIN_INLINE_MAX_HEIGHT
-        {
+    pub fn new(poll_interval: Duration) -> Option<Self> {
+        if poll_interval < Duration::from_millis(MIN_POLL_INTERVAL_MS) {
             return None;
         }
-        Some(Self {
-            poll_interval,
-            inline_max_height,
-        })
+        Some(Self { poll_interval })
     }
 
     /// How often to ask the daemon for the list again.
     pub fn poll_interval(&self) -> Duration {
         self.poll_interval
-    }
-
-    /// How tall an inline list may grow before it starts scrolling.
-    pub fn inline_max_height(&self) -> u16 {
-        self.inline_max_height
     }
 }
 
@@ -77,11 +56,19 @@ impl Default for Settings {
 }
 
 /// A settings file, as written down.
+///
+/// `inline_max_height` sized the panel that used to be drawn in the flow of the
+/// terminal. It is still read and thrown away, for the same reason the keymap
+/// still accepts an `[inline]` section: refusing the file would leave somebody
+/// unable to start the interface until they had edited a config file by hand to
+/// remove a line. It is a setting that used to mean something, not a typo, so it
+/// is not what `deny_unknown_fields` is there to catch.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct File {
     poll_interval_ms: Option<u64>,
-    inline_max_height: Option<u16>,
+    #[serde(default, rename = "inline_max_height")]
+    _inline_max_height: Option<u16>,
 }
 
 /// Where the settings live, given let-timer's config directory.
@@ -129,18 +116,6 @@ pub fn load_from(path: &Path) -> Result<Settings, ConfigError> {
         settings.poll_interval = Duration::from_millis(ms);
     }
 
-    if let Some(height) = file.inline_max_height {
-        if height < MIN_INLINE_MAX_HEIGHT {
-            return Err(ConfigError::OutOfRange {
-                path: path.to_path_buf(),
-                field: "inline_max_height",
-                value: height.to_string(),
-                allowed: format!("cannot be below {MIN_INLINE_MAX_HEIGHT}"),
-            });
-        }
-        settings.inline_max_height = height;
-    }
-
     Ok(settings)
 }
 
@@ -181,27 +156,23 @@ mod tests {
     }
 
     #[test]
-    fn the_defaults_keep_an_inline_list_to_fifteen_rows() {
-        assert_eq!(Settings::defaults().inline_max_height(), 15);
-    }
-
-    #[test]
     fn the_defaults_are_the_fallback() {
         assert_eq!(Settings::default(), Settings::defaults());
     }
 
     #[test]
     fn settings_can_be_built_directly() {
-        let settings = Settings::new(Duration::from_millis(500), 8).unwrap();
+        let settings = Settings::new(Duration::from_millis(500)).unwrap();
         assert_eq!(settings.poll_interval(), Duration::from_millis(500));
-        assert_eq!(settings.inline_max_height(), 8);
     }
 
     #[test]
     fn settings_built_by_hand_are_held_to_the_same_limits() {
-        assert!(Settings::new(Duration::from_millis(1), 8).is_none());
-        assert!(Settings::new(Duration::from_secs(1), 1).is_none());
-        assert!(Settings::new(Duration::from_secs(1), MIN_INLINE_MAX_HEIGHT).is_some());
+        assert!(Settings::new(Duration::from_millis(1)).is_none());
+        assert!(
+            Settings::new(Duration::from_millis(MIN_POLL_INTERVAL_MS)).is_some(),
+            "the floor itself is allowed"
+        );
     }
 
     // ── no file at all ─────────────────────────────────────────────────
@@ -229,27 +200,22 @@ mod tests {
     // ── overrides ──────────────────────────────────────────────────────
 
     #[test]
-    fn both_numbers_can_be_set() {
-        let file = scratch("both").with("poll_interval_ms = 750\ninline_max_height = 20\n");
-        let settings = load_from(&file.0).unwrap();
+    fn a_stale_inline_height_is_read_and_ignored() {
+        // The panel it sized is gone. A file written against an older build
+        // still starts, and the number is not used: the interface fills the
+        // screen, which is the only height left to have.
+        let file = scratch("stale-height").with("poll_interval_ms = 750\ninline_max_height = 20\n");
+        let settings = load_from(&file.0).expect("a setting that used to exist is not a typo");
 
         assert_eq!(settings.poll_interval(), Duration::from_millis(750));
-        assert_eq!(settings.inline_max_height(), 20);
+        assert_eq!(settings, Settings::new(Duration::from_millis(750)).unwrap());
     }
 
     #[test]
-    fn one_number_set_leaves_the_other_at_its_default() {
-        let file = scratch("one").with("poll_interval_ms = 1000\n");
-        let settings = load_from(&file.0).unwrap();
+    fn a_stale_inline_height_alone_still_leaves_the_defaults_alone() {
+        let file = scratch("stale-only").with("inline_max_height = 0\n");
 
-        assert_eq!(settings.poll_interval(), Duration::from_millis(1000));
-        assert_eq!(settings.inline_max_height(), 15);
-    }
-
-    #[test]
-    fn a_large_height_is_allowed() {
-        let file = scratch("tall").with("inline_max_height = 200\n");
-        assert_eq!(load_from(&file.0).unwrap().inline_max_height(), 200);
+        assert_eq!(load_from(&file.0).unwrap(), Settings::defaults());
     }
 
     #[test]
@@ -291,36 +257,8 @@ mod tests {
     }
 
     #[test]
-    fn an_inline_height_of_zero_is_refused() {
-        // Zero rows would draw nothing at all and look like a broken command.
-        let file = scratch("no-rows").with("inline_max_height = 0\n");
-        let error = load_from(&file.0).unwrap_err();
-
-        let ConfigError::OutOfRange { field, .. } = &error else {
-            panic!("expected out of range, got {error:?}");
-        };
-        assert_eq!(*field, "inline_max_height");
-    }
-
-    #[test]
-    fn an_inline_height_below_the_floor_is_refused() {
-        let file = scratch("too-short").with("inline_max_height = 2\n");
-        assert!(matches!(
-            load_from(&file.0).unwrap_err(),
-            ConfigError::OutOfRange { .. }
-        ));
-    }
-
-    #[test]
-    fn a_height_of_more_rows_than_fit_is_allowed() {
-        // The list scrolls rather than refusing; the caller decides what fits.
-        let file = scratch("taller-than-terminal").with("inline_max_height = 65535\n");
-        assert_eq!(load_from(&file.0).unwrap().inline_max_height(), 65535);
-    }
-
-    #[test]
     fn a_negative_number_is_reported() {
-        let file = scratch("negative").with("inline_max_height = -1\n");
+        let file = scratch("negative").with("poll_interval_ms = -1\n");
         assert!(matches!(
             load_from(&file.0).unwrap_err(),
             ConfigError::Parse { .. }

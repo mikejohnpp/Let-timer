@@ -101,10 +101,10 @@ mod tests {
     use super::*;
     use crate::action::{Action, Component};
     use crate::config::keymap::{Binding, KeyMap, Target};
-    use crate::store::{Mode, test_util};
+    use crate::store::test_util;
 
-    fn app(mode: Mode) -> App {
-        App::new(mode, Component::Task, KeyMap::defaults())
+    fn app() -> App {
+        App::new(Component::Task, KeyMap::defaults())
     }
 
     fn screen(app: &App, width: u16, height: u16) -> Buffer {
@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn the_keys_shown_are_the_keys_that_work() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::Help);
 
         let all = text(&screen(&app, 60, 24));
@@ -145,7 +145,7 @@ mod tests {
             crate::config::keymap::Context::Normal,
             Binding::new("x", Target::MoveDown).unwrap(),
         );
-        let mut app = App::new(Mode::Fullscreen, Component::Task, keymap);
+        let mut app = App::new(Component::Task, keymap);
         app.react(Action::Help);
 
         let all = text(&screen(&app, 60, 24));
@@ -157,22 +157,8 @@ mod tests {
     }
 
     #[test]
-    fn inline_lists_the_fewer_inline_bindings() {
-        let mut app = app(Mode::Inline { max_height: 10 });
-        app.react(Action::Help);
-
-        let all = text(&screen(&app, 60, 24));
-
-        assert!(all.contains("quit"), "found {all:?}");
-        assert!(
-            !all.contains("open create"),
-            "n is not a command inline, so offering it would be wrong, found {all:?}"
-        );
-    }
-
-    #[test]
     fn the_popup_sits_in_the_middle_and_clears_what_is_under_it() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::TaskListLoaded(test_util::tasks(1)));
         app.react(Action::Help);
 
@@ -192,7 +178,7 @@ mod tests {
 
     #[test]
     fn a_help_popup_shorter_than_the_screen_leaves_the_edges_alone() {
-        let mut app = app(Mode::Fullscreen);
+        let mut app = app();
         app.react(Action::Help);
 
         let buffer = screen(&app, 40, 30);
@@ -206,7 +192,7 @@ mod tests {
 
     #[test]
     fn nothing_is_drawn_when_the_help_is_not_open() {
-        let app = app(Mode::Fullscreen);
+        let app = app();
 
         let buffer = screen(&app, 40, 20);
 
