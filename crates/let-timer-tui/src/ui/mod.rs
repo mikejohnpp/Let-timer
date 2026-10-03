@@ -30,9 +30,9 @@ pub fn draw(frame: &mut Frame, app: &App) {
     if app.dispatcher().form().is_open() {
         form::draw(frame, app.dispatcher().form(), body);
     } else {
-        let (list_area, detail_area) = layout::split(body, panel::has_selection(app));
-        list::draw(frame, app, list_area);
-        panel::draw(frame, app, detail_area);
+        let regions = layout::split(body, panel::has_selection(app), false);
+        list::draw(frame, app, regions.list);
+        panel::draw(frame, app, regions.detail);
     }
 
     status::draw(frame, app, status_line);
