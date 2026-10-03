@@ -20,7 +20,7 @@ pub use form_store::{Draft, Field, FieldKind, FormKind, FormStore};
 pub use list_state::{Identified, ListState};
 pub use medialist_store::MediaListStore;
 pub use task_store::TaskStore;
-pub use ui_store::{Connection, Popup, UiStore};
+pub use ui_store::{Connection, Focus, Popup, UiStore};
 pub use workspace_store::WorkspaceStore;
 
 /// A state machine fed by actions.

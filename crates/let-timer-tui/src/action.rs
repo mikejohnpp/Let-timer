@@ -50,6 +50,13 @@ pub enum Action {
     /// Move the selection by a relative offset, clamped to the list.
     MoveSelection(i32),
 
+    /// Put the sidebar's highlight on a row.
+    ///
+    /// Separate from `Select` because the dispatcher hands every action to
+    /// every store, so one shared "select" would move the task list's highlight
+    /// from the sidebar, which is where the list stopped being.
+    SelectWorkspace(usize),
+
     // ── Screens ───────────────────────────────────────────────────────
     /// Open a blank create form for the given component.
     OpenCreate(Component),
@@ -78,6 +85,23 @@ pub enum Action {
     Toast(String),
     /// Close whatever overlay is on top: calendar, then help, then the panel.
     Cancel,
+    /// Aim the next key press at the next pane.
+    FocusNextPane,
+    /// Aim the next key press at the pane before this one.
+    ///
+    /// With two panes this is the same pane as [`Action::FocusNextPane`]. They
+    /// are separate actions because they are separate keys, and a third pane
+    /// would make them go different ways.
+    FocusPrevPane,
+    /// Show the only tasks belonging to one workspace, or all of them.
+    SetWorkspaceFilter(Option<i64>),
+    /// Move the workspace the sidebar has highlighted.
+    ///
+    /// Its own action rather than a reused one because the dispatcher hands
+    /// every action to every store, and both list stores answer a plain
+    /// `MoveSelection`: moving the sidebar would drag the task list's highlight
+    /// along with it.
+    MoveWorkspaceSelection(i32),
     /// Submit the current form or confirm the current action.
     Submit,
     /// Leave the TUI.

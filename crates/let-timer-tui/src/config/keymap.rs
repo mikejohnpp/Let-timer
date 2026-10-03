@@ -38,6 +38,13 @@ pub enum Target {
     CalendarNextDay,
     CalendarPrevWeek,
     CalendarNextWeek,
+    /// Unresolved: needs the workspace the sidebar has highlighted.
+    ApplyWorkspaceFilter,
+    /// Show every workspace again.
+    ClearWorkspaceFilter,
+    /// Move the sidebar's highlight, not the list's.
+    WorkspaceNext,
+    WorkspacePrev,
     Submit,
     Cancel,
     Refresh,
@@ -66,6 +73,10 @@ impl Target {
             Target::CalendarPrevWeek => "calendar_prev_week",
             Target::CalendarNextWeek => "calendar_next_week",
             Target::ClearDate => "clear_date",
+            Target::ApplyWorkspaceFilter => "apply_workspace_filter",
+            Target::ClearWorkspaceFilter => "clear_workspace_filter",
+            Target::WorkspaceNext => "workspace_next",
+            Target::WorkspacePrev => "workspace_prev",
             Target::Submit => "submit",
             Target::Cancel => "cancel",
             Target::Refresh => "refresh",
@@ -98,7 +109,7 @@ impl Target {
     }
 
     /// Every action a binding may name, so a config can be checked against them.
-    pub const ALL: [Target; 22] = [
+    pub const ALL: [Target; 26] = [
         Target::MoveDown,
         Target::MoveUp,
         Target::GoToTop,
@@ -115,6 +126,10 @@ impl Target {
         Target::CalendarNextDay,
         Target::CalendarPrevWeek,
         Target::CalendarNextWeek,
+        Target::ApplyWorkspaceFilter,
+        Target::ClearWorkspaceFilter,
+        Target::WorkspaceNext,
+        Target::WorkspacePrev,
         Target::Submit,
         Target::Cancel,
         Target::Refresh,
@@ -144,6 +159,9 @@ impl Target {
             Target::CalendarNextDay => Some(Action::CalendarMove(1)),
             Target::CalendarPrevWeek => Some(Action::CalendarMove(-7)),
             Target::CalendarNextWeek => Some(Action::CalendarMove(7)),
+            Target::ClearWorkspaceFilter => Some(Action::SetWorkspaceFilter(None)),
+            Target::WorkspaceNext => Some(Action::MoveWorkspaceSelection(1)),
+            Target::WorkspacePrev => Some(Action::MoveWorkspaceSelection(-1)),
             Target::Submit => Some(Action::Submit),
             Target::Cancel => Some(Action::Cancel),
             Target::Refresh => Some(Action::Tick),
@@ -151,8 +169,13 @@ impl Target {
             Target::DismissToast => Some(Action::DismissToast),
             Target::Quit => Some(Action::Quit),
             // A date is not a thing a key can name: the day the calendar has on
-            // it is only known once the calendar is open.
-            Target::OpenEdit | Target::ConfirmDelete | Target::PickDate => None,
+            // it is only known once the calendar is open. Neither is a
+            // workspace: which one is highlighted belongs to the sidebar, and
+            // only the loop can see both.
+            Target::OpenEdit
+            | Target::ConfirmDelete
+            | Target::PickDate
+            | Target::ApplyWorkspaceFilter => None,
         }
     }
 }
@@ -412,15 +435,18 @@ fn code_from_config_name(code: &KeyCode) -> String {
 
 /// Which key bindings apply right now.
 ///
-/// The two places keys are read behave differently. A list has nothing to type
-/// into, so letters are free to be commands. The date picker is a modal of its
-/// own, so the arrows that move a list move the day in it instead.
+/// The places keys are read behave differently. A list has nothing to type into,
+/// so letters are free to be commands. The date picker is a modal of its own, so
+/// the arrows that move a list move the day in it instead, and the sidebar is a
+/// pane of its own whose arrows move a workspace rather than a task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Context {
     /// The list, with a form over it or not.
     Normal,
     /// The date picker, drawn over a form.
     Calendar,
+    /// The list of workspaces down the left.
+    Sidebar,
 }
 
 impl Context {
@@ -429,6 +455,7 @@ impl Context {
         match self {
             Context::Normal => "normal",
             Context::Calendar => "calendar",
+            Context::Sidebar => "sidebar",
         }
     }
 
@@ -437,15 +464,16 @@ impl Context {
         match name {
             "normal" => Some(Context::Normal),
             "calendar" => Some(Context::Calendar),
+            "sidebar" => Some(Context::Sidebar),
             _ => None,
         }
     }
 
     /// Every section, so a config file can be checked against them.
-    pub const ALL: [Context; 2] = [Context::Normal, Context::Calendar];
+    pub const ALL: [Context; 3] = [Context::Normal, Context::Calendar, Context::Sidebar];
 
     /// How many sections there are, so the keymap can hold one list each.
-    pub const COUNT: usize = 2;
+    pub const COUNT: usize = 3;
 
     /// Which slot of the keymap holds this context's bindings.
     ///
@@ -455,6 +483,7 @@ impl Context {
         match self {
             Context::Normal => 0,
             Context::Calendar => 1,
+            Context::Sidebar => 2,
         }
     }
 }
@@ -500,6 +529,30 @@ impl KeyMap {
                     ("down", Target::CalendarNextWeek),
                     ("enter", Target::Submit),
                     ("esc", Target::Cancel),
+                ]),
+                bindings(&[
+                    // The sidebar's own keys. Its arrows move a workspace rather
+                    // than a task, and they cannot be the list's own arrows
+                    // through the dispatcher, which hands every action to every
+                    // store.
+                    ("j, down", Target::WorkspaceNext),
+                    ("k, up", Target::WorkspacePrev),
+                    ("g, home", Target::GoToTop),
+                    ("G, end", Target::GoToBottom),
+                    // `enter` applies the workspace the sidebar has highlighted,
+                    // overriding the form's submit because there is no form in
+                    // front of one.
+                    ("enter", Target::ApplyWorkspaceFilter),
+                    // Escape from the sidebar drops the filter rather than
+                    // dropping focus: leaving a pane and undoing what the pane
+                    // did are two different things to want, and one key should
+                    // not mean both. `tab` is the way out.
+                    ("esc", Target::ClearWorkspaceFilter),
+                    // Focus has to be walkable from here as well as from the
+                    // list, or `tab` would land on a pane and leave no way out
+                    // of it.
+                    ("tab", Target::NextField),
+                    ("shift-tab", Target::PreviousField),
                 ]),
             ],
         }
@@ -848,7 +901,7 @@ mod tests {
         names.dedup();
 
         assert_eq!(names.len(), count, "two actions share a name");
-        assert_eq!(Target::ALL.len(), 22, "every target is in the list");
+        assert_eq!(Target::ALL.len(), 26, "every target is in the list");
     }
 
     #[test]

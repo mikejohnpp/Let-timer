@@ -39,6 +39,35 @@ pub enum Connection {
     Disconnected,
 }
 
+/// Which part of the screen the next key press is aimed at.
+///
+/// The application draws more than one pane, so a key has to mean something
+/// different depending on which pane is being looked at. Focus is the answer,
+/// and it is held here rather than worked out from what is on screen so that
+/// "where am I" is a fact with one owner instead of a question every view asks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Focus {
+    /// The list of records and the panel beside it.
+    #[default]
+    List,
+    /// The list of workspaces down the left.
+    Sidebar,
+}
+
+impl Focus {
+    /// The other pane, for the key that moves between them.
+    ///
+    /// `tab` walks forwards through the panes and `shift-tab` backwards, so
+    /// with two panes both keys land on the same place and neither can get
+    /// stuck: there is nowhere further to go.
+    pub fn other(self) -> Focus {
+        match self {
+            Focus::List => Focus::Sidebar,
+            Focus::Sidebar => Focus::List,
+        }
+    }
+}
+
 /// A message shown to the user for a few ticks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Toast {
@@ -54,6 +83,8 @@ pub struct UiStore {
     connection: Connection,
     /// The day the calendar has highlighted, while the calendar is open.
     calendar: Option<NaiveDate>,
+    /// Which pane the next key press is aimed at.
+    focus: Focus,
     effects: EffectQueue,
 }
 
@@ -71,6 +102,7 @@ impl UiStore {
             toast: None,
             connection: Connection::Connecting,
             calendar: None,
+            focus: Focus::List,
             effects: EffectQueue::default(),
         }
     }
@@ -78,6 +110,11 @@ impl UiStore {
     /// The overlay currently open.
     pub fn popup(&self) -> Popup {
         self.popup
+    }
+
+    /// The pane the next key press is aimed at.
+    pub fn focus(&self) -> Focus {
+        self.focus
     }
 
     /// The message on screen, if any.
@@ -167,6 +204,11 @@ impl Store for UiStore {
             },
 
             Action::DismissToast => self.toast = None,
+
+            // Moving focus is the one thing a key does that has no business
+            // being undone by closing an overlay, so it is answered here and
+            // nowhere else.
+            Action::FocusNextPane | Action::FocusPrevPane => self.focus = self.focus.other(),
 
             Action::Tick => {
                 if let Some(toast) = &mut self.toast {
@@ -269,6 +311,64 @@ mod tests {
     fn send(store: &mut UiStore, action: Action) -> Vec<Effect> {
         store.update(action);
         store.take_effects()
+    }
+
+    // ── focus ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn starts_with_the_list_focused() {
+        assert_eq!(UiStore::default().focus(), Focus::List);
+    }
+
+    #[test]
+    fn focus_walks_between_the_list_and_the_sidebar() {
+        let mut store = UiStore::default();
+
+        send(&mut store, Action::FocusNextPane);
+        assert_eq!(store.focus(), Focus::Sidebar);
+
+        send(&mut store, Action::FocusNextPane);
+        assert_eq!(store.focus(), Focus::List);
+    }
+
+    #[test]
+    fn focus_walks_backwards_too() {
+        let mut store = UiStore::default();
+        send(&mut store, Action::FocusNextPane);
+
+        send(&mut store, Action::FocusPrevPane);
+
+        assert_eq!(
+            store.focus(),
+            Focus::List,
+            "with two panes, walking back from the sidebar has to land somewhere"
+        );
+    }
+
+    #[test]
+    fn a_pane_with_nothing_in_it_still_takes_the_focus() {
+        // The stores do not know how wide the terminal is, so a narrow window
+        // cannot stop the focus here. What keeps `j` from jumping a list the
+        // user cannot see is the sidebar being drawn out of the way instead.
+        let mut store = UiStore::default();
+
+        send(&mut store, Action::FocusNextPane);
+
+        assert_eq!(store.focus(), Focus::Sidebar);
+    }
+
+    #[test]
+    fn focusing_a_pane_is_not_undone_by_a_cancel() {
+        let mut store = UiStore::default();
+        send(&mut store, Action::FocusNextPane);
+
+        send(&mut store, Action::Cancel);
+
+        assert_eq!(
+            store.focus(),
+            Focus::Sidebar,
+            "there is nothing open for cancel to close"
+        );
     }
 
     #[test]

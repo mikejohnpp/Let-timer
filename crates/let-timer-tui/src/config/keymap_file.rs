@@ -11,6 +11,9 @@
 //!
 //! [calendar]
 //! help = "f1"
+//!
+//! [sidebar]
+//! apply_workspace_filter = "enter"
 //! ```
 
 use std::collections::BTreeMap;
@@ -39,6 +42,7 @@ struct File {
     #[serde(default, rename = "inline")]
     _inline: Option<BTreeMap<String, String>>,
     calendar: Option<BTreeMap<String, String>>,
+    sidebar: Option<BTreeMap<String, String>>,
 }
 
 impl File {
@@ -46,6 +50,7 @@ impl File {
         match context {
             Context::Normal => self.normal.as_ref(),
             Context::Calendar => self.calendar.as_ref(),
+            Context::Sidebar => self.sidebar.as_ref(),
         }
     }
 }
@@ -377,6 +382,48 @@ mod tests {
     // ── what a file may say ────────────────────────────────────────────
 
     #[test]
+    fn the_sidebar_has_a_section_of_its_own() {
+        let file = scratch("sidebar-section")
+            .with("[normal]\nquit = \"ctrl-q\"\n\n[sidebar]\napply_workspace_filter = \"w\"\n");
+        let map = load_from(&file.0).expect("a sidebar section should load");
+
+        assert!(targets(&map, Context::Sidebar).contains(&Target::ApplyWorkspaceFilter));
+        assert!(
+            !targets(&map, Context::Normal).contains(&Target::ApplyWorkspaceFilter),
+            "a sidebar key must not answer for the list"
+        );
+    }
+
+    #[test]
+    fn a_sidebar_key_replaces_the_default_it_was_given_for() {
+        let file = scratch("sidebar-override").with("[sidebar]\nworkspace_next = \"n\"\n");
+        let map = load_from(&file.0).expect("an overridden sidebar key should load");
+        let pressed = key(KeyCode::Char('n'));
+
+        assert_eq!(
+            map.resolve(Context::Sidebar, &pressed),
+            Some(Target::WorkspaceNext)
+        );
+        assert_eq!(
+            map.resolve(Context::Sidebar, &key(KeyCode::Char('j'))),
+            None,
+            "saying what a key means takes it away from what it meant before"
+        );
+    }
+
+    #[test]
+    fn a_file_that_says_nothing_about_the_sidebar_leaves_it_alone() {
+        let file = scratch("no-sidebar").with("[normal]\nquit = \"ctrl-q\"\n");
+        let map = load_from(&file.0).expect("a file without a sidebar should load");
+
+        assert_eq!(
+            map.resolve(Context::Sidebar, &key(KeyCode::Char('j'))),
+            Some(Target::WorkspaceNext),
+            "an absent section keeps every default rather than emptying the pane"
+        );
+    }
+
+    #[test]
     fn an_action_name_that_is_not_ours_is_refused() {
         let file = scratch("bad-action").with("[normal]\nexplode = \"x\"\n");
         let error = load_from(&file.0).unwrap_err();
@@ -390,9 +437,12 @@ mod tests {
 
     #[test]
     fn every_known_action_name_is_accepted() {
+        // One letter per action rather than one function key: there are more
+        // actions than there are function keys a terminal is known to send.
         let mut text = String::from("[normal]\n");
         for (index, target) in Target::ALL.iter().enumerate() {
-            text.push_str(&format!("{} = \"f{}\"\n", target.as_str(), index + 1));
+            let key = char::from(b'a' + u8::try_from(index).expect("fewer than 26 actions"));
+            text.push_str(&format!("{} = \"{key}\"\n", target.as_str()));
         }
         let file = scratch("all-actions").with(&text);
         let map = load_from(&file.0).expect("every action name should load");

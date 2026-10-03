@@ -81,8 +81,16 @@ impl Store for WorkspaceStore {
 
             Action::Tick => self.request_list(),
 
-            Action::Select(index) => self.list.select_row(index),
-            Action::MoveSelection(delta) => self.list.move_selection(delta),
+            // Only the sidebar's own actions move this highlight. `Select` and
+            // `MoveSelection` belong to the task list, and answering them here
+            // would mean a keystroke in the list walked the sidebar too.
+            Action::SelectWorkspace(index) => self.list.select_row(index),
+            Action::MoveWorkspaceSelection(delta) => self.list.move_selection(delta),
+
+            // Which workspace the sidebar is sitting on says nothing about what
+            // the task list is showing, so nothing changes here. The task store
+            // is the one that reads the filter.
+            Action::SetWorkspaceFilter(_) => {}
 
             _ => {}
         }
@@ -190,7 +198,7 @@ mod tests {
     fn the_highlight_follows_the_same_workspace_across_a_refresh() {
         let mut store = WorkspaceStore::new();
         send(&mut store, Action::WorkspaceListLoaded(workspaces(4)));
-        send(&mut store, Action::Select(2));
+        send(&mut store, Action::SelectWorkspace(2));
 
         send(
             &mut store,
@@ -206,10 +214,10 @@ mod tests {
         let mut store = WorkspaceStore::new();
         send(&mut store, Action::WorkspaceListLoaded(workspaces(3)));
 
-        send(&mut store, Action::MoveSelection(-5));
+        send(&mut store, Action::MoveWorkspaceSelection(-5));
         assert_eq!(store.selected(), 0);
 
-        send(&mut store, Action::MoveSelection(99));
+        send(&mut store, Action::MoveWorkspaceSelection(99));
         assert_eq!(store.selected(), 2);
     }
 

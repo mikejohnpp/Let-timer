@@ -21,7 +21,7 @@ use crate::dispatcher::Dispatcher;
 use crate::effect::Effect;
 use crate::event::{AppEvent, EventError, Events};
 use crate::ipc::IpcActor;
-use crate::store::{FieldKind, Popup};
+use crate::store::{FieldKind, Focus, Popup};
 use crate::terminal::{Screen, TerminalError};
 
 /// Something that arrived while the loop was waiting.
@@ -108,12 +108,17 @@ impl App {
 
     /// Which set of bindings the next key press will be read against.
     ///
-    /// The calendar is a modal of its own with keys of its own, and the arrows
-    /// that move a list move the day inside it, so the context follows whatever
-    /// is on top rather than being fixed at startup.
+    /// The calendar is a modal of its own with keys of its own, and the sidebar is a
+    /// pane of its own, so the context follows whatever is on top or has focus
+    /// rather than being fixed at startup.
     pub fn context(&self) -> Context {
         if self.dispatcher.ui().popup() == Popup::Calendar {
             return Context::Calendar;
+        }
+        // A popup is drawn over everything and is read with the list's keys, so a
+        // pane behind it is not what the next key press is about.
+        if !self.dispatcher.ui().has_popup() && self.dispatcher.ui().focus() == Focus::Sidebar {
+            return Context::Sidebar;
         }
         self.context
     }
@@ -126,6 +131,7 @@ impl App {
     /// an overlay, then the form, then the list.
     pub fn action_for_key(&self, key: crossterm::event::KeyEvent) -> Option<Action> {
         let target = self.keymap.resolve(self.context(), &key);
+        let focus_is_sidebar = self.context() == Context::Sidebar;
 
         // An overlay is a modal: the keys underneath it are not the user's
         // business right now, and letting them through would move a list
@@ -149,6 +155,17 @@ impl App {
             };
         }
 
+        // `tab` walks between panes, but only when there is no form to walk
+        // between the fields of. Inside a form it means the next field, which
+        // is what it has always meant there and cannot mean two things at once.
+        if !self.dispatcher.form().is_open() {
+            match target {
+                Some(Target::NextField) => return Some(Action::FocusNextPane),
+                Some(Target::PreviousField) => return Some(Action::FocusPrevPane),
+                _ => {}
+            }
+        }
+
         // A form swallows most keys before the list ever hears about them.
         if self.dispatcher.form().is_open() {
             if let Some(action) = self.action_for_form_key(target, &key) {
@@ -162,19 +179,43 @@ impl App {
         }
 
         match target {
-            // These two need to know which row is selected, which is something
-            // the keymap cannot know.
+            // These need to know which row is selected, which is something the
+            // keymap cannot know.
             Some(Target::OpenEdit) => self
                 .selected_task()
                 .map(|task| Action::OpenEdit(Box::new(task))),
             Some(Target::ConfirmDelete) => self
                 .selected_task()
                 .map(|task| Action::ConfirmDelete(Box::new(task))),
+            // The first row of the sidebar is "every workspace", so the filter
+            // it applies is the one that shows everything.
+            Some(Target::ApplyWorkspaceFilter) => {
+                Some(Action::SetWorkspaceFilter(self.selected_workspace_id()))
+            }
+            // Jumping to an end is the sidebar's business when the sidebar is
+            // what has focus; left as `Select` it would jump the task list's
+            // highlight from a pane the user is not even looking at.
+            Some(Target::GoToTop) if focus_is_sidebar => Some(Action::SelectWorkspace(0)),
+            Some(Target::GoToBottom) if focus_is_sidebar => {
+                Some(Action::SelectWorkspace(usize::MAX))
+            }
             // A date picker with no form has no date field to fill in, so the
             // key does nothing rather than opening a calendar over a list.
             Some(Target::OpenCalendar) => None,
             other => other.and_then(|target| target.into_action(self.component)),
         }
+    }
+
+    /// The workspace the sidebar's filter should be set to.
+    ///
+    /// The sidebar's rows are the workspaces and nothing else, so its highlight
+    /// is the workspace store's own highlight and there is no row numbering to
+    /// get wrong here.
+    fn selected_workspace_id(&self) -> Option<i64> {
+        self.dispatcher
+            .workspaces()
+            .selected_workspace()
+            .map(|workspace| workspace.id)
     }
 
     /// What this key means to an open form.
@@ -970,5 +1011,236 @@ mod tests {
         assert!(accepts_typing(FieldKind::WorkspaceId));
         assert!(!accepts_typing(FieldKind::Priority));
         assert!(!accepts_typing(FieldKind::Status));
+    }
+
+    // ── focus ──────────────────────────────────────────────────────────
+
+    /// An app with a few workspaces loaded, so the sidebar has something to say.
+    fn with_workspaces(app: &mut App, count: i64) {
+        let effects = app.react(Action::WorkspaceListLoaded(
+            crate::store::test_util::workspaces(count),
+        ));
+        assert!(
+            effects.is_empty(),
+            "a workspace list that just arrived has nothing left to ask for"
+        );
+    }
+
+    #[test]
+    fn the_list_has_the_keys_until_something_else_is_focused() {
+        let app = app();
+
+        assert_eq!(app.context(), Context::Normal);
+        assert_eq!(app.dispatcher().ui().focus(), Focus::List);
+    }
+
+    #[test]
+    fn tab_walks_the_focus_to_the_sidebar_and_back() {
+        let mut app = app();
+
+        let first = app.action_for_key(key(KeyCode::Tab));
+        assert!(
+            matches!(first, Some(Action::FocusNextPane)),
+            "found {first:?}"
+        );
+        app.react(Action::FocusNextPane);
+
+        assert_eq!(app.dispatcher().ui().focus(), Focus::Sidebar);
+        assert_eq!(app.context(), Context::Sidebar);
+
+        let second = app.action_for_key(key(KeyCode::Tab));
+        assert!(
+            matches!(second, Some(Action::FocusNextPane)),
+            "the sidebar has to be walkable out of as well, found {second:?}"
+        );
+        app.react(Action::FocusNextPane);
+
+        assert_eq!(app.dispatcher().ui().focus(), Focus::List);
+    }
+
+    #[test]
+    fn shift_tab_is_the_way_back_when_a_pane_could_be_looked_at_backwards() {
+        let mut app = app();
+        app.react(Action::FocusNextPane);
+
+        let action = app.action_for_key(key(KeyCode::BackTab));
+
+        assert!(
+            matches!(action, Some(Action::FocusPrevPane)),
+            "found {action:?}"
+        );
+        app.react(Action::FocusPrevPane);
+
+        assert_eq!(app.dispatcher().ui().focus(), Focus::List);
+    }
+
+    #[test]
+    fn a_form_keeps_tab_to_itself() {
+        let mut app = app();
+        app.react(Action::OpenCreate(Component::Task));
+
+        let action = app.action_for_key(key(KeyCode::Tab));
+
+        assert!(
+            matches!(action, Some(Action::FormNextField)),
+            "inside a form, tab moves between fields rather than between panes, found {action:?}"
+        );
+    }
+
+    #[test]
+    fn the_sidebar_arrows_move_a_workspace_rather_than_a_task() {
+        let mut app = app();
+        with_workspaces(&mut app, 3);
+        app.react(Action::FocusNextPane);
+
+        let action = app.action_for_key(key(KeyCode::Char('j')));
+        assert!(
+            matches!(action, Some(Action::MoveWorkspaceSelection(1))),
+            "found {action:?}"
+        );
+    }
+
+    #[test]
+    fn moving_in_the_sidebar_does_not_take_the_task_list_along() {
+        let mut app = app();
+        with_tasks(&mut app, 3);
+        with_workspaces(&mut app, 3);
+        app.react(Action::FocusNextPane);
+
+        app.react(Action::MoveWorkspaceSelection(1));
+
+        assert_eq!(
+            app.dispatcher().workspaces().selected(),
+            1,
+            "the workspace highlight is the one that moved"
+        );
+        assert_eq!(
+            app.dispatcher().tasks().selected(),
+            0,
+            "the task highlight is where the user left it"
+        );
+    }
+
+    #[test]
+    fn the_two_highlights_really_are_independent_of_each_other() {
+        let mut app = app();
+        with_tasks(&mut app, 3);
+        with_workspaces(&mut app, 3);
+
+        app.react(Action::MoveSelection(2));
+        app.react(Action::MoveWorkspaceSelection(1));
+
+        assert_eq!(app.dispatcher().tasks().selected(), 2);
+        assert_eq!(app.dispatcher().workspaces().selected(), 1);
+    }
+
+    #[test]
+    fn enter_in_the_sidebar_filters_by_the_workspace_it_has_highlighted() {
+        let mut app = app();
+        with_workspaces(&mut app, 3);
+        app.react(Action::FocusNextPane);
+        app.react(Action::MoveWorkspaceSelection(1));
+
+        let action = app.action_for_key(key(KeyCode::Enter));
+
+        assert!(
+            matches!(action, Some(Action::SetWorkspaceFilter(Some(2)))),
+            "found {action:?}"
+        );
+    }
+
+    #[test]
+    fn enter_on_the_first_workspace_filters_by_that_one() {
+        let mut app = app();
+        with_workspaces(&mut app, 3);
+        app.react(Action::FocusNextPane);
+
+        let action = app.action_for_key(key(KeyCode::Enter));
+
+        assert!(
+            matches!(action, Some(Action::SetWorkspaceFilter(Some(1)))),
+            "found {action:?}"
+        );
+    }
+
+    #[test]
+    fn enter_with_no_workspaces_at_all_filters_by_every_workspace() {
+        let mut app = app();
+        app.react(Action::FocusNextPane);
+
+        let action = app.action_for_key(key(KeyCode::Enter));
+
+        assert!(
+            matches!(action, Some(Action::SetWorkspaceFilter(None))),
+            "a filter over nothing is the same as no filter, found {action:?}"
+        );
+    }
+
+    #[test]
+    fn escape_in_the_sidebar_drops_the_filter_rather_than_the_focus() {
+        let mut app = app();
+        app.react(Action::FocusNextPane);
+
+        let action = app.action_for_key(key(KeyCode::Esc));
+
+        assert!(
+            matches!(action, Some(Action::SetWorkspaceFilter(None))),
+            "one key should not mean both leaving the pane and undoing the filter, found {action:?}"
+        );
+    }
+
+    #[test]
+    fn an_overlay_is_read_with_the_list_keys_until_it_is_the_calendar() {
+        let mut app = app();
+        app.react(Action::Help);
+        app.react(Action::FocusNextPane);
+
+        assert_eq!(
+            app.context(),
+            Context::Normal,
+            "a help popup is not a pane, so tab behind it is not focus"
+        );
+        assert!(
+            app.action_for_key(key(KeyCode::Tab)).is_none(),
+            "an overlay swallows the keys underneath it"
+        );
+    }
+
+    #[test]
+    fn jumping_to_an_end_in_the_sidebar_jumps_the_sidebar() {
+        let mut app = app();
+        with_workspaces(&mut app, 4);
+        app.react(Action::FocusNextPane);
+
+        let action = app.action_for_key(key(KeyCode::End));
+
+        assert!(
+            matches!(action, Some(Action::SelectWorkspace(usize::MAX))),
+            "found {action:?}"
+        );
+        app.react(Action::SelectWorkspace(usize::MAX));
+        assert_eq!(app.dispatcher().workspaces().selected(), 3);
+    }
+
+    #[test]
+    fn jumping_to_an_end_in_the_list_jumps_the_list() {
+        let mut app = app();
+        with_tasks(&mut app, 4);
+
+        let action = app.action_for_key(key(KeyCode::End));
+
+        assert!(
+            matches!(action, Some(Action::Select(usize::MAX))),
+            "found {action:?}"
+        );
+    }
+
+    #[test]
+    fn the_calendar_wins_over_the_focus_because_it_is_on_top() {
+        let mut app = app();
+        app.react(Action::FocusNextPane);
+        app.react(Action::OpenCalendar);
+
+        assert_eq!(app.context(), Context::Calendar);
     }
 }
