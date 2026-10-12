@@ -516,7 +516,9 @@ dependencies = [
 name = "let-timer-daemon"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "let-timer-core",
+ "rusqlite",
  "tokio",
 ]
 

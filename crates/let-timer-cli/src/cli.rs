@@ -72,6 +72,11 @@ pub enum Component {
         #[command(subcommand)]
         command: Option<MediaListCommand>,
     },
+    /// Daemon management commands.
+    Daemon {
+        #[command(subcommand)]
+        command: Option<DaemonCommand>,
+    },
 }
 
 impl Component {
@@ -98,6 +103,10 @@ impl Component {
                 Some(command) => Commands::MediaList(command.clone()),
                 None => Commands::MediaList(MediaListCommand::List),
             },
+            Component::Daemon { command } => match command {
+                Some(command) => Commands::Daemon(command.clone()),
+                None => Commands::Daemon(DaemonCommand::Status),
+            },
         }
     }
 }
@@ -111,6 +120,7 @@ pub enum Commands {
     Task(TaskCommand),
     Workspace(WorkspaceCommand),
     MediaList(MediaListCommand),
+    Daemon(DaemonCommand),
 }
 
 /// What can be asked of a task.
@@ -174,11 +184,55 @@ pub enum TaskCommand {
     Start {
         #[arg(short, long)]
         id: Option<i64>,
+        #[arg(long, default_value_t = false)]
+        next: bool,
+        #[arg(long, default_value_t = false)]
+        switch: bool,
+    },
+    /// Pause a task (defaults to currently running task).
+    Pause {
+        #[arg(short, long)]
+        id: Option<i64>,
+    },
+    /// Resume a task (defaults to most recently paused task).
+    Resume {
+        #[arg(short, long)]
+        id: Option<i64>,
     },
     /// Stop the current task.
-    Stop,
+    Stop {
+        #[arg(short, long)]
+        id: Option<i64>,
+    },
+    /// Restart a task (defaults to currently running task).
+    Restart {
+        #[arg(short, long)]
+        id: Option<i64>,
+    },
     /// Mark the current task done.
-    Done,
+    Done {
+        #[arg(short, long)]
+        id: Option<i64>,
+        #[arg(long, default_value_t = false)]
+        force: bool,
+    },
+    /// Cancel a task (defaults to currently running task).
+    Cancel {
+        #[arg(short, long)]
+        id: Option<i64>,
+    },
+    /// Reopen a completed or cancelled task.
+    Reopen {
+        #[arg(short, long)]
+        id: i64,
+    },
+}
+
+/// What can be asked of the daemon.
+#[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
+pub enum DaemonCommand {
+    /// Show daemon status (ping).
+    Status,
 }
 
 /// What can be asked of a workspace.
@@ -379,7 +433,7 @@ mod tests {
     fn every_command_the_daemon_has_is_reachable() {
         // One row per `Command` in the protocol. A refactor that drops one, or
         // files it under the wrong component, fails here.
-        let reachable: [(&[&str], Commands); 13] = [
+        let reachable: [(&[&str], Commands); 19] = [
             (
                 &["tasks", "create", "-n", "wash up"],
                 Commands::Task(TaskCommand::Create {
@@ -422,10 +476,47 @@ mod tests {
             (&["tasks", "current"], Commands::Task(TaskCommand::Current)),
             (
                 &["tasks", "start"],
-                Commands::Task(TaskCommand::Start { id: None }),
+                Commands::Task(TaskCommand::Start {
+                    id: None,
+                    next: false,
+                    switch: false,
+                }),
             ),
-            (&["tasks", "stop"], Commands::Task(TaskCommand::Stop)),
-            (&["tasks", "done"], Commands::Task(TaskCommand::Done)),
+            (
+                &["tasks", "pause"],
+                Commands::Task(TaskCommand::Pause { id: None }),
+            ),
+            (
+                &["tasks", "resume"],
+                Commands::Task(TaskCommand::Resume { id: None }),
+            ),
+            (
+                &["tasks", "stop"],
+                Commands::Task(TaskCommand::Stop { id: None }),
+            ),
+            (
+                &["tasks", "restart"],
+                Commands::Task(TaskCommand::Restart { id: None }),
+            ),
+            (
+                &["tasks", "done"],
+                Commands::Task(TaskCommand::Done {
+                    id: None,
+                    force: false,
+                }),
+            ),
+            (
+                &["tasks", "cancel"],
+                Commands::Task(TaskCommand::Cancel { id: None }),
+            ),
+            (
+                &["tasks", "reopen", "--id", "1"],
+                Commands::Task(TaskCommand::Reopen { id: 1 }),
+            ),
+            (
+                &["daemon", "status"],
+                Commands::Daemon(DaemonCommand::Status),
+            ),
             (
                 &["workspaces", "list"],
                 Commands::Workspace(WorkspaceCommand::List),

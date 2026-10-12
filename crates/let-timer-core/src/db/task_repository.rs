@@ -208,6 +208,67 @@ impl<'a> TaskRepository<'a> {
 
     // ─── Query ───────────────────────────────────────────────────────
 
+    /// Query tasks with combined filters and configurable ordering.
+    pub fn query(
+        &self,
+        workspace_id: Option<i64>,
+        status: Option<TaskStatus>,
+        priority: Option<Priority>,
+        scheduled_on: Option<NaiveDate>,
+        search_query: Option<&str>,
+        sort_priority: Option<SortOrder>,
+    ) -> Result<Vec<Task>, DbError> {
+        let mut sql = String::from("SELECT * FROM tasks WHERE 1=1");
+        let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+        if let Some(ws_id) = workspace_id {
+            sql.push_str(" AND workspace_id = ?");
+            values.push(Box::new(ws_id));
+        }
+
+        if let Some(st) = status {
+            sql.push_str(" AND status = ?");
+            values.push(Box::new(st.as_str().to_string()));
+        }
+
+        if let Some(pr) = priority {
+            sql.push_str(" AND priority = ?");
+            values.push(Box::new(pr.to_i64()));
+        }
+
+        if let Some(date) = scheduled_on {
+            sql.push_str(" AND scheduled_on = ?");
+            values.push(Box::new(date.to_string()));
+        }
+
+        if let Some(q) = search_query {
+            sql.push_str(" AND name LIKE ?");
+            values.push(Box::new(format!("%{q}%")));
+        }
+
+        match sort_priority {
+            Some(SortOrder::Ascending) => {
+                sql.push_str(" ORDER BY priority ASC, created_at DESC");
+            }
+            Some(SortOrder::Descending) => {
+                sql.push_str(" ORDER BY priority DESC, created_at DESC");
+            }
+            None => {
+                sql.push_str(
+                    " ORDER BY scheduled_on IS NULL, scheduled_on ASC, priority DESC, created_at DESC",
+                );
+            }
+        }
+
+        let mut stmt = self.conn.prepare(&sql)?;
+        let params_slice: Vec<&dyn rusqlite::types::ToSql> =
+            values.iter().map(|b| b.as_ref()).collect();
+        let tasks = stmt
+            .query_map(params_slice.as_slice(), Self::row_to_task)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(tasks)
+    }
+
     /// List all tasks ordered by scheduled day (unscheduled last), then by
     /// descending priority.
     pub fn list_all(&self) -> Result<Vec<Task>, DbError> {

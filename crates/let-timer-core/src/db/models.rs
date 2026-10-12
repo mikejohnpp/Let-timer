@@ -52,6 +52,11 @@ impl Priority {
             ))),
         }
     }
+
+    /// Convert `Priority` to its database integer value.
+    pub fn to_i64(&self) -> i64 {
+        *self as i64
+    }
 }
 
 impl FromStr for Priority {

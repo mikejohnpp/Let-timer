@@ -19,15 +19,15 @@ mod render;
 
 use std::process::ExitCode;
 
-use crate::cli::{Cli, Commands, MediaListCommand, TaskCommand, WorkspaceCommand};
+use crate::cli::{Cli, Commands, DaemonCommand, MediaListCommand, TaskCommand, WorkspaceCommand};
 use crate::interactive::{
     resolve_description, resolve_estimated_mins, resolve_media_list, resolve_name,
     resolve_priority, resolve_scheduled_on, resolve_workspace,
 };
 use clap::Parser;
 use let_timer_core::{
-    Command, IpcClient, NewMediaList, NewTask, NewWorkspace, Priority, Response, SortOrder,
-    TaskStatus, UpdateTask, date_on,
+    Command, IpcClient, ListQuery, NewMediaList, NewTask, NewWorkspace, Priority, Response,
+    SortOrder, TaskStatus, UpdateTask, WorkspaceScope, date_on,
 };
 
 /// Anything that stopped the program from doing what it was asked.
@@ -181,29 +181,47 @@ async fn build_command(
 
         Commands::Task(TaskCommand::Find { query }) => Ok(Command::Find {
             query: query.clone(),
+            workspace: WorkspaceScope::Active,
         }),
 
-        Commands::Task(TaskCommand::List { priority, status }) => Ok(Command::List {
+        Commands::Task(TaskCommand::List { priority, status }) => Ok(Command::List(ListQuery {
+            workspace: WorkspaceScope::Active,
             sort_priority: match priority.as_deref() {
                 Some("ascending") => Some(SortOrder::Ascending),
                 Some("descending") => Some(SortOrder::Descending),
                 Some(other) => return Err(format!("invalid sort order: {other}").into()),
                 None => None,
             },
-            filter_status: match status.as_deref() {
+            status: match status.as_deref() {
                 Some("pending") => Some(TaskStatus::Pending),
                 Some("in-progress") => Some(TaskStatus::InProgress),
+                Some("paused") => Some(TaskStatus::Paused),
                 Some("completed") => Some(TaskStatus::Completed),
                 Some("cancelled") => Some(TaskStatus::Cancelled),
                 Some(other) => return Err(format!("invalid status: {other}").into()),
                 None => None,
             },
-        }),
+            priority: None,
+            date: None,
+        })),
 
         Commands::Task(TaskCommand::Current) => Ok(Command::Current),
-        Commands::Task(TaskCommand::Start { id }) => Ok(Command::Start { id: *id }),
-        Commands::Task(TaskCommand::Stop) => Ok(Command::Stop),
-        Commands::Task(TaskCommand::Done) => Ok(Command::Done),
+        Commands::Task(TaskCommand::Start { id, next, switch }) => Ok(Command::Start {
+            id: *id,
+            next: *next,
+            switch: *switch,
+        }),
+        Commands::Task(TaskCommand::Pause { id }) => Ok(Command::Pause { id: *id }),
+        Commands::Task(TaskCommand::Resume { id }) => Ok(Command::Resume { id: *id }),
+        Commands::Task(TaskCommand::Stop { id }) => Ok(Command::Stop { id: *id }),
+        Commands::Task(TaskCommand::Restart { id }) => Ok(Command::Restart { id: *id }),
+        Commands::Task(TaskCommand::Done { id, force }) => Ok(Command::Done {
+            id: *id,
+            force: *force,
+        }),
+        Commands::Task(TaskCommand::Cancel { id }) => Ok(Command::Cancel { id: *id }),
+        Commands::Task(TaskCommand::Reopen { id }) => Ok(Command::Reopen { id: *id }),
+        Commands::Daemon(DaemonCommand::Status) => Ok(Command::Ping),
 
         // The other two components answer with their own records, so these
         // need nothing from the task builder.
@@ -597,10 +615,11 @@ mod tests {
         assert!(
             matches!(
                 command,
-                Command::List {
+                Command::List(ListQuery {
                     sort_priority: None,
-                    filter_status: None,
-                }
+                    status: None,
+                    ..
+                })
             ),
             "{command:?}"
         );

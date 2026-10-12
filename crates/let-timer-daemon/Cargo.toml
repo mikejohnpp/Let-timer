@@ -12,3 +12,5 @@ path = "src/main.rs"
 [dependencies]
 let-timer-core = { workspace = true }
 tokio = { workspace = true }
+chrono = { workspace = true }
+rusqlite = { workspace = true }

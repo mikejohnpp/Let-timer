@@ -159,7 +159,7 @@ mod tests {
 
         // 2. Connection is still alive! Send a valid command now
         line.clear();
-        let valid = serde_json::to_string(&Command::Stop).unwrap();
+        let valid = serde_json::to_string(&Command::Stop { id: None }).unwrap();
         write_half
             .write_all(format!("{valid}\n").as_bytes())
             .await

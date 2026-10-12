@@ -115,10 +115,45 @@ pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Resul
             Ok(())
         }
 
+        Response::Pong => writeln!(out, "pong"),
+
+        Response::Timer(snapshot) => timer_detail(out, snapshot),
+
         // Nobody reads this one here: the caller has to exit non-zero over it,
         // and it belongs on stderr.
         Response::Error { .. } => Ok(()),
     }
+}
+
+fn format_duration(seconds: i64) -> String {
+    let sign = if seconds < 0 { "-" } else { "" };
+    let abs_secs = seconds.unsigned_abs();
+    let mins = abs_secs / 60;
+    let secs = abs_secs % 60;
+    format!("{sign}{mins:02}:{secs:02}")
+}
+
+fn timer_detail(out: &mut impl Write, snap: &let_timer_core::TimerSnapshot) -> std::io::Result<()> {
+    writeln!(out, "Task #{}: {}", snap.task.id, snap.task.name)?;
+    writeln!(out, "  workspace: {}", snap.workspace_name)?;
+    writeln!(
+        out,
+        "  status: {} ({:?})",
+        snap.task.status.as_str(),
+        snap.state
+    )?;
+    writeln!(out, "  run: #{}", snap.task.run_no)?;
+    writeln!(out, "  elapsed: {}", format_duration(snap.elapsed_secs))?;
+    if let Some(rem) = snap.remaining_secs {
+        let est = snap.task.estimated_mins.unwrap_or(0);
+        writeln!(
+            out,
+            "  remaining: {} (estimate: {} mins)",
+            format_duration(rem),
+            est
+        )?;
+    }
+    Ok(())
 }
 
 /// One task, on its own, for a reply about one task.
