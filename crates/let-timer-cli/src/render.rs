@@ -219,6 +219,8 @@ mod tests {
             status: TaskStatus::Pending,
             estimated_mins: None,
             scheduled_on: None,
+            run_no: 0,
+            notified_at: None,
             created_at: "2026-10-01 09:00:00".to_string(),
             updated_at: "2026-10-01 09:00:00".to_string(),
         }

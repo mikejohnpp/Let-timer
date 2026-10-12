@@ -33,6 +33,8 @@ impl<'a> TaskRepository<'a> {
             status: status_raw.parse().unwrap_or(TaskStatus::Pending),
             estimated_mins: row.get("estimated_mins")?,
             scheduled_on: row.get::<_, Option<NaiveDate>>("scheduled_on")?,
+            run_no: row.get("run_no")?,
+            notified_at: row.get("notified_at")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })

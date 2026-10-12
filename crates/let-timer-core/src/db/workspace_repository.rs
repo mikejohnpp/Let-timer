@@ -213,7 +213,8 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(repo.list_all().unwrap().len(), 2);
+        // Database initialize creates a Default workspace; adding 2 more makes 3.
+        assert_eq!(repo.list_all().unwrap().len(), 3);
         let hits = repo.find_by_name("udy").unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].name, "Study");

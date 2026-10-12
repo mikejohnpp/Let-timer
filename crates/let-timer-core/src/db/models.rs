@@ -76,6 +76,7 @@ pub enum TaskStatus {
     #[default]
     Pending,
     InProgress,
+    Paused,
     Completed,
     Cancelled,
 }
@@ -86,6 +87,7 @@ impl TaskStatus {
         match self {
             TaskStatus::Pending => "pending",
             TaskStatus::InProgress => "in-progress",
+            TaskStatus::Paused => "paused",
             TaskStatus::Completed => "completed",
             TaskStatus::Cancelled => "cancelled",
         }
@@ -98,6 +100,7 @@ impl FromStr for TaskStatus {
         match s {
             "pending" => Ok(TaskStatus::Pending),
             "in-progress" => Ok(TaskStatus::InProgress),
+            "paused" => Ok(TaskStatus::Paused),
             "completed" => Ok(TaskStatus::Completed),
             "cancelled" => Ok(TaskStatus::Cancelled),
             _ => Err(DbError::InvalidStatus(s.to_string())),
@@ -237,6 +240,10 @@ pub struct Task {
     pub estimated_mins: Option<i64>,
     /// Day the task is planned for, if any (`YYYY-MM-DD`).
     pub scheduled_on: Option<NaiveDate>,
+    /// Run counter (incremented on restart).
+    pub run_no: i64,
+    /// When notification was sent for current run (RFC 3339 UTC).
+    pub notified_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
