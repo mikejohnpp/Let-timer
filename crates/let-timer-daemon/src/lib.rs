@@ -294,13 +294,32 @@ pub fn create_media_list(conn: &Connection, new_ml: &NewMediaList) -> Response {
     }
 }
 
+pub mod scheduler;
+pub use scheduler::Scheduler;
+
 pub fn handle_command(
     cmd: let_timer_core::Command,
     conn: &Connection,
     now: DateTime<Utc>,
+    notify: Option<&tokio::sync::Notify>,
 ) -> Response {
+    let affects_timer = matches!(
+        cmd,
+        let_timer_core::Command::Create(_)
+            | let_timer_core::Command::Delete { .. }
+            | let_timer_core::Command::Edit { .. }
+            | let_timer_core::Command::Start { .. }
+            | let_timer_core::Command::Pause { .. }
+            | let_timer_core::Command::Resume { .. }
+            | let_timer_core::Command::Stop { .. }
+            | let_timer_core::Command::Restart { .. }
+            | let_timer_core::Command::Done { .. }
+            | let_timer_core::Command::Cancel { .. }
+            | let_timer_core::Command::Reopen { .. }
+    );
+
     use let_timer_core::Command;
-    match cmd {
+    let res = match cmd {
         Command::Create(new_task) => create_task(conn, new_task),
         Command::Delete { id } => delete_task(conn, id),
         Command::Edit { id, update } => edit_task(conn, id, update, now),
@@ -320,7 +339,13 @@ pub fn handle_command(
         Command::CreateWorkspace(new_workspace) => create_workspace(conn, &new_workspace),
         Command::ListMediaLists => list_media_lists(conn),
         Command::CreateMediaList(new_media_list) => create_media_list(conn, &new_media_list),
+    };
+
+    if affects_timer && let Some(n) = notify {
+        n.notify_one();
     }
+
+    res
 }
 
 #[cfg(test)]
@@ -346,7 +371,7 @@ mod tests {
         let server = IpcServer::new(&socket_str, move |cmd| {
             let now = Utc::now();
             let db_guard = db_clone.lock().unwrap();
-            handle_command(cmd, db_guard.conn(), now)
+            handle_command(cmd, db_guard.conn(), now, None)
         })
         .await
         .unwrap();

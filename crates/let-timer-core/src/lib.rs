@@ -1,5 +1,6 @@
 pub mod db;
 pub mod ipc;
+pub mod notify;
 pub mod parse;
 pub mod protocol;
 pub mod service;
@@ -12,6 +13,7 @@ pub use db::{
 };
 pub use ipc::client::IpcClient;
 pub use ipc::server::IpcServer;
+pub use notify::{LogNotifier, Notifier, NotifySend, RecordingNotifier};
 pub use parse::{ParseDateError, date_on, weekday_from_alias};
 pub use protocol::{Command, ListQuery, Response, SortOrder, WorkspaceScope};
 pub use service::{
