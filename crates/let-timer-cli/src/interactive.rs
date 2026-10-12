@@ -24,15 +24,19 @@ fn required_text(
 }
 
 /// Validator factory: empty input is accepted (means "skip"), otherwise the
-/// input must be a whole number of minutes.
+/// input must be a whole positive number of minutes.
 fn optional_number(
     message: &'static str,
 ) -> impl Fn(&str) -> Result<Validation, CustomUserError> + Clone {
     move |input: &str| {
-        if input.trim().is_empty() || input.trim().parse::<i64>().is_ok() {
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
             Ok(Validation::Valid)
         } else {
-            Ok(Validation::Invalid(message.into()))
+            match trimmed.parse::<i64>() {
+                Ok(n) if n > 0 => Ok(Validation::Valid),
+                _ => Ok(Validation::Invalid(message.into())),
+            }
         }
     }
 }
@@ -184,7 +188,7 @@ impl fmt::Display for MediaListChoice {
 /// was not given. Offers "None" and an inline "create a new media list".
 pub async fn resolve_media_list(client: &mut IpcClient) -> Result<Option<i64>, Box<dyn Error>> {
     let lists = match client.request(&Command::ListMediaLists).await? {
-        Response::MediaListList(list) => list,
+        Response::MediaLists(list) => list,
         Response::Error { message } => return Err(message.into()),
         other => return Err(format!("unexpected response to ListMediaLists: {other:?}").into()),
     };

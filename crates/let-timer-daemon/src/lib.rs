@@ -1,15 +1,9 @@
-use let_timer_core::{
-    NewTask,
-    Response::{self},
-    SortOrder,
-    TaskPayload::{self},
-    TaskRepository, TaskStatus,
-};
+use let_timer_core::{NewTask, Response, SortOrder, TaskRepository, TaskStatus};
 
 pub fn create_commands(repo: &TaskRepository, task: &NewTask) -> Response {
     let result = repo.create(task);
     match result {
-        Ok(task) => Response::Ok(TaskPayload::Some(task)),
+        Ok(task) => Response::Ok(Some(task)),
         Err(error) => Response::Error {
             message: error.to_string(),
         },
@@ -77,10 +71,7 @@ pub fn find_by_name(repo: &TaskRepository, query: &str) -> Response {
 pub fn current_task(repo: &TaskRepository) -> Response {
     let result = repo.get_current();
     match result {
-        Ok(has_task) => match has_task {
-            Some(task) => Response::Ok(TaskPayload::Some(task)),
-            None => Response::OkEmpty,
-        },
+        Ok(has_task) => Response::Ok(has_task),
         Err(error) => Response::Error {
             message: error.to_string(),
         },
@@ -91,7 +82,7 @@ pub fn start_task(repo: &TaskRepository, id: Option<i64>) -> Response {
     if let Some(id) = id {
         let result = repo.start_task(id);
         match result {
-            Ok(task) => Response::Ok(TaskPayload::Some(task)),
+            Ok(task) => Response::Ok(Some(task)),
             Err(error) => Response::Error {
                 message: error.to_string(),
             },

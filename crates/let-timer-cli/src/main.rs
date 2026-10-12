@@ -363,7 +363,12 @@ async fn build_new_task(
     };
 
     let estimated_mins = match estimated_mins {
-        Some(mins) => Some(*mins),
+        Some(mins) => {
+            if *mins <= 0 {
+                return Err("estimated minutes must be greater than 0".into());
+            }
+            Some(*mins)
+        }
         None if no_interactive => None,
         None => resolve_estimated_mins()?,
     };

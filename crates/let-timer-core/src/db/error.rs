@@ -9,6 +9,10 @@ pub enum DbError {
     NotFound { entity: &'static str, id: i64 },
     /// An invalid enum string was stored in / passed to the database.
     InvalidStatus(String),
+    /// An invalid estimate was supplied (e.g. <= 0).
+    InvalidEstimate(i64),
+    /// Configuration or environment error.
+    Configuration(String),
     /// A row that must be unique already exists (e.g. duplicate membership).
     AlreadyExists { entity: &'static str },
 }
@@ -19,6 +23,10 @@ impl fmt::Display for DbError {
             DbError::Sqlite(e) => write!(f, "database error: {e}"),
             DbError::NotFound { entity, id } => write!(f, "{entity} not found: id={id}"),
             DbError::InvalidStatus(s) => write!(f, "invalid status: \"{s}\""),
+            DbError::InvalidEstimate(mins) => {
+                write!(f, "invalid estimated_mins: {mins} (must be greater than 0)")
+            }
+            DbError::Configuration(msg) => write!(f, "configuration error: {msg}"),
             DbError::AlreadyExists { entity } => write!(f, "{entity} already exists"),
         }
     }

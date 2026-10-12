@@ -274,7 +274,12 @@ pub struct UpdateTask {
     pub media_list_id: Option<Option<i64>>,
     pub priority: Option<Priority>,
     pub status: Option<TaskStatus>,
-    pub estimated_mins: Option<i64>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "double_option"
+    )]
+    pub estimated_mins: Option<Option<i64>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -355,6 +360,36 @@ mod tests {
                 .unwrap()
                 .contains("\"scheduled_on\":null")
         );
+    }
+
+    #[test]
+    fn update_task_estimated_mins_round_trip() {
+        let clear = UpdateTask {
+            estimated_mins: Some(None),
+            ..Default::default()
+        };
+        let set = UpdateTask {
+            estimated_mins: Some(Some(45)),
+            ..Default::default()
+        };
+        let untouched = UpdateTask {
+            name: Some("study".to_string()),
+            ..Default::default()
+        };
+
+        for original in [&clear, &set, &untouched] {
+            let json = serde_json::to_string(original).unwrap();
+            let decoded: UpdateTask = serde_json::from_str(&json).unwrap();
+            assert_eq!(decoded.estimated_mins, original.estimated_mins);
+        }
+
+        // Untouched omits estimated_mins
+        let untouched_json = serde_json::to_string(&untouched).unwrap();
+        assert!(!untouched_json.contains("estimated_mins"));
+
+        // Clear serializes to "estimated_mins":null
+        let clear_json = serde_json::to_string(&clear).unwrap();
+        assert!(clear_json.contains("\"estimated_mins\":null"));
     }
 
     #[test]

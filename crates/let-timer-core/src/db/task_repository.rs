@@ -100,6 +100,12 @@ impl<'a> TaskRepository<'a> {
             }
         }
 
+        if let Some(mins) = new_task.estimated_mins
+            && mins <= 0
+        {
+            return Err(DbError::InvalidEstimate(mins));
+        }
+
         self.conn.execute(
             "INSERT INTO tasks (workspace_id, media_list_id, name, description, priority, estimated_mins, scheduled_on)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -174,10 +180,15 @@ impl<'a> TaskRepository<'a> {
             )?;
         }
 
-        if let Some(estimated_mins) = update.estimated_mins {
+        if let Some(ref est_opt) = update.estimated_mins {
+            if let Some(mins) = *est_opt
+                && mins <= 0
+            {
+                return Err(DbError::InvalidEstimate(mins));
+            }
             self.conn.execute(
                 "UPDATE tasks SET estimated_mins = ?1 WHERE id = ?2",
-                params![estimated_mins, id],
+                params![*est_opt, id],
             )?;
         }
 
@@ -641,5 +652,74 @@ mod tests {
             repo.get_by_id(task.id),
             Err(DbError::NotFound { entity: "task", .. })
         ));
+    }
+
+    #[test]
+    fn create_rejects_zero_or_negative_estimate() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+
+        let mut task_zero = sample_task(ws_id);
+        task_zero.estimated_mins = Some(0);
+        assert!(matches!(
+            repo.create(&task_zero),
+            Err(DbError::InvalidEstimate(0))
+        ));
+
+        let mut task_neg = sample_task(ws_id);
+        task_neg.estimated_mins = Some(-15);
+        assert!(matches!(
+            repo.create(&task_neg),
+            Err(DbError::InvalidEstimate(-15))
+        ));
+    }
+
+    #[test]
+    fn update_rejects_zero_or_negative_estimate() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
+
+        let update_zero = UpdateTask {
+            estimated_mins: Some(Some(0)),
+            ..Default::default()
+        };
+        assert!(matches!(
+            repo.update(task.id, &update_zero),
+            Err(DbError::InvalidEstimate(0))
+        ));
+
+        let update_neg = UpdateTask {
+            estimated_mins: Some(Some(-5)),
+            ..Default::default()
+        };
+        assert!(matches!(
+            repo.update(task.id, &update_neg),
+            Err(DbError::InvalidEstimate(-5))
+        ));
+    }
+
+    #[test]
+    fn update_clears_estimate() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+
+        let mut sample = sample_task(ws_id);
+        sample.estimated_mins = Some(30);
+        let task = repo.create(&sample).unwrap();
+        assert_eq!(task.estimated_mins, Some(30));
+
+        let update_clear = UpdateTask {
+            estimated_mins: Some(None),
+            ..Default::default()
+        };
+        let updated = repo.update(task.id, &update_clear).unwrap();
+        assert_eq!(updated.estimated_mins, None);
     }
 }

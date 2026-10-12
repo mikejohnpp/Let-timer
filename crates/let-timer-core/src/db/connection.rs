@@ -91,7 +91,7 @@ impl Database {
     /// Open (or create) the database at the default XDG data location:
     /// `~/.local/share/let-timer/let-timer.db`
     pub fn open_default() -> Result<Self, DbError> {
-        let path = default_db_path();
+        let path = default_db_path()?;
         Self::open(&path)
     }
 
@@ -126,7 +126,6 @@ impl Database {
         // Performance & safety PRAGMAs.
         self.conn.execute_batch(
             "PRAGMA journal_mode = WAL;
-             PRAGMA foreign_keys = ON;
              PRAGMA foreign_keys = ON;
              PRAGMA busy_timeout = 5000;",
         )?;
@@ -189,14 +188,30 @@ impl Database {
 }
 
 /// Resolve the default database path: `~/.local/share/let-timer/let-timer.db`.
-fn default_db_path() -> PathBuf {
-    let base = std::env::var("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            let home = std::env::var("HOME").expect("HOME env var must be set");
-            PathBuf::from(home).join(".local/share")
-        });
-    base.join("let-timer").join("let-timer.db")
+///
+/// Can be overridden with the `LET_TIMER_DB` environment variable.
+fn default_db_path() -> Result<PathBuf, DbError> {
+    if let Some(override_path) = std::env::var_os("LET_TIMER_DB")
+        && !override_path.is_empty()
+    {
+        return Ok(PathBuf::from(override_path));
+    }
+    if let Some(base) = std::env::var_os("XDG_DATA_HOME")
+        && !base.is_empty()
+    {
+        return Ok(PathBuf::from(base).join("let-timer").join("let-timer.db"));
+    }
+    if let Some(home) = std::env::var_os("HOME")
+        && !home.is_empty()
+    {
+        return Ok(PathBuf::from(home)
+            .join(".local/share")
+            .join("let-timer")
+            .join("let-timer.db"));
+    }
+    Err(DbError::Configuration(
+        "neither LET_TIMER_DB, XDG_DATA_HOME nor HOME is set".to_string(),
+    ))
 }
 
 #[cfg(test)]
@@ -216,8 +231,16 @@ mod tests {
 
     #[test]
     fn default_db_path_is_reasonable() {
-        let path = default_db_path();
+        let path = default_db_path().expect("default db path should resolve");
         assert!(path.ends_with("let-timer/let-timer.db"));
+    }
+
+    #[test]
+    fn default_db_path_respects_let_timer_db_env() {
+        unsafe { std::env::set_var("LET_TIMER_DB", "/custom/test/db.sqlite") };
+        let path = default_db_path().expect("should resolve with env override");
+        assert_eq!(path, PathBuf::from("/custom/test/db.sqlite"));
+        unsafe { std::env::remove_var("LET_TIMER_DB") };
     }
 
     #[test]

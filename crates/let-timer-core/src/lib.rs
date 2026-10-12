@@ -12,4 +12,4 @@ pub use db::{
 pub use ipc::client::IpcClient;
 pub use ipc::server::IpcServer;
 pub use parse::{ParseDateError, date_on, weekday_from_alias};
-pub use protocol::{Command, Response, SortOrder, TaskPayload};
+pub use protocol::{Command, Response, SortOrder};

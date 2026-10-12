@@ -18,7 +18,13 @@ use std::path::PathBuf;
 /// `$XDG_RUNTIME_DIR` is not always set, and a daemon with nowhere to listen
 /// would be no use at all, so there is a fallback. It is a poor one, and a
 /// multi-user machine is the place where it bites.
+/// Can be overridden with the `LET_TIMER_SOCKET` environment variable.
 pub fn socket_path() -> PathBuf {
+    if let Some(override_path) = std::env::var_os("LET_TIMER_SOCKET")
+        && !override_path.is_empty()
+    {
+        return PathBuf::from(override_path);
+    }
     if let Some(runtime_dir) = std::env::var_os("XDG_RUNTIME_DIR")
         && !runtime_dir.is_empty()
     {
@@ -40,5 +46,12 @@ mod tests {
             Some("sock"),
             "a client and a server that disagree about this cannot talk"
         );
+    }
+
+    #[test]
+    fn let_timer_socket_env_overrides_default() {
+        unsafe { std::env::set_var("LET_TIMER_SOCKET", "/tmp/custom-test.sock") };
+        assert_eq!(socket_path(), PathBuf::from("/tmp/custom-test.sock"));
+        unsafe { std::env::remove_var("LET_TIMER_SOCKET") };
     }
 }

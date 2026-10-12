@@ -12,7 +12,7 @@
 
 use std::io::Write;
 
-use let_timer_core::{Response, Task, TaskPayload};
+use let_timer_core::{Response, Task};
 
 /// Print `response` for the reader `--json` asked for.
 pub fn print(response: &Response, json: bool) -> std::io::Result<()> {
@@ -45,8 +45,8 @@ pub fn complain(message: &str) {
 /// The reply as a person reads it.
 pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Result<()> {
     match response {
-        Response::Ok(TaskPayload::Some(task)) => task_detail(out, task),
-        Response::Ok(TaskPayload::None) => writeln!(out, "Nothing to show."),
+        Response::Ok(Some(task)) => task_detail(out, task),
+        Response::Ok(None) => writeln!(out, "Nothing to show."),
 
         Response::OkList(tasks) => match tasks.is_empty() {
             // A header with nothing under it reads as a mistake in this program
@@ -84,7 +84,7 @@ pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Resul
             ),
         },
 
-        Response::MediaListList(lists) => match lists.is_empty() {
+        Response::MediaLists(lists) => match lists.is_empty() {
             true => writeln!(out, "No media lists."),
             false => table(
                 out,
@@ -234,12 +234,9 @@ mod tests {
     fn json_is_the_reply_itself() {
         // Whatever the daemon said, verbatim: a script reading this should not
         // have to know which version of let-timer produced it.
-        let response = Response::Ok(TaskPayload::None);
+        let response = Response::Ok(None);
 
-        assert_eq!(
-            serde_json::to_string(&response).unwrap(),
-            "{\"Ok\":\"None\"}"
-        );
+        assert_eq!(serde_json::to_string(&response).unwrap(), "{\"Ok\":null}");
     }
 
     #[test]
@@ -257,10 +254,7 @@ mod tests {
 
     #[test]
     fn an_empty_media_list_list_says_so() {
-        assert_eq!(
-            print_to(&Response::MediaListList(vec![])),
-            "No media lists.\n"
-        );
+        assert_eq!(print_to(&Response::MediaLists(vec![])), "No media lists.\n");
     }
 
     #[test]
@@ -342,7 +336,7 @@ mod tests {
         task.estimated_mins = Some(20);
         task.scheduled_on = date_on("2026-12-25").unwrap();
 
-        let out = print_to(&Response::Ok(TaskPayload::Some(task)));
+        let out = print_to(&Response::Ok(Some(task)));
 
         assert!(out.contains("Task 4: wash up"), "{out}");
         assert!(out.contains("the dishes"), "{out}");
@@ -352,10 +346,7 @@ mod tests {
 
     #[test]
     fn a_reply_about_nothing_says_nothing() {
-        assert_eq!(
-            print_to(&Response::Ok(TaskPayload::None)),
-            "Nothing to show.\n"
-        );
+        assert_eq!(print_to(&Response::Ok(None)), "Nothing to show.\n");
     }
 
     #[test]

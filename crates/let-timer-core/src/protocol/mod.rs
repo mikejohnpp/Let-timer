@@ -40,18 +40,12 @@ pub enum SortOrder {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Response {
-    Ok(TaskPayload),
+    Ok(Option<Task>),
     OkList(Vec<Task>),
     OkEmpty,
     WorkspaceList(Vec<Workspace>),
     Workspace(Workspace),
-    MediaListList(Vec<MediaList>),
+    MediaLists(Vec<MediaList>),
     MediaList(MediaList),
     Error { message: String },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TaskPayload {
-    Some(Task),
-    None,
 }
