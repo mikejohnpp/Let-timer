@@ -93,6 +93,8 @@ impl Component {
                 None => Commands::Task(TaskCommand::List {
                     priority: None,
                     status: None,
+                    workspace: None,
+                    all_workspaces: false,
                 }),
             },
             Component::Workspaces { command } => match command {
@@ -170,13 +172,23 @@ pub enum TaskCommand {
         on: Option<String>,
     },
     /// Search tasks by name.
-    Find { query: String },
+    Find {
+        query: String,
+        #[arg(short = 'w', long)]
+        workspace: Option<String>,
+        #[arg(long, default_value_t = false)]
+        all_workspaces: bool,
+    },
     /// Show the schedule.
     List {
         #[arg(long)]
         priority: Option<String>, // "ascending" | "descending"
         #[arg(long)]
         status: Option<String>, // "pending" | "in-progress" | "completed" | "cancelled"
+        #[arg(short = 'w', long)]
+        workspace: Option<String>,
+        #[arg(long, default_value_t = false)]
+        all_workspaces: bool,
     },
     /// Show the work in hand right now.
     Current,
@@ -250,6 +262,18 @@ pub enum WorkspaceCommand {
         #[arg(short, long)]
         description: Option<String>,
     },
+    /// Switch active workspace by id or name.
+    Switch {
+        /// Target workspace id or name (omit for interactive picker).
+        target: Option<String>,
+    },
+    /// Show current active workspace.
+    Current,
+    /// Delete a workspace by id.
+    Delete {
+        #[arg(short, long)]
+        id: i64,
+    },
 }
 
 /// What can be asked of a media list.
@@ -314,6 +338,8 @@ mod tests {
                 Commands::Task(TaskCommand::List {
                     priority: None,
                     status: None,
+                    workspace: None,
+                    all_workspaces: false,
                 }),
             ),
             ("workspaces", Commands::Workspace(WorkspaceCommand::List)),
@@ -433,7 +459,7 @@ mod tests {
     fn every_command_the_daemon_has_is_reachable() {
         // One row per `Command` in the protocol. A refactor that drops one, or
         // files it under the wrong component, fails here.
-        let reachable: [(&[&str], Commands); 19] = [
+        let reachable: [(&[&str], Commands); 22] = [
             (
                 &["tasks", "create", "-n", "wash up"],
                 Commands::Task(TaskCommand::Create {
@@ -464,6 +490,8 @@ mod tests {
                 &["tasks", "find", "needle"],
                 Commands::Task(TaskCommand::Find {
                     query: "needle".into(),
+                    workspace: None,
+                    all_workspaces: false,
                 }),
             ),
             (
@@ -471,6 +499,8 @@ mod tests {
                 Commands::Task(TaskCommand::List {
                     priority: None,
                     status: None,
+                    workspace: None,
+                    all_workspaces: false,
                 }),
             ),
             (&["tasks", "current"], Commands::Task(TaskCommand::Current)),
@@ -527,6 +557,20 @@ mod tests {
                     name: Some("side".into()),
                     description: None,
                 }),
+            ),
+            (
+                &["workspaces", "switch", "side"],
+                Commands::Workspace(WorkspaceCommand::Switch {
+                    target: Some("side".into()),
+                }),
+            ),
+            (
+                &["workspaces", "current"],
+                Commands::Workspace(WorkspaceCommand::Current),
+            ),
+            (
+                &["workspaces", "delete", "--id", "1"],
+                Commands::Workspace(WorkspaceCommand::Delete { id: 1 }),
             ),
             (
                 &["media-lists", "list"],

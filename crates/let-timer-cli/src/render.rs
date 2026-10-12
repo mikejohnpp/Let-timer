@@ -107,6 +107,18 @@ pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Resul
             Ok(())
         }
 
+        Response::CurrentWorkspace(workspace) => {
+            writeln!(
+                out,
+                "Current workspace: {} (#{})",
+                workspace.name, workspace.id
+            )?;
+            if let Some(description) = &workspace.description {
+                writeln!(out, "  {description}")?;
+            }
+            Ok(())
+        }
+
         Response::MediaList(list) => {
             writeln!(out, "Media list {}: {}", list.id, list.name)?;
             if let Some(description) = &list.description {

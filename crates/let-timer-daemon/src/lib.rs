@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use rusqlite::Connection;
+use rusqlite::{Connection, params};
 
 use let_timer_core::{
     ListQuery, MediaListRepository, NewMediaList, NewTask, NewWorkspace, Response,
@@ -18,6 +18,24 @@ fn resolve_workspace_id(conn: &Connection, scope: &WorkspaceScope) -> Result<Opt
         }
         WorkspaceScope::Id(id) => Ok(Some(*id)),
         WorkspaceScope::All => Ok(None),
+        WorkspaceScope::Name(name) => {
+            let repo = WorkspaceRepository::new(conn);
+            if let Ok(Some(ws)) = repo.find_exact_name(name) {
+                Ok(Some(ws.id))
+            } else {
+                match repo.find_by_name(name) {
+                    Ok(mut matches) if matches.len() == 1 => Ok(Some(matches.pop().unwrap().id)),
+                    Ok(matches) if matches.is_empty() => {
+                        Err(format!("workspace '{name}' not found"))
+                    }
+                    Ok(matches) => Err(format!(
+                        "ambiguous workspace name '{name}': matches {} workspaces",
+                        matches.len()
+                    )),
+                    Err(e) => Err(e.to_string()),
+                }
+            }
+        }
     }
 }
 
@@ -294,6 +312,128 @@ pub fn create_media_list(conn: &Connection, new_ml: &NewMediaList) -> Response {
     }
 }
 
+pub fn current_workspace(conn: &Connection) -> Response {
+    let settings = SettingsRepository::new(conn);
+    let active_id = match settings.active_workspace_id() {
+        Ok(id) => id,
+        Err(e) => {
+            return Response::Error {
+                message: e.to_string(),
+            };
+        }
+    };
+    let repo = WorkspaceRepository::new(conn);
+    match repo.get_by_id(active_id) {
+        Ok(ws) => Response::CurrentWorkspace(ws),
+        Err(e) => Response::Error {
+            message: e.to_string(),
+        },
+    }
+}
+
+pub fn switch_workspace(conn: &Connection, target: let_timer_core::WorkspaceTarget) -> Response {
+    use let_timer_core::WorkspaceTarget;
+    let repo = WorkspaceRepository::new(conn);
+    let target_ws = match target {
+        WorkspaceTarget::Id(id) => match repo.get_by_id(id) {
+            Ok(ws) => ws,
+            Err(e) => {
+                return Response::Error {
+                    message: e.to_string(),
+                };
+            }
+        },
+        WorkspaceTarget::Name(name) => {
+            if let Ok(Some(ws)) = repo.find_exact_name(&name) {
+                ws
+            } else {
+                match repo.find_by_name(&name) {
+                    Ok(mut matches) if matches.len() == 1 => matches.pop().unwrap(),
+                    Ok(matches) if matches.is_empty() => {
+                        return Response::Error {
+                            message: format!("workspace '{name}' not found"),
+                        };
+                    }
+                    Ok(matches) => {
+                        return Response::Error {
+                            message: format!(
+                                "ambiguous workspace name '{name}': matches {} workspaces",
+                                matches.len()
+                            ),
+                        };
+                    }
+                    Err(e) => {
+                        return Response::Error {
+                            message: e.to_string(),
+                        };
+                    }
+                }
+            }
+        }
+    };
+
+    let settings = SettingsRepository::new(conn);
+    if let Err(e) = settings.set_active_workspace_id(target_ws.id) {
+        return Response::Error {
+            message: e.to_string(),
+        };
+    }
+
+    Response::Workspace(target_ws)
+}
+
+pub fn delete_workspace(conn: &Connection, id: i64) -> Response {
+    let repo = WorkspaceRepository::new(conn);
+    let count = match repo.count() {
+        Ok(c) => c,
+        Err(e) => {
+            return Response::Error {
+                message: e.to_string(),
+            };
+        }
+    };
+
+    if count <= 1 {
+        return Response::Error {
+            message: "cannot delete the last workspace".to_string(),
+        };
+    }
+
+    if let Err(e) = repo.get_by_id(id) {
+        return Response::Error {
+            message: e.to_string(),
+        };
+    }
+
+    let settings = SettingsRepository::new(conn);
+    let active_id = settings.active_workspace_id().ok();
+
+    if active_id == Some(id) {
+        let next_ws_id: Result<i64, _> = conn.query_row(
+            "SELECT id FROM workspaces WHERE id != ?1 ORDER BY id ASC LIMIT 1",
+            params![id],
+            |row| row.get(0),
+        );
+        match next_ws_id {
+            Ok(new_active) => {
+                let _ = settings.set_active_workspace_id(new_active);
+            }
+            Err(e) => {
+                return Response::Error {
+                    message: e.to_string(),
+                };
+            }
+        }
+    }
+
+    match repo.delete(id) {
+        Ok(()) => Response::OkEmpty,
+        Err(e) => Response::Error {
+            message: e.to_string(),
+        },
+    }
+}
+
 pub mod scheduler;
 pub use scheduler::Scheduler;
 
@@ -316,6 +456,7 @@ pub fn handle_command(
             | let_timer_core::Command::Done { .. }
             | let_timer_core::Command::Cancel { .. }
             | let_timer_core::Command::Reopen { .. }
+            | let_timer_core::Command::DeleteWorkspace { .. }
     );
 
     use let_timer_core::Command;
@@ -337,6 +478,9 @@ pub fn handle_command(
         Command::Ping => Response::Pong,
         Command::ListWorkspaces => list_workspaces(conn),
         Command::CreateWorkspace(new_workspace) => create_workspace(conn, &new_workspace),
+        Command::SwitchWorkspace { target } => switch_workspace(conn, target),
+        Command::CurrentWorkspace => current_workspace(conn),
+        Command::DeleteWorkspace { id } => delete_workspace(conn, id),
         Command::ListMediaLists => list_media_lists(conn),
         Command::CreateMediaList(new_media_list) => create_media_list(conn, &new_media_list),
     };
@@ -555,6 +699,212 @@ mod tests {
         match res {
             Response::Error { message } => {
                 assert!(message.contains("cannot change status with `edit`"))
+            }
+            other => panic!("expected Error, got {other:?}"),
+        }
+
+        server_handle.abort();
+    }
+
+    #[tokio::test]
+    async fn workspace_switching_and_scoping_over_ipc() {
+        use let_timer_core::WorkspaceTarget;
+
+        let dir = std::env::temp_dir().join(format!("test-ws-e2e-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let sock_path = dir.join("let-timer-ws.sock");
+        let sock_str = sock_path.to_string_lossy().into_owned();
+
+        let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+        let db_clone = Arc::clone(&db);
+        let server = IpcServer::new(&sock_str, move |cmd| {
+            let now = Utc::now();
+            let db_guard = db_clone.lock().unwrap_or_else(|e| e.into_inner());
+            handle_command(cmd, db_guard.conn(), now, None)
+        })
+        .await
+        .unwrap();
+
+        let server_handle = tokio::spawn(async move {
+            server.run().await.unwrap();
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let mut client = IpcClient::connect(&sock_path).await.unwrap();
+
+        // 1. Initial active workspace is Default
+        let res = client.request(&Command::CurrentWorkspace).await.unwrap();
+        let default_ws = match res {
+            Response::CurrentWorkspace(ws) => {
+                assert_eq!(ws.name, "Default");
+                ws
+            }
+            other => panic!("expected CurrentWorkspace, got {other:?}"),
+        };
+
+        // 2. Create task without workspace_id lands in Default
+        let res = client
+            .request(&Command::Create(NewTask {
+                name: "Task in Default".into(),
+                workspace_id: 0,
+                media_list_id: None,
+                description: None,
+                priority: Priority::NotYet,
+                estimated_mins: None,
+                scheduled_on: None,
+            }))
+            .await
+            .unwrap();
+        let task_default = match res {
+            Response::Ok(Some(t)) => {
+                assert_eq!(t.workspace_id, default_ws.id);
+                t
+            }
+            other => panic!("expected Ok(Some), got {other:?}"),
+        };
+
+        // 3. Create a new workspace "Study"
+        let res = client
+            .request(&Command::CreateWorkspace(NewWorkspace {
+                name: "Study".into(),
+                description: Some("Study workspace".into()),
+            }))
+            .await
+            .unwrap();
+        let study_ws = match res {
+            Response::Workspace(ws) => {
+                assert_eq!(ws.name, "Study");
+                ws
+            }
+            other => panic!("expected Workspace, got {other:?}"),
+        };
+
+        // 4. Switch to "Study" by name
+        let res = client
+            .request(&Command::SwitchWorkspace {
+                target: WorkspaceTarget::Name("Study".into()),
+            })
+            .await
+            .unwrap();
+        match res {
+            Response::Workspace(ws) => assert_eq!(ws.id, study_ws.id),
+            other => panic!("expected Workspace, got {other:?}"),
+        }
+
+        // 5. Current workspace is now Study
+        let res = client.request(&Command::CurrentWorkspace).await.unwrap();
+        match res {
+            Response::CurrentWorkspace(ws) => assert_eq!(ws.id, study_ws.id),
+            other => panic!("expected CurrentWorkspace, got {other:?}"),
+        }
+
+        // 6. Create task in Study (without explicit workspace_id)
+        let res = client
+            .request(&Command::Create(NewTask {
+                name: "Study Rust".into(),
+                workspace_id: 0,
+                media_list_id: None,
+                description: None,
+                priority: Priority::Immediate,
+                estimated_mins: Some(30),
+                scheduled_on: None,
+            }))
+            .await
+            .unwrap();
+        let study_task = match res {
+            Response::Ok(Some(t)) => {
+                assert_eq!(t.workspace_id, study_ws.id);
+                t
+            }
+            other => panic!("expected Ok(Some), got {other:?}"),
+        };
+
+        // 7. List with WorkspaceScope::Active only returns tasks in Study
+        let res = client
+            .request(&Command::List(ListQuery {
+                workspace: WorkspaceScope::Active,
+                ..Default::default()
+            }))
+            .await
+            .unwrap();
+        match res {
+            Response::OkList(tasks) => {
+                assert_eq!(tasks.len(), 1);
+                assert_eq!(tasks[0].id, study_task.id);
+            }
+            other => panic!("expected OkList, got {other:?}"),
+        }
+
+        // 8. List with WorkspaceScope::All returns tasks in both workspaces
+        let res = client
+            .request(&Command::List(ListQuery {
+                workspace: WorkspaceScope::All,
+                ..Default::default()
+            }))
+            .await
+            .unwrap();
+        match res {
+            Response::OkList(tasks) => {
+                assert_eq!(tasks.len(), 2);
+            }
+            other => panic!("expected OkList, got {other:?}"),
+        }
+
+        // 9. Start study_task, then switch to Default -> running task is not affected!
+        let res = client
+            .request(&Command::Start {
+                id: Some(study_task.id),
+                next: false,
+                switch: false,
+            })
+            .await
+            .unwrap();
+        match res {
+            Response::Timer(snap) => assert_eq!(snap.task.id, study_task.id),
+            other => panic!("expected Timer, got {other:?}"),
+        }
+
+        let _ = client
+            .request(&Command::SwitchWorkspace {
+                target: WorkspaceTarget::Id(default_ws.id),
+            })
+            .await
+            .unwrap();
+
+        let res = client.request(&Command::Current).await.unwrap();
+        match res {
+            Response::Timer(snap) => {
+                assert_eq!(snap.task.id, study_task.id);
+                assert_eq!(snap.task.status, TaskStatus::InProgress);
+            }
+            other => panic!("expected Timer, got {other:?}"),
+        }
+
+        // Stop the task so we can test deletion
+        let _ = client.request(&Command::Stop { id: None }).await.unwrap();
+
+        // 10. Deleting the active workspace (Default) switches active to Study
+        let res = client
+            .request(&Command::DeleteWorkspace { id: default_ws.id })
+            .await
+            .unwrap();
+        assert!(matches!(res, Response::OkEmpty));
+
+        let res = client.request(&Command::CurrentWorkspace).await.unwrap();
+        match res {
+            Response::CurrentWorkspace(ws) => assert_eq!(ws.id, study_ws.id),
+            other => panic!("expected CurrentWorkspace, got {other:?}"),
+        }
+
+        // 11. Deleting the last remaining workspace (Study) is refused
+        let res = client
+            .request(&Command::DeleteWorkspace { id: study_ws.id })
+            .await
+            .unwrap();
+        match res {
+            Response::Error { message } => {
+                assert!(message.contains("cannot delete the last workspace"));
             }
             other => panic!("expected Error, got {other:?}"),
         }

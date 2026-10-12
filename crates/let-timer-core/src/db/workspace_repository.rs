@@ -118,6 +118,25 @@ impl<'a> WorkspaceRepository<'a> {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     }
+
+    /// Find a workspace by exact name (case-insensitive).
+    pub fn find_exact_name(&self, name: &str) -> Result<Option<Workspace>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM workspaces WHERE name = ?1 COLLATE NOCASE LIMIT 1")?;
+        let mut rows = stmt
+            .query_map(params![name], Self::row_to_workspace)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows.pop())
+    }
+
+    /// Count total number of workspaces.
+    pub fn count(&self) -> Result<usize, DbError> {
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM workspaces", [], |row| row.get(0))?;
+        Ok(count as usize)
+    }
 }
 
 #[cfg(test)]

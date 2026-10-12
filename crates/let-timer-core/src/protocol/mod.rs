@@ -14,6 +14,7 @@ pub enum WorkspaceScope {
     Active,
     All,
     Id(i64),
+    Name(String),
 }
 
 /// Query parameters for listing tasks with combined filters.
@@ -72,8 +73,22 @@ pub enum Command {
     Ping,
     ListWorkspaces,
     CreateWorkspace(NewWorkspace),
+    SwitchWorkspace {
+        target: WorkspaceTarget,
+    },
+    CurrentWorkspace,
+    DeleteWorkspace {
+        id: i64,
+    },
     ListMediaLists,
     CreateMediaList(NewMediaList),
+}
+
+/// Target identifier when switching workspaces (by ID or exact/fuzzy name).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkspaceTarget {
+    Id(i64),
+    Name(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,6 +106,7 @@ pub enum Response {
     Pong,
     WorkspaceList(Vec<Workspace>),
     Workspace(Workspace),
+    CurrentWorkspace(Workspace),
     MediaLists(Vec<MediaList>),
     MediaList(MediaList),
     Error { message: String },

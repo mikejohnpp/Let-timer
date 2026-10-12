@@ -27,7 +27,7 @@ use crate::interactive::{
 use clap::Parser;
 use let_timer_core::{
     Command, IpcClient, ListQuery, NewMediaList, NewTask, NewWorkspace, Priority, Response,
-    SortOrder, TaskStatus, UpdateTask, WorkspaceScope, date_on,
+    SortOrder, TaskStatus, UpdateTask, WorkspaceScope, WorkspaceTarget, date_on,
 };
 
 /// Anything that stopped the program from doing what it was asked.
@@ -179,31 +179,66 @@ async fn build_command(
             },
         }),
 
-        Commands::Task(TaskCommand::Find { query }) => Ok(Command::Find {
-            query: query.clone(),
-            workspace: WorkspaceScope::Active,
-        }),
+        Commands::Task(TaskCommand::Find {
+            query,
+            workspace,
+            all_workspaces,
+        }) => {
+            let ws_scope = if *all_workspaces {
+                WorkspaceScope::All
+            } else if let Some(ws) = workspace {
+                if let Ok(id) = ws.parse::<i64>() {
+                    WorkspaceScope::Id(id)
+                } else {
+                    WorkspaceScope::Name(ws.clone())
+                }
+            } else {
+                WorkspaceScope::Active
+            };
+            Ok(Command::Find {
+                query: query.clone(),
+                workspace: ws_scope,
+            })
+        }
 
-        Commands::Task(TaskCommand::List { priority, status }) => Ok(Command::List(ListQuery {
-            workspace: WorkspaceScope::Active,
-            sort_priority: match priority.as_deref() {
-                Some("ascending") => Some(SortOrder::Ascending),
-                Some("descending") => Some(SortOrder::Descending),
-                Some(other) => return Err(format!("invalid sort order: {other}").into()),
-                None => None,
-            },
-            status: match status.as_deref() {
-                Some("pending") => Some(TaskStatus::Pending),
-                Some("in-progress") => Some(TaskStatus::InProgress),
-                Some("paused") => Some(TaskStatus::Paused),
-                Some("completed") => Some(TaskStatus::Completed),
-                Some("cancelled") => Some(TaskStatus::Cancelled),
-                Some(other) => return Err(format!("invalid status: {other}").into()),
-                None => None,
-            },
-            priority: None,
-            date: None,
-        })),
+        Commands::Task(TaskCommand::List {
+            priority,
+            status,
+            workspace,
+            all_workspaces,
+        }) => {
+            let ws_scope = if *all_workspaces {
+                WorkspaceScope::All
+            } else if let Some(ws) = workspace {
+                if let Ok(id) = ws.parse::<i64>() {
+                    WorkspaceScope::Id(id)
+                } else {
+                    WorkspaceScope::Name(ws.clone())
+                }
+            } else {
+                WorkspaceScope::Active
+            };
+            Ok(Command::List(ListQuery {
+                workspace: ws_scope,
+                sort_priority: match priority.as_deref() {
+                    Some("ascending") => Some(SortOrder::Ascending),
+                    Some("descending") => Some(SortOrder::Descending),
+                    Some(other) => return Err(format!("invalid sort order: {other}").into()),
+                    None => None,
+                },
+                status: match status.as_deref() {
+                    Some("pending") => Some(TaskStatus::Pending),
+                    Some("in-progress") => Some(TaskStatus::InProgress),
+                    Some("paused") => Some(TaskStatus::Paused),
+                    Some("completed") => Some(TaskStatus::Completed),
+                    Some("cancelled") => Some(TaskStatus::Cancelled),
+                    Some(other) => return Err(format!("invalid status: {other}").into()),
+                    None => None,
+                },
+                priority: None,
+                date: None,
+            }))
+        }
 
         Commands::Task(TaskCommand::Current) => Ok(Command::Current),
         Commands::Task(TaskCommand::Start { id, next, switch }) => Ok(Command::Start {
@@ -235,6 +270,68 @@ async fn build_command(
                 no_interactive,
             )?;
             Ok(Command::CreateWorkspace(NewWorkspace { name, description }))
+        }
+        Commands::Workspace(WorkspaceCommand::Switch { target }) => {
+            let target = match target {
+                Some(t) => {
+                    if let Ok(id) = t.parse::<i64>() {
+                        WorkspaceTarget::Id(id)
+                    } else {
+                        WorkspaceTarget::Name(t.clone())
+                    }
+                }
+                None => {
+                    if no_interactive {
+                        return Err(
+                            "missing workspace target (--no-interactive requires id or name)"
+                                .into(),
+                        );
+                    }
+                    let res = client
+                        .request(&Command::ListWorkspaces)
+                        .await
+                        .map_err(|e| format!("cannot list workspaces: {e}"))?;
+                    match res {
+                        Response::WorkspaceList(workspaces) if !workspaces.is_empty() => {
+                            let options: Vec<String> = workspaces
+                                .iter()
+                                .map(|w| format!("{} (#{})", w.name, w.id))
+                                .collect();
+                            let ans =
+                                inquire::Select::new("Select workspace to switch to:", options)
+                                    .prompt()
+                                    .map_err(|e| e.to_string())?;
+                            let id_str = ans
+                                .rsplit("(#")
+                                .next()
+                                .and_then(|s| s.strip_suffix(')'))
+                                .ok_or_else(|| "failed to parse selected workspace".to_string())?;
+                            let id = id_str.parse::<i64>().map_err(|e| e.to_string())?;
+                            WorkspaceTarget::Id(id)
+                        }
+                        Response::WorkspaceList(_) => {
+                            return Err("no workspaces available".into());
+                        }
+                        Response::Error { message } => return Err(message.into()),
+                        _ => return Err("unexpected response listing workspaces".into()),
+                    }
+                }
+            };
+            Ok(Command::SwitchWorkspace { target })
+        }
+        Commands::Workspace(WorkspaceCommand::Current) => Ok(Command::CurrentWorkspace),
+        Commands::Workspace(WorkspaceCommand::Delete { id }) => {
+            if !no_interactive {
+                let confirmed =
+                    inquire::Confirm::new(&format!("Delete workspace #{id} and all its tasks?"))
+                        .with_default(false)
+                        .prompt()
+                        .map_err(|e| e.to_string())?;
+                if !confirmed {
+                    return Err("aborted by user".into());
+                }
+            }
+            Ok(Command::DeleteWorkspace { id: *id })
         }
         Commands::MediaList(MediaListCommand::List) => Ok(Command::ListMediaLists),
         Commands::MediaList(MediaListCommand::Create { name, description }) => {
@@ -568,6 +665,8 @@ mod tests {
             &Commands::Task(TaskCommand::List {
                 priority: Some("sideways".to_string()),
                 status: None,
+                workspace: None,
+                all_workspaces: false,
             }),
             &mut client,
             true,
@@ -588,6 +687,8 @@ mod tests {
             &Commands::Task(TaskCommand::List {
                 priority: None,
                 status: Some("nearly".to_string()),
+                workspace: None,
+                all_workspaces: false,
             }),
             &mut client,
             true,

@@ -401,14 +401,19 @@ mod tests {
         assert!(!active_ws.is_empty());
     }
 
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn default_db_path_is_reasonable() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::remove_var("LET_TIMER_DB") };
         let path = default_db_path().expect("default db path should resolve");
         assert!(path.ends_with("let-timer/let-timer.db"));
     }
 
     #[test]
     fn default_db_path_respects_let_timer_db_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
         unsafe { std::env::set_var("LET_TIMER_DB", "/custom/test/db.sqlite") };
         let path = default_db_path().expect("should resolve with env override");
         assert_eq!(path, PathBuf::from("/custom/test/db.sqlite"));

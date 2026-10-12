@@ -15,7 +15,7 @@ pub use ipc::client::IpcClient;
 pub use ipc::server::IpcServer;
 pub use notify::{LogNotifier, Notifier, NotifySend, RecordingNotifier};
 pub use parse::{ParseDateError, date_on, weekday_from_alias};
-pub use protocol::{Command, ListQuery, Response, SortOrder, WorkspaceScope};
+pub use protocol::{Command, ListQuery, Response, SortOrder, WorkspaceScope, WorkspaceTarget};
 pub use service::{
     Action, ServiceError, TaskService, TimerSnapshot, TimerState, TransitionError, next_status,
 };
