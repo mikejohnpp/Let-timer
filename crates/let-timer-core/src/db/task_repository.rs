@@ -62,16 +62,6 @@ impl<'a> TaskRepository<'a> {
         Ok(())
     }
 
-    /// Set `status` on a task. Returns `DbError::NotFound` if missing.
-    fn set_status(&self, id: i64, status: TaskStatus) -> Result<Task, DbError> {
-        self.query_by_id(id)?;
-        self.conn.execute(
-            "UPDATE tasks SET status = ?1, updated_at = datetime('now') WHERE id = ?2",
-            params![status.as_str(), id],
-        )?;
-        self.query_by_id(id)
-    }
-
     // ─── CRUD ────────────────────────────────────────────────────────
 
     /// Insert a new task and return the created `Task`.
@@ -289,21 +279,6 @@ impl<'a> TaskRepository<'a> {
             .query_map([], Self::row_to_task)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows.pop())
-    }
-
-    /// Mark a task as in progress.
-    pub fn start_task(&self, id: i64) -> Result<Task, DbError> {
-        self.set_status(id, TaskStatus::InProgress)
-    }
-
-    /// Mark a task as completed.
-    pub fn complete_task(&self, id: i64) -> Result<Task, DbError> {
-        self.set_status(id, TaskStatus::Completed)
-    }
-
-    /// Cancel a task.
-    pub fn cancel_task(&self, id: i64) -> Result<Task, DbError> {
-        self.set_status(id, TaskStatus::Cancelled)
     }
 }
 
@@ -612,33 +587,35 @@ mod tests {
     }
 
     #[test]
-    fn status_transitions_and_current() {
+    fn get_current_and_list_by_status() {
         let db = setup();
         let ws = WorkspaceRepository::new(db.conn());
         let repo = TaskRepository::new(db.conn());
         let ws_id = sample_workspace(&ws);
         let task = repo.create(&sample_task(ws_id)).unwrap();
 
-        let started = repo.start_task(task.id).unwrap();
-        assert_eq!(started.status, TaskStatus::InProgress);
+        assert_eq!(task.status, TaskStatus::Pending);
+        assert!(repo.get_current().unwrap().is_none());
 
+        db.conn()
+            .execute(
+                "UPDATE tasks SET status = 'in-progress' WHERE id = ?1",
+                params![task.id],
+            )
+            .unwrap();
         let current = repo.get_current().unwrap();
         assert!(current.is_some());
         assert_eq!(current.unwrap().id, task.id);
 
-        let done = repo.complete_task(task.id).unwrap();
-        assert_eq!(done.status, TaskStatus::Completed);
+        db.conn()
+            .execute(
+                "UPDATE tasks SET status = 'completed' WHERE id = ?1",
+                params![task.id],
+            )
+            .unwrap();
         assert!(repo.get_current().unwrap().is_none());
-
-        let cancelled = repo.cancel_task(task.id).unwrap();
-        assert_eq!(cancelled.status, TaskStatus::Cancelled);
-
-        let in_progress = repo.list_by_status(TaskStatus::InProgress).unwrap();
-        assert!(in_progress.is_empty());
         let done_list = repo.list_by_status(TaskStatus::Completed).unwrap();
-        assert!(done_list.is_empty());
-        let cancelled_list = repo.list_by_status(TaskStatus::Cancelled).unwrap();
-        assert_eq!(cancelled_list.len(), 1);
+        assert_eq!(done_list.len(), 1);
     }
 
     #[test]

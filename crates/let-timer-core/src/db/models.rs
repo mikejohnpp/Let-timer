@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::error::DbError;
@@ -228,7 +228,7 @@ pub struct UpdateMediaList {
 // ─── Task ────────────────────────────────────────────────────────────
 
 /// A task entry stored in the database.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Task {
     pub id: i64,
     pub workspace_id: i64,
@@ -293,6 +293,57 @@ pub struct UpdateTask {
         with = "double_option"
     )]
     pub scheduled_on: Option<Option<NaiveDate>>,
+}
+
+// ─── TaskSession ─────────────────────────────────────────────────────
+
+/// The reason an open task session was closed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionEndReason {
+    Paused,
+    Stopped,
+    Completed,
+    Cancelled,
+    Restarted,
+}
+
+impl SessionEndReason {
+    /// Database string representation.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SessionEndReason::Paused => "paused",
+            SessionEndReason::Stopped => "stopped",
+            SessionEndReason::Completed => "completed",
+            SessionEndReason::Cancelled => "cancelled",
+            SessionEndReason::Restarted => "restarted",
+        }
+    }
+}
+
+impl FromStr for SessionEndReason {
+    type Err = DbError;
+    fn from_str(s: &str) -> Result<Self, DbError> {
+        match s {
+            "paused" => Ok(SessionEndReason::Paused),
+            "stopped" => Ok(SessionEndReason::Stopped),
+            "completed" => Ok(SessionEndReason::Completed),
+            "cancelled" => Ok(SessionEndReason::Cancelled),
+            "restarted" => Ok(SessionEndReason::Restarted),
+            _ => Err(DbError::InvalidStatus(format!("unknown end reason: {s}"))),
+        }
+    }
+}
+
+/// A recorded stretch of running time for a task run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TaskSession {
+    pub id: i64,
+    pub task_id: i64,
+    pub run_no: i64,
+    pub started_at: DateTime<Utc>,
+    pub ended_at: Option<DateTime<Utc>>,
+    pub end_reason: Option<SessionEndReason>,
 }
 
 /// Serde helper for `Option<Option<T>>` fields.
