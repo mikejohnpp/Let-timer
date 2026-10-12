@@ -48,6 +48,9 @@ pub enum Command {
         next: bool,
         switch: bool,
     },
+    StartCandidates {
+        workspace: WorkspaceScope,
+    },
     Pause {
         id: Option<i64>,
     },

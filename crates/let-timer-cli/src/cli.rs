@@ -91,8 +91,11 @@ impl Component {
             Component::Tasks { command } => match command {
                 Some(command) => Commands::Task(command.clone()),
                 None => Commands::Task(TaskCommand::List {
-                    priority: None,
+                    sort_priority: None,
+                    priority_label: None,
                     status: None,
+                    today: false,
+                    date: None,
                     workspace: None,
                     all_workspaces: false,
                 }),
@@ -166,6 +169,12 @@ pub enum TaskCommand {
         description: Option<String>,
         #[arg(short, long)]
         priority: Option<String>,
+        #[arg(short = 't', long, value_name = "MINUTES")]
+        estimated_mins: Option<i64>,
+        #[arg(long, default_value_t = false)]
+        clear_estimate: bool,
+        #[arg(short = 'm', long, value_name = "ID|none")]
+        media_list_id: Option<String>,
         /// Reschedule: `2026-10-01`, `today`, `tomorrow`, `mon`..`sun`, or
         /// `none` to clear the scheduled day.
         #[arg(short = 'o', long, value_name = "DATE|none")]
@@ -181,17 +190,31 @@ pub enum TaskCommand {
     },
     /// Show the schedule.
     List {
+        /// Sort tasks by priority: `ascending` | `descending`.
+        #[arg(long, alias = "priority")]
+        sort_priority: Option<String>,
+        /// Filter by priority label: `urgent` | `immediate` | `not-yet`.
         #[arg(long)]
-        priority: Option<String>, // "ascending" | "descending"
+        priority_label: Option<String>,
+        /// Filter by status: `pending` | `in-progress` | `paused` | `completed` | `cancelled`.
         #[arg(long)]
-        status: Option<String>, // "pending" | "in-progress" | "completed" | "cancelled"
+        status: Option<String>,
+        /// Filter by today's date.
+        #[arg(long, default_value_t = false)]
+        today: bool,
+        /// Filter by scheduled date: `2026-10-01`, `today`, `tomorrow`, `mon`..`sun`.
+        #[arg(long, value_name = "DATE")]
+        date: Option<String>,
         #[arg(short = 'w', long)]
         workspace: Option<String>,
         #[arg(long, default_value_t = false)]
         all_workspaces: bool,
     },
     /// Show the work in hand right now.
-    Current,
+    Current {
+        #[arg(long, default_value = "text", value_name = "text|short|json")]
+        format: String,
+    },
     /// Start a task, or the next one if there is no id.
     Start {
         #[arg(short, long)]
@@ -336,8 +359,11 @@ mod tests {
             (
                 "tasks",
                 Commands::Task(TaskCommand::List {
-                    priority: None,
+                    sort_priority: None,
+                    priority_label: None,
                     status: None,
+                    today: false,
+                    date: None,
                     workspace: None,
                     all_workspaces: false,
                 }),
@@ -483,6 +509,9 @@ mod tests {
                     name: None,
                     description: None,
                     priority: None,
+                    estimated_mins: None,
+                    clear_estimate: false,
+                    media_list_id: None,
                     on: None,
                 }),
             ),
@@ -497,13 +526,21 @@ mod tests {
             (
                 &["tasks", "list"],
                 Commands::Task(TaskCommand::List {
-                    priority: None,
+                    sort_priority: None,
+                    priority_label: None,
                     status: None,
+                    today: false,
+                    date: None,
                     workspace: None,
                     all_workspaces: false,
                 }),
             ),
-            (&["tasks", "current"], Commands::Task(TaskCommand::Current)),
+            (
+                &["tasks", "current"],
+                Commands::Task(TaskCommand::Current {
+                    format: "text".into(),
+                }),
+            ),
             (
                 &["tasks", "start"],
                 Commands::Task(TaskCommand::Start {

@@ -137,12 +137,67 @@ pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Resul
     }
 }
 
-fn format_duration(seconds: i64) -> String {
+pub fn format_duration(seconds: i64) -> String {
     let sign = if seconds < 0 { "-" } else { "" };
     let abs_secs = seconds.unsigned_abs();
     let mins = abs_secs / 60;
     let secs = abs_secs % 60;
     format!("{sign}{mins:02}:{secs:02}")
+}
+
+/// Render the single status line for `tasks current --format short`.
+pub fn render_current_short(snapshot: Option<&let_timer_core::TimerSnapshot>) -> String {
+    let Some(snap) = snapshot else {
+        return String::new();
+    };
+
+    match snap.state {
+        let_timer_core::TimerState::Idle => String::new(),
+        let_timer_core::TimerState::Running => {
+            if let Some(remaining) = snap.remaining_secs {
+                format!("⏳ {} {}", format_duration(remaining), snap.task.name)
+            } else {
+                format!(
+                    "▶ {} {}",
+                    format_duration(snap.elapsed_secs),
+                    snap.task.name
+                )
+            }
+        }
+        let_timer_core::TimerState::Overtime => {
+            let overtime = snap.remaining_secs.map(|r| -r).unwrap_or(0);
+            format!("⚠ +{} {}", format_duration(overtime), snap.task.name)
+        }
+        let_timer_core::TimerState::Paused => {
+            if let Some(remaining) = snap.remaining_secs {
+                format!("⏸ {} {}", format_duration(remaining), snap.task.name)
+            } else {
+                format!(
+                    "⏸ {} {}",
+                    format_duration(snap.elapsed_secs),
+                    snap.task.name
+                )
+            }
+        }
+    }
+}
+
+/// Render a one-line confirmation + snapshot for lifecycle commands.
+pub fn render_lifecycle_confirmation(verb: &str, snap: &let_timer_core::TimerSnapshot) -> String {
+    let detail = match snap.state {
+        let_timer_core::TimerState::Overtime => {
+            let ot = snap.remaining_secs.map(|r| -r).unwrap_or(0);
+            format!("+{} overtime", format_duration(ot))
+        }
+        _ => {
+            if let Some(remaining) = snap.remaining_secs {
+                format!("{} remaining", format_duration(remaining))
+            } else {
+                format!("{} elapsed", format_duration(snap.elapsed_secs))
+            }
+        }
+    };
+    format!("{verb} #{} \"{}\" — {detail}", snap.task.id, snap.task.name)
 }
 
 fn timer_detail(out: &mut impl Write, snap: &let_timer_core::TimerSnapshot) -> std::io::Result<()> {
@@ -439,6 +494,95 @@ mod tests {
                 message: "no such task".into()
             }),
             ""
+        );
+    }
+
+    #[test]
+    fn short_format_covers_all_timer_states() {
+        use let_timer_core::{TimerSnapshot, TimerState};
+
+        let t = task(3, "Read chapter 3");
+
+        // 1. Idle -> empty
+        let idle_snap = TimerSnapshot {
+            task: t.clone(),
+            state: TimerState::Idle,
+            elapsed_secs: 0,
+            remaining_secs: None,
+            workspace_name: "Default".into(),
+        };
+        assert_eq!(render_current_short(Some(&idle_snap)), "");
+        assert_eq!(render_current_short(None), "");
+
+        // 2. Running, countdown
+        let countdown_snap = TimerSnapshot {
+            task: t.clone(),
+            state: TimerState::Running,
+            elapsed_secs: 568,
+            remaining_secs: Some(932), // 15:32
+            workspace_name: "Default".into(),
+        };
+        assert_eq!(
+            render_current_short(Some(&countdown_snap)),
+            "⏳ 15:32 Read chapter 3"
+        );
+
+        // 3. Running, no estimate
+        let no_est_snap = TimerSnapshot {
+            task: t.clone(),
+            state: TimerState::Running,
+            elapsed_secs: 760, // 12:40
+            remaining_secs: None,
+            workspace_name: "Default".into(),
+        };
+        assert_eq!(
+            render_current_short(Some(&no_est_snap)),
+            "▶ 12:40 Read chapter 3"
+        );
+
+        // 4. Overtime
+        let overtime_snap = TimerSnapshot {
+            task: t.clone(),
+            state: TimerState::Overtime,
+            elapsed_secs: 1635,
+            remaining_secs: Some(-135), // -02:15
+            workspace_name: "Default".into(),
+        };
+        assert_eq!(
+            render_current_short(Some(&overtime_snap)),
+            "⚠ +02:15 Read chapter 3"
+        );
+
+        // 5. Paused
+        let paused_snap = TimerSnapshot {
+            task: t.clone(),
+            state: TimerState::Paused,
+            elapsed_secs: 568,
+            remaining_secs: Some(932), // 15:32
+            workspace_name: "Default".into(),
+        };
+        assert_eq!(
+            render_current_short(Some(&paused_snap)),
+            "⏸ 15:32 Read chapter 3"
+        );
+    }
+
+    #[test]
+    fn lifecycle_confirmation_shows_snapshot() {
+        use let_timer_core::{TimerSnapshot, TimerState};
+
+        let t = task(3, "Read chapter 3");
+        let snap = TimerSnapshot {
+            task: t,
+            state: TimerState::Running,
+            elapsed_secs: 0,
+            remaining_secs: Some(1500),
+            workspace_name: "Default".into(),
+        };
+
+        assert_eq!(
+            render_lifecycle_confirmation("Started", &snap),
+            "Started #3 \"Read chapter 3\" — 25:00 remaining"
         );
     }
 }

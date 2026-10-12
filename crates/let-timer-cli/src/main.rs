@@ -82,16 +82,41 @@ async fn run(cli: &Cli) -> Result<(), Failure> {
 
 /// Ask the daemon to do one thing, print the answer, and stop.
 async fn once(cli: &Cli, command: &Commands) -> Result<(), Failure> {
-    let mut client = connect().await?;
+    let mut client = match connect().await {
+        Ok(c) => c,
+        Err(e) => {
+            if let Commands::Task(TaskCommand::Current { format }) = command
+                && format == "short"
+            {
+                return Ok(());
+            }
+            return Err(e);
+        }
+    };
 
-    let command = build_command(command, &mut client, cli.no_interactive)
-        .await
-        .map_err(|error| Failure::Usage(error.to_string()))?;
+    let command_proto = match build_command(command, &mut client, cli.no_interactive).await {
+        Ok(c) => c,
+        Err(error) => {
+            if let Commands::Task(TaskCommand::Current { format }) = command
+                && format == "short"
+            {
+                return Ok(());
+            }
+            return Err(Failure::Usage(error.to_string()));
+        }
+    };
 
-    let response = client
-        .request(&command)
-        .await
-        .map_err(|error| Failure::Daemon(error.to_string()))?;
+    let response = match client.request(&command_proto).await {
+        Ok(r) => r,
+        Err(error) => {
+            if let Commands::Task(TaskCommand::Current { format }) = command
+                && format == "short"
+            {
+                return Ok(());
+            }
+            return Err(Failure::Daemon(error.to_string()));
+        }
+    };
 
     // The daemon's own complaint is the answer, and the exit code has to say so:
     // a script that cannot tell a failure from an empty list is a script that
@@ -100,7 +125,73 @@ async fn once(cli: &Cli, command: &Commands) -> Result<(), Failure> {
         return Err(Failure::Refused(message.clone()));
     }
 
-    render::print(&response, cli.json).map_err(|error| Failure::Usage(error.to_string()))
+    if cli.json {
+        return render::print(&response, true).map_err(|error| Failure::Usage(error.to_string()));
+    }
+
+    match (command, &response) {
+        (Commands::Task(TaskCommand::Current { format }), _) => match format.as_str() {
+            "short" => {
+                let snap = match &response {
+                    Response::Timer(snap) => Some(snap),
+                    _ => None,
+                };
+                let line = render::render_current_short(snap);
+                if !line.is_empty() {
+                    println!("{line}");
+                }
+            }
+            "json" => {
+                render::print(&response, true)
+                    .map_err(|error| Failure::Usage(error.to_string()))?;
+            }
+            _ => {
+                render::print(&response, false)
+                    .map_err(|error| Failure::Usage(error.to_string()))?;
+            }
+        },
+        (Commands::Task(TaskCommand::Start { .. }), Response::Timer(snap)) => {
+            println!("{}", render::render_lifecycle_confirmation("Started", snap));
+        }
+        (Commands::Task(TaskCommand::Pause { .. }), Response::Timer(snap)) => {
+            println!("{}", render::render_lifecycle_confirmation("Paused", snap));
+        }
+        (Commands::Task(TaskCommand::Resume { .. }), Response::Timer(snap)) => {
+            println!("{}", render::render_lifecycle_confirmation("Resumed", snap));
+        }
+        (Commands::Task(TaskCommand::Stop { .. }), Response::Timer(snap)) => {
+            println!("{}", render::render_lifecycle_confirmation("Stopped", snap));
+        }
+        (Commands::Task(TaskCommand::Restart { .. }), Response::Timer(snap)) => {
+            println!(
+                "{}",
+                render::render_lifecycle_confirmation("Restarted", snap)
+            );
+        }
+        (Commands::Task(TaskCommand::Done { .. }), Response::Timer(snap)) => {
+            println!(
+                "{}",
+                render::render_lifecycle_confirmation("Completed", snap)
+            );
+        }
+        (Commands::Task(TaskCommand::Cancel { .. }), Response::Timer(snap)) => {
+            println!(
+                "{}",
+                render::render_lifecycle_confirmation("Cancelled", snap)
+            );
+        }
+        (Commands::Task(TaskCommand::Reopen { .. }), Response::Timer(snap)) => {
+            println!(
+                "{}",
+                render::render_lifecycle_confirmation("Reopened", snap)
+            );
+        }
+        _ => {
+            render::print(&response, false).map_err(|error| Failure::Usage(error.to_string()))?;
+        }
+    }
+
+    Ok(())
 }
 
 /// The daemon, or an explanation of why there isn't one.
@@ -154,14 +245,14 @@ async fn build_command(
             name,
             description,
             priority,
+            estimated_mins,
+            clear_estimate,
+            media_list_id,
             on,
         }) => Ok(Command::Edit {
             id: *id,
             update: UpdateTask {
                 name: name.clone(),
-                // An empty string means "clear it", which is a different thing
-                // from not having been asked to change it at all. Only the first
-                // is worth sending.
                 description: match description {
                     Some(description) if description.is_empty() => Some(None),
                     Some(description) => Some(Some(description.clone())),
@@ -171,7 +262,21 @@ async fn build_command(
                     Some(priority) => Some(priority.parse()?),
                     None => None,
                 },
-                scheduled_on: match on {
+                estimated_mins: if *clear_estimate {
+                    Some(None)
+                } else {
+                    estimated_mins.map(Some)
+                },
+                media_list_id: match media_list_id.as_deref() {
+                    Some("none") => Some(None),
+                    Some(id_str) => match id_str.parse::<i64>() {
+                        Ok(id) => Some(Some(id)),
+                        Err(_) => return Err("invalid media list ID".into()),
+                    },
+                    None => None,
+                },
+                scheduled_on: match on.as_deref() {
+                    Some("none") => Some(None),
                     Some(value) => Some(date_on(value)?),
                     None => None,
                 },
@@ -202,8 +307,11 @@ async fn build_command(
         }
 
         Commands::Task(TaskCommand::List {
-            priority,
+            sort_priority,
+            priority_label,
             status,
+            today,
+            date,
             workspace,
             all_workspaces,
         }) => {
@@ -218,9 +326,18 @@ async fn build_command(
             } else {
                 WorkspaceScope::Active
             };
+
+            let date = if *today {
+                date_on("today")?
+            } else if let Some(d) = date {
+                date_on(d)?
+            } else {
+                None
+            };
+
             Ok(Command::List(ListQuery {
                 workspace: ws_scope,
-                sort_priority: match priority.as_deref() {
+                sort_priority: match sort_priority.as_deref() {
                     Some("ascending") => Some(SortOrder::Ascending),
                     Some("descending") => Some(SortOrder::Descending),
                     Some(other) => return Err(format!("invalid sort order: {other}").into()),
@@ -235,17 +352,81 @@ async fn build_command(
                     Some(other) => return Err(format!("invalid status: {other}").into()),
                     None => None,
                 },
-                priority: None,
-                date: None,
+                priority: match priority_label.as_deref() {
+                    Some(p) => Some(p.parse()?),
+                    None => None,
+                },
+                date,
             }))
         }
 
-        Commands::Task(TaskCommand::Current) => Ok(Command::Current),
-        Commands::Task(TaskCommand::Start { id, next, switch }) => Ok(Command::Start {
-            id: *id,
-            next: *next,
-            switch: *switch,
-        }),
+        Commands::Task(TaskCommand::Current { .. }) => Ok(Command::Current),
+        Commands::Task(TaskCommand::Start { id, next, switch }) => {
+            let id = match id {
+                Some(id) => Some(*id),
+                None => {
+                    if *next {
+                        None
+                    } else if no_interactive {
+                        return Err(
+                            "specify a task ID or use --next (--no-interactive requires id or --next)"
+                                .into(),
+                        );
+                    } else {
+                        let res = client
+                            .request(&Command::StartCandidates {
+                                workspace: WorkspaceScope::Active,
+                            })
+                            .await
+                            .map_err(|e| format!("cannot list candidate tasks: {e}"))?;
+                        match res {
+                            Response::OkList(tasks) if !tasks.is_empty() => {
+                                let options: Vec<String> = tasks
+                                    .iter()
+                                    .map(|t| {
+                                        let est = t
+                                            .estimated_mins
+                                            .map(|m| format!(" [{m}m]"))
+                                            .unwrap_or_default();
+                                        let date = t
+                                            .scheduled_on
+                                            .map(|d| format!(" ({d})"))
+                                            .unwrap_or_default();
+                                        format!(
+                                            "#{} {} [{}]{est}{date}",
+                                            t.id,
+                                            t.name,
+                                            t.priority.as_str()
+                                        )
+                                    })
+                                    .collect();
+                                let ans = inquire::Select::new("Select task to start:", options)
+                                    .prompt()
+                                    .map_err(|e| e.to_string())?;
+                                let id_str = ans
+                                    .strip_prefix('#')
+                                    .and_then(|s| s.split_whitespace().next())
+                                    .ok_or_else(|| "failed to parse task id".to_string())?;
+                                let id = id_str.parse::<i64>().map_err(|e| e.to_string())?;
+                                Some(id)
+                            }
+                            Response::OkList(_) => {
+                                return Err(
+                                    "no pending or paused tasks found in active workspace".into()
+                                );
+                            }
+                            Response::Error { message } => return Err(message.into()),
+                            _ => return Err("unexpected response listing candidate tasks".into()),
+                        }
+                    }
+                }
+            };
+            Ok(Command::Start {
+                id,
+                next: *next,
+                switch: *switch,
+            })
+        }
         Commands::Task(TaskCommand::Pause { id }) => Ok(Command::Pause { id: *id }),
         Commands::Task(TaskCommand::Resume { id }) => Ok(Command::Resume { id: *id }),
         Commands::Task(TaskCommand::Stop { id }) => Ok(Command::Stop { id: *id }),
@@ -663,8 +844,11 @@ mod tests {
 
         let error = build_command(
             &Commands::Task(TaskCommand::List {
-                priority: Some("sideways".to_string()),
+                sort_priority: Some("sideways".to_string()),
+                priority_label: None,
                 status: None,
+                today: false,
+                date: None,
                 workspace: None,
                 all_workspaces: false,
             }),
@@ -685,8 +869,11 @@ mod tests {
 
         let error = build_command(
             &Commands::Task(TaskCommand::List {
-                priority: None,
+                sort_priority: None,
+                priority_label: None,
                 status: Some("nearly".to_string()),
+                today: false,
+                date: None,
                 workspace: None,
                 all_workspaces: false,
             }),

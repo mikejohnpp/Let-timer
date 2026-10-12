@@ -128,6 +128,45 @@ pub fn current_task(conn: &Connection, now: DateTime<Utc>) -> Response {
     }
 }
 
+pub fn get_start_candidates(
+    conn: &Connection,
+    scope: &WorkspaceScope,
+    now: DateTime<Utc>,
+) -> Result<Vec<Task>, String> {
+    let ws_id = resolve_workspace_id(conn, scope)?;
+    let today = now.date_naive();
+    let repo = TaskRepository::new(conn);
+    let candidates = repo
+        .query(ws_id, None, None, None, None, None)
+        .map_err(|e| e.to_string())?;
+
+    let mut eligible: Vec<Task> = candidates
+        .into_iter()
+        .filter(|t| {
+            t.status == let_timer_core::TaskStatus::Pending
+                || t.status == let_timer_core::TaskStatus::Paused
+        })
+        .collect();
+
+    eligible.sort_by(|a, b| {
+        let a_today = a.scheduled_on == Some(today);
+        let b_today = b.scheduled_on == Some(today);
+        b_today
+            .cmp(&a_today)
+            .then_with(|| b.priority.to_i64().cmp(&a.priority.to_i64()))
+            .then_with(|| a.created_at.cmp(&b.created_at))
+    });
+
+    Ok(eligible)
+}
+
+pub fn start_candidates(conn: &Connection, scope: &WorkspaceScope, now: DateTime<Utc>) -> Response {
+    match get_start_candidates(conn, scope, now) {
+        Ok(tasks) => Response::OkList(tasks),
+        Err(e) => Response::Error { message: e },
+    }
+}
+
 pub fn start_task(
     conn: &Connection,
     id: Option<i64>,
@@ -143,46 +182,11 @@ pub fn start_task(
                     message: "specify a task ID or use --next".to_string(),
                 };
             }
-            // Resolve next candidate task from active workspace
-            let ws_id = match SettingsRepository::new(conn).active_workspace_id() {
-                Ok(id) => id,
-                Err(e) => {
-                    return Response::Error {
-                        message: e.to_string(),
-                    };
-                }
+            let candidates = match get_start_candidates(conn, &WorkspaceScope::Active, now) {
+                Ok(c) => c,
+                Err(e) => return Response::Error { message: e },
             };
-
-            let today = now.date_naive();
-            let repo = TaskRepository::new(conn);
-            let candidates = match repo.query(Some(ws_id), None, None, None, None, None) {
-                Ok(tasks) => tasks,
-                Err(e) => {
-                    return Response::Error {
-                        message: e.to_string(),
-                    };
-                }
-            };
-
-            let mut eligible: Vec<Task> = candidates
-                .into_iter()
-                .filter(|t| {
-                    t.status == let_timer_core::TaskStatus::Pending
-                        || t.status == let_timer_core::TaskStatus::Paused
-                })
-                .collect();
-
-            // Sort: scheduled today first, priority desc, oldest first
-            eligible.sort_by(|a, b| {
-                let a_today = a.scheduled_on == Some(today);
-                let b_today = b.scheduled_on == Some(today);
-                b_today
-                    .cmp(&a_today)
-                    .then_with(|| b.priority.to_i64().cmp(&a.priority.to_i64()))
-                    .then_with(|| a.created_at.cmp(&b.created_at))
-            });
-
-            match eligible.first() {
+            match candidates.first() {
                 Some(task) => task.id,
                 None => {
                     return Response::Error {
@@ -468,6 +472,7 @@ pub fn handle_command(
         Command::List(query) => list_tasks(conn, &query),
         Command::Current => current_task(conn, now),
         Command::Start { id, next, switch } => start_task(conn, id, next, switch, now),
+        Command::StartCandidates { workspace } => start_candidates(conn, &workspace, now),
         Command::Pause { id } => pause_task(conn, id, now),
         Command::Resume { id } => resume_task(conn, id, now),
         Command::Stop { id } => stop_task(conn, id, now),
@@ -907,6 +912,112 @@ mod tests {
                 assert!(message.contains("cannot delete the last workspace"));
             }
             other => panic!("expected Error, got {other:?}"),
+        }
+
+        server_handle.abort();
+    }
+
+    #[tokio::test]
+    async fn start_candidates_ordering_over_ipc() {
+        let dir = std::env::temp_dir().join(format!("test-candidates-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let sock_path = dir.join("let-timer-candidates.sock");
+        let sock_str = sock_path.to_string_lossy().into_owned();
+
+        let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+        let db_clone = Arc::clone(&db);
+        let now = DateTime::parse_from_rfc3339("2026-10-12T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let server = IpcServer::new(&sock_str, move |cmd| {
+            let db_guard = db_clone.lock().unwrap_or_else(|e| e.into_inner());
+            handle_command(cmd, db_guard.conn(), now, None)
+        })
+        .await
+        .unwrap();
+
+        let server_handle = tokio::spawn(async move {
+            server.run().await.unwrap();
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let mut client = IpcClient::connect(&sock_path).await.unwrap();
+
+        // Task 1: unscheduled, not-yet (low)
+        let _ = client
+            .request(&Command::Create(NewTask {
+                name: "T1 unscheduled low".into(),
+                workspace_id: 0,
+                media_list_id: None,
+                description: None,
+                priority: Priority::NotYet,
+                estimated_mins: None,
+                scheduled_on: None,
+            }))
+            .await
+            .unwrap();
+
+        // Task 2: unscheduled, urgent (high)
+        let _ = client
+            .request(&Command::Create(NewTask {
+                name: "T2 unscheduled urgent".into(),
+                workspace_id: 0,
+                media_list_id: None,
+                description: None,
+                priority: Priority::Urgent,
+                estimated_mins: None,
+                scheduled_on: None,
+            }))
+            .await
+            .unwrap();
+
+        // Task 3: scheduled today, not-yet (low)
+        let _ = client
+            .request(&Command::Create(NewTask {
+                name: "T3 today low".into(),
+                workspace_id: 0,
+                media_list_id: None,
+                description: None,
+                priority: Priority::NotYet,
+                estimated_mins: None,
+                scheduled_on: Some(now.date_naive()),
+            }))
+            .await
+            .unwrap();
+
+        // Task 4: scheduled today, urgent (high)
+        let _ = client
+            .request(&Command::Create(NewTask {
+                name: "T4 today urgent".into(),
+                workspace_id: 0,
+                media_list_id: None,
+                description: None,
+                priority: Priority::Urgent,
+                estimated_mins: None,
+                scheduled_on: Some(now.date_naive()),
+            }))
+            .await
+            .unwrap();
+
+        // Query candidates
+        let res = client
+            .request(&Command::StartCandidates {
+                workspace: WorkspaceScope::Active,
+            })
+            .await
+            .unwrap();
+
+        match res {
+            Response::OkList(tasks) => {
+                assert_eq!(tasks.len(), 4);
+                // Ordered: scheduled today first (urgent > not-yet), then unscheduled (urgent > not-yet)
+                assert_eq!(tasks[0].name, "T4 today urgent");
+                assert_eq!(tasks[1].name, "T3 today low");
+                assert_eq!(tasks[2].name, "T2 unscheduled urgent");
+                assert_eq!(tasks[3].name, "T1 unscheduled low");
+            }
+            other => panic!("expected OkList, got {other:?}"),
         }
 
         server_handle.abort();
