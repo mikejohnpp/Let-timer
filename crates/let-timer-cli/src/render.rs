@@ -185,6 +185,22 @@ pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Resul
 
         Response::Pong => writeln!(out, "pong"),
 
+        Response::DaemonStatus {
+            version,
+            socket_path,
+            db_path,
+            running_task,
+        } => {
+            writeln!(out, "let-timer-daemon v{version}")?;
+            writeln!(out, "Socket: {socket_path}")?;
+            writeln!(out, "Database: {db_path}")?;
+            match running_task {
+                Some(task) => writeln!(out, "Running task: {task}")?,
+                None => writeln!(out, "Running task: none")?,
+            }
+            Ok(())
+        }
+
         Response::Timer(snapshot) => timer_detail(out, snapshot),
 
         // Nobody reads this one here: the caller has to exit non-zero over it,
@@ -640,5 +656,22 @@ mod tests {
             render_lifecycle_confirmation("Started", &snap),
             "Started #3 \"Read chapter 3\" — 25:00 remaining"
         );
+    }
+
+    #[test]
+    fn daemon_status_render() {
+        let mut out = Vec::new();
+        let resp = Response::DaemonStatus {
+            version: "0.1.0".into(),
+            socket_path: "/tmp/test.sock".into(),
+            db_path: "/tmp/test.db".into(),
+            running_task: Some("#1 Focus".into()),
+        };
+        write_humans(&resp, &mut out).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("let-timer-daemon v0.1.0"));
+        assert!(text.contains("Socket: /tmp/test.sock"));
+        assert!(text.contains("Database: /tmp/test.db"));
+        assert!(text.contains("Running task: #1 Focus"));
     }
 }

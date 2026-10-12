@@ -1,0 +1,13 @@
+[Unit]
+Description=Let-timer background task manager and timer daemon
+Documentation=https://github.com/mikejohnpp/Let-timer
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/.cargo/bin/let-timer-daemon
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

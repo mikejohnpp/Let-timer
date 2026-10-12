@@ -106,6 +106,7 @@ pub enum Command {
     DeleteMedia {
         id: i64,
     },
+    DaemonStatus,
 }
 
 /// Target identifier when switching workspaces (by ID or exact/fuzzy name).
@@ -128,13 +129,24 @@ pub enum Response {
     OkEmpty,
     Timer(TimerSnapshot),
     Pong,
+    DaemonStatus {
+        version: String,
+        socket_path: String,
+        db_path: String,
+        running_task: Option<String>,
+    },
     WorkspaceList(Vec<Workspace>),
     Workspace(Workspace),
     CurrentWorkspace(Workspace),
     MediaLists(Vec<MediaList>),
     MediaList(MediaList),
-    MediaListDetail { list: MediaList, items: Vec<Media> },
+    MediaListDetail {
+        list: MediaList,
+        items: Vec<Media>,
+    },
     Medias(Vec<Media>),
     Media(Media),
-    Error { message: String },
+    Error {
+        message: String,
+    },
 }

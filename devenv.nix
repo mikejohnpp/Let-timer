@@ -28,4 +28,6 @@
     toolchainFile = ./rust-toolchain.toml;
   };
 
+  # https://devenv.sh/processes/
+  processes.let-timer-daemon.exec = "cargo run --bin let-timer-daemon";
 }

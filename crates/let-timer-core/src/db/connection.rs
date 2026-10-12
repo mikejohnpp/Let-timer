@@ -341,7 +341,7 @@ impl Database {
 /// Resolve the default database path: `~/.local/share/let-timer/let-timer.db`.
 ///
 /// Can be overridden with the `LET_TIMER_DB` environment variable.
-fn default_db_path() -> Result<PathBuf, DbError> {
+pub fn default_db_path() -> Result<PathBuf, DbError> {
     if let Some(override_path) = std::env::var_os("LET_TIMER_DB")
         && !override_path.is_empty()
     {

@@ -440,7 +440,7 @@ async fn build_command(
         }),
         Commands::Task(TaskCommand::Cancel { id }) => Ok(Command::Cancel { id: *id }),
         Commands::Task(TaskCommand::Reopen { id }) => Ok(Command::Reopen { id: *id }),
-        Commands::Daemon(DaemonCommand::Status) => Ok(Command::Ping),
+        Commands::Daemon(DaemonCommand::Status) => Ok(Command::DaemonStatus),
 
         // The other two components answer with their own records, so these
         // need nothing from the task builder.

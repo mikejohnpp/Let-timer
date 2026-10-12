@@ -8,7 +8,7 @@ pub mod settings_repository;
 pub mod task_repository;
 pub mod workspace_repository;
 
-pub use connection::Database;
+pub use connection::{Database, default_db_path};
 pub use error::DbError;
 pub use media_list_repository::MediaListRepository;
 pub use media_repository::MediaRepository;

@@ -10,6 +10,7 @@ pub use db::{
     NewMediaList, NewTask, NewWorkspace, ParsePriorityError, Priority, SessionEndReason,
     SessionRepository, SettingsRepository, Task, TaskRepository, TaskSession, TaskStatus,
     UpdateMedia, UpdateMediaList, UpdateTask, UpdateWorkspace, Workspace, WorkspaceRepository,
+    default_db_path,
 };
 pub use ipc::client::IpcClient;
 pub use ipc::server::IpcServer;

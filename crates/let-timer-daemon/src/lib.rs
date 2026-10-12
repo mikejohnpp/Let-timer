@@ -398,6 +398,25 @@ pub fn delete_media(conn: &Connection, id: i64) -> Response {
     }
 }
 
+pub fn daemon_status(conn: &Connection) -> Response {
+    let version = env!("CARGO_PKG_VERSION").to_string();
+    let socket_path = let_timer_core::ipc::socket_path().display().to_string();
+    let db_path = let_timer_core::default_db_path()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
+    let task_repo = TaskRepository::new(conn);
+    let running_task = match task_repo.get_current() {
+        Ok(Some(t)) => Some(format!("#{} {}", t.id, t.name)),
+        _ => None,
+    };
+    Response::DaemonStatus {
+        version,
+        socket_path,
+        db_path,
+        running_task,
+    }
+}
+
 pub fn current_workspace(conn: &Connection) -> Response {
     let settings = SettingsRepository::new(conn);
     let active_id = match settings.active_workspace_id() {
@@ -583,6 +602,7 @@ pub fn handle_command(
         Command::ListMedias { media_type } => list_medias(conn, media_type),
         Command::CreateMedia(new_media) => create_media(conn, &new_media),
         Command::DeleteMedia { id } => delete_media(conn, id),
+        Command::DaemonStatus => daemon_status(conn),
     };
 
     if affects_timer && let Some(n) = notify {
