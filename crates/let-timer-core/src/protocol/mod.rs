@@ -2,8 +2,8 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 use crate::db::models::{
-    MediaList, NewMediaList, NewTask, NewWorkspace, Priority, Task, TaskStatus, UpdateTask,
-    Workspace,
+    Media, MediaList, MediaType, NewMedia, NewMediaList, NewTask, NewWorkspace, Priority, Task,
+    TaskStatus, UpdateTask, Workspace,
 };
 use crate::service::TimerSnapshot;
 
@@ -85,6 +85,27 @@ pub enum Command {
     },
     ListMediaLists,
     CreateMediaList(NewMediaList),
+    GetMediaList {
+        id: i64,
+    },
+    DeleteMediaList {
+        id: i64,
+    },
+    AddMediaToList {
+        media_list_id: i64,
+        media_id: i64,
+    },
+    RemoveMediaFromList {
+        media_list_id: i64,
+        media_id: i64,
+    },
+    ListMedias {
+        media_type: Option<MediaType>,
+    },
+    CreateMedia(NewMedia),
+    DeleteMedia {
+        id: i64,
+    },
 }
 
 /// Target identifier when switching workspaces (by ID or exact/fuzzy name).
@@ -112,5 +133,8 @@ pub enum Response {
     CurrentWorkspace(Workspace),
     MediaLists(Vec<MediaList>),
     MediaList(MediaList),
+    MediaListDetail { list: MediaList, items: Vec<Media> },
+    Medias(Vec<Media>),
+    Media(Media),
     Error { message: String },
 }

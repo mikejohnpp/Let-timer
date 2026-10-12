@@ -2,9 +2,9 @@ use chrono::{DateTime, Utc};
 use rusqlite::{Connection, params};
 
 use let_timer_core::{
-    ListQuery, MediaListRepository, NewMediaList, NewTask, NewWorkspace, Response,
-    SettingsRepository, Task, TaskRepository, TaskService, UpdateTask, WorkspaceRepository,
-    WorkspaceScope,
+    ListQuery, MediaListRepository, MediaRepository, MediaType, NewMedia, NewMediaList, NewTask,
+    NewWorkspace, Response, SettingsRepository, Task, TaskRepository, TaskService, UpdateTask,
+    WorkspaceRepository, WorkspaceScope,
 };
 
 fn resolve_workspace_id(conn: &Connection, scope: &WorkspaceScope) -> Result<Option<i64>, String> {
@@ -316,6 +316,88 @@ pub fn create_media_list(conn: &Connection, new_ml: &NewMediaList) -> Response {
     }
 }
 
+pub fn get_media_list(conn: &Connection, id: i64) -> Response {
+    let repo = MediaListRepository::new(conn);
+    let list = match repo.get_by_id(id) {
+        Ok(l) => l,
+        Err(e) => {
+            return Response::Error {
+                message: e.to_string(),
+            };
+        }
+    };
+    match repo.list_medias(id) {
+        Ok(items) => Response::MediaListDetail { list, items },
+        Err(e) => Response::Error {
+            message: e.to_string(),
+        },
+    }
+}
+
+pub fn delete_media_list(conn: &Connection, id: i64) -> Response {
+    let repo = MediaListRepository::new(conn);
+    match repo.delete(id) {
+        Ok(()) => Response::OkEmpty,
+        Err(e) => Response::Error {
+            message: e.to_string(),
+        },
+    }
+}
+
+pub fn add_media_to_list(conn: &Connection, list_id: i64, media_id: i64) -> Response {
+    let repo = MediaListRepository::new(conn);
+    match repo.add_media(list_id, media_id) {
+        Ok(()) => Response::OkEmpty,
+        Err(e) => Response::Error {
+            message: e.to_string(),
+        },
+    }
+}
+
+pub fn remove_media_from_list(conn: &Connection, list_id: i64, media_id: i64) -> Response {
+    let repo = MediaListRepository::new(conn);
+    match repo.remove_media(list_id, media_id) {
+        Ok(()) => Response::OkEmpty,
+        Err(e) => Response::Error {
+            message: e.to_string(),
+        },
+    }
+}
+
+pub fn list_medias(conn: &Connection, media_type: Option<MediaType>) -> Response {
+    let repo = MediaRepository::new(conn);
+    let res = match media_type {
+        Some(t) => repo.list_by_type(t),
+        None => repo.list_all(),
+    };
+    match res {
+        Ok(medias) => Response::Medias(medias),
+        Err(e) => Response::Error {
+            message: e.to_string(),
+        },
+    }
+}
+
+pub fn create_media(conn: &Connection, new_media: &NewMedia) -> Response {
+    let repo = MediaRepository::new(conn);
+    match repo.create(new_media) {
+        Ok(m) => Response::Media(m),
+        Err(e) => Response::Error {
+            message: e.to_string(),
+        },
+    }
+}
+
+pub fn delete_media(conn: &Connection, id: i64) -> Response {
+    let repo = MediaRepository::new(conn);
+    match repo.delete(id) {
+        Ok(()) => Response::OkEmpty,
+        Err(e) => Response::Error {
+            message: e.to_string(),
+        },
+    }
+}
+
 pub fn current_workspace(conn: &Connection) -> Response {
     let settings = SettingsRepository::new(conn);
     let active_id = match settings.active_workspace_id() {
@@ -488,6 +570,19 @@ pub fn handle_command(
         Command::DeleteWorkspace { id } => delete_workspace(conn, id),
         Command::ListMediaLists => list_media_lists(conn),
         Command::CreateMediaList(new_media_list) => create_media_list(conn, &new_media_list),
+        Command::GetMediaList { id } => get_media_list(conn, id),
+        Command::DeleteMediaList { id } => delete_media_list(conn, id),
+        Command::AddMediaToList {
+            media_list_id,
+            media_id,
+        } => add_media_to_list(conn, media_list_id, media_id),
+        Command::RemoveMediaFromList {
+            media_list_id,
+            media_id,
+        } => remove_media_from_list(conn, media_list_id, media_id),
+        Command::ListMedias { media_type } => list_medias(conn, media_type),
+        Command::CreateMedia(new_media) => create_media(conn, &new_media),
+        Command::DeleteMedia { id } => delete_media(conn, id),
     };
 
     if affects_timer && let Some(n) = notify {
@@ -501,8 +596,8 @@ pub fn handle_command(
 mod tests {
     use super::*;
     use let_timer_core::{
-        Command, Database, IpcClient, IpcServer, ListQuery, NewTask, Priority, Response, SortOrder,
-        TaskStatus, TimerState, UpdateTask, WorkspaceScope,
+        Command, Database, IpcClient, IpcServer, ListQuery, MediaType, NewMedia, NewMediaList,
+        NewTask, Priority, Response, SortOrder, TaskStatus, TimerState, UpdateTask, WorkspaceScope,
     };
     use std::sync::{Arc, Mutex};
 
@@ -1016,6 +1111,244 @@ mod tests {
                 assert_eq!(tasks[1].name, "T3 today low");
                 assert_eq!(tasks[2].name, "T2 unscheduled urgent");
                 assert_eq!(tasks[3].name, "T1 unscheduled low");
+            }
+            other => panic!("expected OkList, got {other:?}"),
+        }
+
+        server_handle.abort();
+    }
+
+    #[tokio::test]
+    async fn media_and_media_list_crud_over_ipc() {
+        let dir = std::env::temp_dir().join(format!("test-ipc-media-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let socket_path = dir.join("test.sock");
+        let _ = std::fs::remove_file(&socket_path);
+        let socket_str = socket_path.to_str().unwrap().to_string();
+
+        let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+        let db_clone = Arc::clone(&db);
+
+        let server = IpcServer::new(&socket_str, move |cmd| {
+            let now = Utc::now();
+            let db_guard = db_clone.lock().unwrap();
+            handle_command(cmd, db_guard.conn(), now, None)
+        })
+        .await
+        .unwrap();
+
+        let server_handle = tokio::spawn(async move {
+            let _ = server.run().await;
+        });
+
+        let mut client = IpcClient::connect(&socket_path).await.unwrap();
+
+        // 1. Create media items
+        let res = client
+            .request(&Command::CreateMedia(NewMedia {
+                name: "Nature Wallpaper".into(),
+                description: Some("Forest in morning light".into()),
+                url: "https://example.com/forest.jpg".into(),
+                media_type: MediaType::Image,
+            }))
+            .await
+            .unwrap();
+        let media_image = match res {
+            Response::Media(m) => m,
+            other => panic!("expected Media, got {other:?}"),
+        };
+        assert_eq!(media_image.media_type, MediaType::Image);
+
+        let res = client
+            .request(&Command::CreateMedia(NewMedia {
+                name: "Lo-Fi Beats".into(),
+                description: None,
+                url: "https://example.com/beats.mp3".into(),
+                media_type: MediaType::Music,
+            }))
+            .await
+            .unwrap();
+        let media_music = match res {
+            Response::Media(m) => m,
+            other => panic!("expected Media, got {other:?}"),
+        };
+
+        let res = client
+            .request(&Command::CreateMedia(NewMedia {
+                name: "The Road Not Taken".into(),
+                description: Some("Robert Frost poem".into()),
+                url: "https://example.com/poem.txt".into(),
+                media_type: MediaType::Poem,
+            }))
+            .await
+            .unwrap();
+        let media_poem = match res {
+            Response::Media(m) => m,
+            other => panic!("expected Media, got {other:?}"),
+        };
+
+        // 2. List medias (all and filtered by type)
+        let res = client
+            .request(&Command::ListMedias { media_type: None })
+            .await
+            .unwrap();
+        match res {
+            Response::Medias(list) => assert_eq!(list.len(), 3),
+            other => panic!("expected Medias, got {other:?}"),
+        }
+
+        let res = client
+            .request(&Command::ListMedias {
+                media_type: Some(MediaType::Music),
+            })
+            .await
+            .unwrap();
+        match res {
+            Response::Medias(list) => {
+                assert_eq!(list.len(), 1);
+                assert_eq!(list[0].id, media_music.id);
+            }
+            other => panic!("expected Medias, got {other:?}"),
+        }
+
+        // 3. Create a media list
+        let res = client
+            .request(&Command::CreateMediaList(NewMediaList {
+                name: "Work Focus".into(),
+                description: Some("Music and images for study".into()),
+            }))
+            .await
+            .unwrap();
+        let list_id = match res {
+            Response::MediaList(ml) => ml.id,
+            other => panic!("expected MediaList, got {other:?}"),
+        };
+
+        // 4. Add items to media list
+        let res = client
+            .request(&Command::AddMediaToList {
+                media_list_id: list_id,
+                media_id: media_image.id,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(res, Response::OkEmpty));
+
+        let res = client
+            .request(&Command::AddMediaToList {
+                media_list_id: list_id,
+                media_id: media_music.id,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(res, Response::OkEmpty));
+
+        // Adding duplicate fails (idempotency check via UNIQUE constraint)
+        let res = client
+            .request(&Command::AddMediaToList {
+                media_list_id: list_id,
+                media_id: media_music.id,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(res, Response::Error { .. }));
+
+        // 5. Get media list detail (show)
+        let res = client
+            .request(&Command::GetMediaList { id: list_id })
+            .await
+            .unwrap();
+        match res {
+            Response::MediaListDetail { list, items } => {
+                assert_eq!(list.id, list_id);
+                assert_eq!(items.len(), 2);
+            }
+            other => panic!("expected MediaListDetail, got {other:?}"),
+        }
+
+        // 6. Create a task assigned to this media list
+        let res = client
+            .request(&Command::Create(NewTask {
+                workspace_id: 1,
+                media_list_id: Some(list_id),
+                name: "Study with media".into(),
+                description: None,
+                priority: Priority::Immediate,
+                estimated_mins: Some(30),
+                scheduled_on: None,
+            }))
+            .await
+            .unwrap();
+        let task_id = match res {
+            Response::Ok(Some(t)) => {
+                assert_eq!(t.media_list_id, Some(list_id));
+                t.id
+            }
+            other => panic!("expected Ok(Some(task)), got {other:?}"),
+        };
+
+        // 7. Remove an item from the list
+        let res = client
+            .request(&Command::RemoveMediaFromList {
+                media_list_id: list_id,
+                media_id: media_music.id,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(res, Response::OkEmpty));
+
+        let res = client
+            .request(&Command::GetMediaList { id: list_id })
+            .await
+            .unwrap();
+        match res {
+            Response::MediaListDetail { items, .. } => {
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].id, media_image.id);
+            }
+            other => panic!("expected MediaListDetail, got {other:?}"),
+        }
+
+        // 8. Deleting media cascades to join table
+        let res = client
+            .request(&Command::DeleteMedia { id: media_image.id })
+            .await
+            .unwrap();
+        assert!(matches!(res, Response::OkEmpty));
+
+        let res = client
+            .request(&Command::GetMediaList { id: list_id })
+            .await
+            .unwrap();
+        match res {
+            Response::MediaListDetail { items, .. } => {
+                assert_eq!(items.len(), 0);
+            }
+            other => panic!("expected MediaListDetail, got {other:?}"),
+        }
+
+        // Delete poem too
+        let _ = client
+            .request(&Command::DeleteMedia { id: media_poem.id })
+            .await
+            .unwrap();
+
+        // 9. Deleting media list sets tasks.media_list_id to NULL
+        let res = client
+            .request(&Command::DeleteMediaList { id: list_id })
+            .await
+            .unwrap();
+        assert!(matches!(res, Response::OkEmpty));
+
+        // Verify task now has media_list_id == None
+        let res = client
+            .request(&Command::List(ListQuery::default()))
+            .await
+            .unwrap();
+        match res {
+            Response::OkList(tasks) => {
+                let task = tasks.iter().find(|t| t.id == task_id).unwrap();
+                assert_eq!(task.media_list_id, None);
             }
             other => panic!("expected OkList, got {other:?}"),
         }

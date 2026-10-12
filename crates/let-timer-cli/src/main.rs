@@ -19,15 +19,18 @@ mod render;
 
 use std::process::ExitCode;
 
-use crate::cli::{Cli, Commands, DaemonCommand, MediaListCommand, TaskCommand, WorkspaceCommand};
+use crate::cli::{
+    Cli, Commands, DaemonCommand, MediaCommand, MediaListCommand, TaskCommand, WorkspaceCommand,
+};
 use crate::interactive::{
     resolve_description, resolve_estimated_mins, resolve_media_list, resolve_name,
     resolve_priority, resolve_scheduled_on, resolve_workspace,
 };
 use clap::Parser;
 use let_timer_core::{
-    Command, IpcClient, ListQuery, NewMediaList, NewTask, NewWorkspace, Priority, Response,
-    SortOrder, TaskStatus, UpdateTask, WorkspaceScope, WorkspaceTarget, date_on,
+    Command, IpcClient, ListQuery, MediaType, NewMedia, NewMediaList, NewTask, NewWorkspace,
+    Priority, Response, SortOrder, TaskStatus, UpdateTask, WorkspaceScope, WorkspaceTarget,
+    date_on,
 };
 
 /// Anything that stopped the program from doing what it was asked.
@@ -524,6 +527,103 @@ async fn build_command(
                 no_interactive,
             )?;
             Ok(Command::CreateMediaList(NewMediaList { name, description }))
+        }
+        Commands::MediaList(MediaListCommand::Show { id }) => Ok(Command::GetMediaList { id: *id }),
+        Commands::MediaList(MediaListCommand::Delete { id }) => {
+            if !no_interactive {
+                let confirmed = inquire::Confirm::new(&format!("Delete media list #{id}?"))
+                    .with_default(false)
+                    .prompt()
+                    .map_err(|e| e.to_string())?;
+                if !confirmed {
+                    return Err("aborted by user".into());
+                }
+            }
+            Ok(Command::DeleteMediaList { id: *id })
+        }
+        Commands::MediaList(MediaListCommand::AddMedia { list_id, media_id }) => {
+            Ok(Command::AddMediaToList {
+                media_list_id: *list_id,
+                media_id: *media_id,
+            })
+        }
+        Commands::MediaList(MediaListCommand::RemoveMedia { list_id, media_id }) => {
+            Ok(Command::RemoveMediaFromList {
+                media_list_id: *list_id,
+                media_id: *media_id,
+            })
+        }
+        Commands::Media(MediaCommand::List { media_type }) => {
+            let media_type = match media_type {
+                Some(t) => Some(
+                    t.parse::<MediaType>()
+                        .map_err(|e| format!("invalid media type: {t} ({e})"))?,
+                ),
+                None => None,
+            };
+            Ok(Command::ListMedias { media_type })
+        }
+        Commands::Media(MediaCommand::Create {
+            name,
+            url,
+            media_type,
+            description,
+        }) => {
+            let name = match required(name, "media", "--name", no_interactive) {
+                Asked::Given(n) => n.to_string(),
+                Asked::Refuse(msg) => return Err(msg.into()),
+                Asked::Ask => resolve_name("Media name", "e.g. Ambient Focus")?,
+            };
+            let url = match required(url, "media", "--url", no_interactive) {
+                Asked::Given(u) => u.to_string(),
+                Asked::Refuse(msg) => return Err(msg.into()),
+                Asked::Ask => inquire::Text::new("Media URL")
+                    .with_help_message("e.g. https://example.com/audio.mp3")
+                    .prompt()
+                    .map_err(|e| e.to_string())?,
+            };
+            let media_type: MediaType = match media_type {
+                Some(t) => t
+                    .parse()
+                    .map_err(|e| format!("invalid media type: {t} ({e})"))?,
+                None => {
+                    if no_interactive {
+                        return Err(
+                            "a media needs a type: pass --media-type <image|music|poem>".into()
+                        );
+                    }
+                    let chosen = inquire::Select::new("Media type", vec!["image", "music", "poem"])
+                        .prompt()
+                        .map_err(|e| e.to_string())?;
+                    chosen
+                        .parse()
+                        .map_err(|e: let_timer_core::DbError| e.to_string())?
+                }
+            };
+            let description = match description {
+                Some(d) if !d.trim().is_empty() => Some(d.trim().to_string()),
+                Some(_) => None,
+                None if no_interactive => None,
+                None => resolve_description()?,
+            };
+            Ok(Command::CreateMedia(NewMedia {
+                name,
+                url,
+                media_type,
+                description,
+            }))
+        }
+        Commands::Media(MediaCommand::Delete { id }) => {
+            if !no_interactive {
+                let confirmed = inquire::Confirm::new(&format!("Delete media #{id}?"))
+                    .with_default(false)
+                    .prompt()
+                    .map_err(|e| e.to_string())?;
+                if !confirmed {
+                    return Err("aborted by user".into());
+                }
+            }
+            Ok(Command::DeleteMedia { id: *id })
         }
     }
 }

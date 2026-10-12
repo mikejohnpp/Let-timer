@@ -127,6 +127,62 @@ pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Resul
             Ok(())
         }
 
+        Response::MediaListDetail { list, items } => {
+            writeln!(out, "Media list {}: {}", list.id, list.name)?;
+            if let Some(description) = &list.description {
+                writeln!(out, "  {description}")?;
+            }
+            if items.is_empty() {
+                writeln!(out, "No items in this list.")?;
+            } else {
+                writeln!(out, "Items ({}):", items.len())?;
+                table(
+                    out,
+                    &["ID", "TYPE", "NAME", "URL"],
+                    items.iter().map(|m| {
+                        vec![
+                            m.id.to_string(),
+                            m.media_type.as_str().to_string(),
+                            m.name.clone(),
+                            m.url.clone(),
+                        ]
+                    }),
+                )?;
+            }
+            Ok(())
+        }
+
+        Response::Medias(medias) => match medias.is_empty() {
+            true => writeln!(out, "No medias."),
+            false => table(
+                out,
+                &["ID", "TYPE", "NAME", "URL"],
+                medias.iter().map(|m| {
+                    vec![
+                        m.id.to_string(),
+                        m.media_type.as_str().to_string(),
+                        m.name.clone(),
+                        m.url.clone(),
+                    ]
+                }),
+            ),
+        },
+
+        Response::Media(media) => {
+            writeln!(
+                out,
+                "Media {}: {} [{}]",
+                media.id,
+                media.name,
+                media.media_type.as_str()
+            )?;
+            writeln!(out, "  url: {}", media.url)?;
+            if let Some(description) = &media.description {
+                writeln!(out, "  {description}")?;
+            }
+            Ok(())
+        }
+
         Response::Pong => writeln!(out, "pong"),
 
         Response::Timer(snapshot) => timer_detail(out, snapshot),

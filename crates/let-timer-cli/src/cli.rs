@@ -72,6 +72,11 @@ pub enum Component {
         #[command(subcommand)]
         command: Option<MediaListCommand>,
     },
+    /// Media items (image, music, poem).
+    Medias {
+        #[command(subcommand)]
+        command: Option<MediaCommand>,
+    },
     /// Daemon management commands.
     Daemon {
         #[command(subcommand)]
@@ -108,6 +113,10 @@ impl Component {
                 Some(command) => Commands::MediaList(command.clone()),
                 None => Commands::MediaList(MediaListCommand::List),
             },
+            Component::Medias { command } => match command {
+                Some(command) => Commands::Media(command.clone()),
+                None => Commands::Media(MediaCommand::List { media_type: None }),
+            },
             Component::Daemon { command } => match command {
                 Some(command) => Commands::Daemon(command.clone()),
                 None => Commands::Daemon(DaemonCommand::Status),
@@ -125,6 +134,7 @@ pub enum Commands {
     Task(TaskCommand),
     Workspace(WorkspaceCommand),
     MediaList(MediaListCommand),
+    Media(MediaCommand),
     Daemon(DaemonCommand),
 }
 
@@ -300,8 +310,6 @@ pub enum WorkspaceCommand {
 }
 
 /// What can be asked of a media list.
-///
-/// Missing `edit` and `delete` for the same reason as a workspace's.
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
 pub enum MediaListCommand {
     /// Show every media list.
@@ -312,6 +320,56 @@ pub enum MediaListCommand {
         name: Option<String>,
         #[arg(short, long)]
         description: Option<String>,
+    },
+    /// Show a media list and its contents.
+    Show {
+        #[arg(short, long)]
+        id: i64,
+    },
+    /// Delete a media list by id.
+    Delete {
+        #[arg(short, long)]
+        id: i64,
+    },
+    /// Add a media item to a list.
+    AddMedia {
+        #[arg(short = 'l', long)]
+        list_id: i64,
+        #[arg(short = 'm', long)]
+        media_id: i64,
+    },
+    /// Remove a media item from a list.
+    RemoveMedia {
+        #[arg(short = 'l', long)]
+        list_id: i64,
+        #[arg(short = 'm', long)]
+        media_id: i64,
+    },
+}
+
+/// What can be asked of media items.
+#[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
+pub enum MediaCommand {
+    /// Show every media item, optionally filtered by type.
+    List {
+        #[arg(short = 't', long, value_name = "image|music|poem")]
+        media_type: Option<String>,
+    },
+    /// Create a media item.
+    Create {
+        #[arg(short, long)]
+        name: Option<String>,
+        #[arg(short, long)]
+        url: Option<String>,
+        #[arg(short = 't', long, value_name = "image|music|poem")]
+        media_type: Option<String>,
+        #[arg(short, long)]
+        description: Option<String>,
+    },
+    /// Delete a media item by id.
+    Delete {
+        #[arg(short, long)]
+        id: i64,
     },
 }
 
@@ -370,6 +428,10 @@ mod tests {
             ),
             ("workspaces", Commands::Workspace(WorkspaceCommand::List)),
             ("media-lists", Commands::MediaList(MediaListCommand::List)),
+            (
+                "medias",
+                Commands::Media(MediaCommand::List { media_type: None }),
+            ),
         ];
 
         for (name, expected) in cases {
@@ -390,12 +452,12 @@ mod tests {
     }
 
     #[test]
-    fn the_three_components_are_the_ones_on_offer() {
+    fn the_four_components_are_the_ones_on_offer() {
         // A line that names no component gets told where to look rather than
         // just that the word was wrong.
         let help = Cli::command().render_long_help().to_string();
 
-        for component in ["tasks", "workspaces", "media-lists"] {
+        for component in ["tasks", "workspaces", "media-lists", "medias"] {
             assert!(
                 help.contains(component),
                 "{component} missing from:\n{help}"
@@ -410,8 +472,8 @@ mod tests {
         let refused = [
             ["let-timer", "workspaces", "edit"],
             ["let-timer", "workspaces", "start"],
-            ["let-timer", "media-lists", "delete"],
-            ["let-timer", "media-lists", "list-extra"],
+            ["let-timer", "media-lists", "edit"],
+            ["let-timer", "medias", "edit"],
         ];
 
         for argv in refused {
@@ -485,7 +547,7 @@ mod tests {
     fn every_command_the_daemon_has_is_reachable() {
         // One row per `Command` in the protocol. A refactor that drops one, or
         // files it under the wrong component, fails here.
-        let reachable: [(&[&str], Commands); 22] = [
+        let reachable: [(&[&str], Commands); 29] = [
             (
                 &["tasks", "create", "-n", "wash up"],
                 Commands::Task(TaskCommand::Create {
@@ -619,6 +681,54 @@ mod tests {
                     name: Some("books".into()),
                     description: None,
                 }),
+            ),
+            (
+                &["media-lists", "show", "--id", "1"],
+                Commands::MediaList(MediaListCommand::Show { id: 1 }),
+            ),
+            (
+                &["media-lists", "delete", "--id", "1"],
+                Commands::MediaList(MediaListCommand::Delete { id: 1 }),
+            ),
+            (
+                &["media-lists", "add-media", "-l", "1", "-m", "2"],
+                Commands::MediaList(MediaListCommand::AddMedia {
+                    list_id: 1,
+                    media_id: 2,
+                }),
+            ),
+            (
+                &["media-lists", "remove-media", "-l", "1", "-m", "2"],
+                Commands::MediaList(MediaListCommand::RemoveMedia {
+                    list_id: 1,
+                    media_id: 2,
+                }),
+            ),
+            (
+                &["medias", "list"],
+                Commands::Media(MediaCommand::List { media_type: None }),
+            ),
+            (
+                &[
+                    "medias",
+                    "create",
+                    "-n",
+                    "song",
+                    "-u",
+                    "http://example.com/a.mp3",
+                    "-t",
+                    "music",
+                ],
+                Commands::Media(MediaCommand::Create {
+                    name: Some("song".into()),
+                    url: Some("http://example.com/a.mp3".into()),
+                    media_type: Some("music".into()),
+                    description: None,
+                }),
+            ),
+            (
+                &["medias", "delete", "--id", "1"],
+                Commands::Media(MediaCommand::Delete { id: 1 }),
             ),
         ];
 
