@@ -1,5 +1,8 @@
 # Let-timer Public HTTP API Design (v1)
 
+> [!WARNING]
+> **Superseded by `docs/server_web_spec.md` §4 and the generated `openapi.json`**. Kept for historical reference.
+
 This document specifies the public HTTP API for **Let-timer**, designed in Phase P8.
 It outlines the endpoints, data transfer objects (DTOs), authentication, event streaming,
 and the mapping between the internal domain engine (`let_timer_core::service`) and HTTP.

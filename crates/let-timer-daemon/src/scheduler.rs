@@ -99,7 +99,7 @@ impl Scheduler {
                 Ok(Some(dur)) => dur,
                 Ok(None) => Duration::from_secs(30),
                 Err(e) => {
-                    eprintln!("scheduler tick error: {e}");
+                    tracing::error!("scheduler tick error: {e}");
                     Duration::from_secs(30)
                 }
             };

@@ -16,7 +16,7 @@ impl Notifier for NotifySend {
             .arg(body)
             .spawn()
         {
-            eprintln!("Failed to spawn notify-send: {e}");
+            tracing::warn!("Failed to spawn notify-send: {e}");
         }
     }
 }
@@ -27,7 +27,7 @@ pub struct LogNotifier;
 
 impl Notifier for LogNotifier {
     fn notify(&self, title: &str, body: &str) {
-        println!("[NOTIFICATION] {title}: {body}");
+        tracing::info!("[NOTIFICATION] {title}: {body}");
     }
 }
 

@@ -11,8 +11,31 @@ fn invoke_command(cmd: Command, db: &Arc<Mutex<Database>>, notify: &Arc<Notify>)
     handle_command(cmd, db_guard.conn(), now, Some(notify))
 }
 
+fn init_logging() {
+    let filter = std::env::var("LET_TIMER_LOG")
+        .or_else(|_| std::env::var("RUST_LOG"))
+        .unwrap_or_else(|_| "info".to_string());
+    let filter_layer = tracing_subscriber::EnvFilter::new(filter);
+
+    let format_json = std::env::var("LET_TIMER_LOG_FORMAT")
+        .map(|v| v.eq_ignore_ascii_case("json"))
+        .unwrap_or(false);
+
+    if format_json {
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(filter_layer)
+            .json()
+            .try_init();
+    } else {
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(filter_layer)
+            .try_init();
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    init_logging();
     let path = let_timer_core::ipc::socket_path();
     let path = path.to_string_lossy().into_owned();
     let database = Arc::new(Mutex::new(Database::open_default()?));
@@ -33,6 +56,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     server.run().await?;
     scheduler_handle.abort();
-    println!("daemon exited cleanly");
+    tracing::info!("daemon exited cleanly");
     Ok(())
 }

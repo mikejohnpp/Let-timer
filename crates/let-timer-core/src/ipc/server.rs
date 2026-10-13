@@ -35,6 +35,13 @@ impl IpcServer {
         }
 
         let listener = UnixListener::bind(path)?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+        }
+
         Ok(Self {
             listener,
             path: path.to_string(),
@@ -45,7 +52,7 @@ impl IpcServer {
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
         let mut sigterm =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-        println!("listening on {}", self.path);
+        tracing::info!("listening on {}", self.path);
         loop {
             tokio::select! {
                 accepted = self.listener.accept() => {
@@ -54,11 +61,11 @@ impl IpcServer {
                     tokio::spawn(handle_connect(stream, handler));
                 }
                 _ = tokio::signal::ctrl_c() => {
-                    println!("received Ctrl+C — closing accept loop");
+                    tracing::info!("received Ctrl+C — closing accept loop");
                     break;
                 }
                 _ = sigterm.recv() => {
-                    println!("received SIGTERM — closing accept loop");
+                    tracing::info!("received SIGTERM — closing accept loop");
                     break;
                 }
             }
@@ -70,7 +77,7 @@ impl IpcServer {
 impl Drop for IpcServer {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.path);
-        println!("socket removed: {}", self.path);
+        tracing::info!("socket removed: {}", self.path);
     }
 }
 
@@ -191,6 +198,27 @@ mod tests {
         assert!(second.is_err(), "should detect running daemon");
         let msg = second.err().unwrap().to_string();
         assert!(msg.contains("already running"), "{msg}");
+
+        drop(server);
+        let _ = std::fs::remove_file(sock_path);
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn socket_has_permissions_0600() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = std::env::temp_dir().join(format!("test-ipc-perm-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let sock_path = temp_dir.join("perm.sock");
+        let sock_str = sock_path.to_string_lossy().to_string();
+
+        let server = IpcServer::new(&sock_str, |_| Response::OkEmpty).await;
+        assert!(server.is_ok());
+
+        let meta = std::fs::metadata(&sock_path).unwrap();
+        let mode = meta.permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "socket permissions should be 0600, got {mode:o}");
 
         drop(server);
         let _ = std::fs::remove_file(sock_path);

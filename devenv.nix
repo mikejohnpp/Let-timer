@@ -10,9 +10,16 @@
   # https://devenv.sh/packages/
   packages = [
     pkgs.git
-    pkgs.librsvg
-    pkgs.webkitgtk_4_1
+    pkgs.nodejs_22
+    pkgs.playwright-driver.browsers
+    pkgs.playwright-mcp
   ];
+
+  env = {
+    PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+    PLAYWRIGHT_MCP_BROWSER = "chromium";
+  };
 
   languages.javascript = {
     enable = true;
