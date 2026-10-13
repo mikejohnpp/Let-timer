@@ -59,6 +59,67 @@ impl<'a> TokenRepository<'a> {
         })
     }
 
+    /// Create or ensure a token with a pre-defined raw token value (e.g. bootstrap token).
+    pub fn create_with_raw_token(
+        &self,
+        name: &str,
+        raw_token: &str,
+    ) -> Result<CreatedToken, DbError> {
+        let hash = Self::hash_token(raw_token);
+        self.conn.execute(
+            "INSERT INTO api_tokens (name, token_hash) VALUES (?1, ?2)
+             ON CONFLICT(name) DO UPDATE SET token_hash = excluded.token_hash, revoked_at = NULL",
+            params![name, hash],
+        )?;
+
+        let (id, created_at): (i64, String) = self.conn.query_row(
+            "SELECT id, created_at FROM api_tokens WHERE name = ?1",
+            params![name],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+
+        Ok(CreatedToken {
+            id,
+            name: name.to_string(),
+            token: raw_token.to_string(),
+            created_at,
+        })
+    }
+
+    /// Rotate an existing token by name. Replaces the hash with a new random secret.
+    pub fn rotate(&self, name: &str) -> Result<CreatedToken, DbError> {
+        let mut random_bytes = [0u8; 32];
+        rand::rng().fill(&mut random_bytes);
+        let encoded = BASE64_URL_SAFE_NO_PAD.encode(random_bytes);
+        let plaintext_token = format!("lt_{encoded}");
+        let hash = Self::hash_token(&plaintext_token);
+
+        let rows = self.conn.execute(
+            "UPDATE api_tokens SET token_hash = ?1, created_at = datetime('now'), last_used_at = NULL, revoked_at = NULL WHERE name = ?2",
+            params![hash, name],
+        )?;
+
+        if rows == 0 {
+            return Err(DbError::NotFound {
+                entity: "api_token",
+                id: 0,
+            });
+        }
+
+        let (id, created_at): (i64, String) = self.conn.query_row(
+            "SELECT id, created_at FROM api_tokens WHERE name = ?1",
+            params![name],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+
+        Ok(CreatedToken {
+            id,
+            name: name.to_string(),
+            token: plaintext_token,
+            created_at,
+        })
+    }
+
     /// Find an active (non-revoked) token by its raw plaintext value.
     /// If valid, updates its `last_used_at` timestamp.
     pub fn authenticate(&self, raw_token: &str) -> Result<Option<ApiToken>, DbError> {
@@ -183,5 +244,33 @@ mod tests {
         assert!(authed_after.is_none());
 
         assert!(!repo.has_active_tokens().unwrap());
+    }
+
+    #[test]
+    fn rotate_and_bootstrap_tokens() {
+        let db = Database::open_in_memory().unwrap();
+        let repo = TokenRepository::new(db.conn());
+
+        // Bootstrap
+        let boot = repo
+            .create_with_raw_token("bootstrap", "lt_secret_admin_token")
+            .unwrap();
+        assert_eq!(boot.name, "bootstrap");
+        assert_eq!(boot.token, "lt_secret_admin_token");
+        assert!(
+            repo.authenticate("lt_secret_admin_token")
+                .unwrap()
+                .is_some()
+        );
+
+        // Rotate
+        let rotated = repo.rotate("bootstrap").unwrap();
+        assert_ne!(rotated.token, "lt_secret_admin_token");
+        assert!(
+            repo.authenticate("lt_secret_admin_token")
+                .unwrap()
+                .is_none()
+        );
+        assert!(repo.authenticate(&rotated.token).unwrap().is_some());
     }
 }

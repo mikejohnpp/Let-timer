@@ -199,3 +199,99 @@ pub async fn me_handler(State(state): State<Arc<AppState>>, headers: HeaderMap) 
     }))
     .into_response()
 }
+
+#[derive(Debug, Deserialize)]
+pub struct RotateTokenReq {
+    pub name: String,
+}
+
+/// POST /api/v1/auth/tokens/rotate
+pub async fn rotate_token(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<RotateTokenReq>,
+) -> Response {
+    let db = state.db.lock().unwrap_or_else(|e| e.into_inner());
+    let repo = let_timer_core::TokenRepository::new(db.conn());
+    match repo.rotate(&payload.name) {
+        Ok(created) => (
+            StatusCode::OK,
+            Json(json!({
+                "token": created.token,
+                "token_info": {
+                    "id": created.id,
+                    "name": created.name,
+                    "created_at": created.created_at,
+                    "last_used_at": null,
+                    "revoked_at": null
+                }
+            })),
+        )
+            .into_response(),
+        Err(let_timer_core::DbError::NotFound { .. }) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({
+                "error": "not_found",
+                "message": format!("token '{}' not found", payload.name)
+            })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "error": "rotate_failed",
+                "message": e.to_string()
+            })),
+        )
+            .into_response(),
+    }
+}
+
+/// GET /metrics
+pub async fn metrics_handler(State(state): State<Arc<AppState>>) -> Response {
+    let (tasks_count, active_sessions, tokens_count) = {
+        let db = state.db.lock().unwrap_or_else(|e| e.into_inner());
+        let tc: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+            .unwrap_or(0);
+        let sc: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM task_sessions WHERE ended_at IS NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        let tkc: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM api_tokens WHERE revoked_at IS NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        (tc, sc, tkc)
+    };
+
+    let metrics_text = format!(
+        "# HELP let_timer_tasks_total Total number of tasks in database\n\
+         # TYPE let_timer_tasks_total gauge\n\
+         let_timer_tasks_total {}\n\
+         # HELP let_timer_active_sessions Active running task sessions\n\
+         # TYPE let_timer_active_sessions gauge\n\
+         let_timer_active_sessions {}\n\
+         # HELP let_timer_active_tokens Active API tokens\n\
+         # TYPE let_timer_active_tokens gauge\n\
+         let_timer_active_tokens {}\n",
+        tasks_count, active_sessions, tokens_count
+    );
+
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
+        metrics_text,
+    )
+        .into_response()
+}

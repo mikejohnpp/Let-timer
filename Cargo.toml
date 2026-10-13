@@ -24,7 +24,7 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 futures-util = "0.3"
 async-stream = "0.3"
 rusqlite = { version = "0.40", features = ["bundled", "chrono"] }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 inquire = { version = "0.9", features = ["fuzzy", "date"] }
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = { version = "0.10", features = ["serde"] }

@@ -130,7 +130,7 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleRevokeToken = async (id: number, name: string) => {
+  const handleRevokeToken = async (name: string) => {
     if (!confirm(`Revoke token "${name}"? This action cannot be undone.`)) return;
 
     try {
@@ -144,12 +144,42 @@ export const SettingsView: React.FC = () => {
       const res = await fetch('/api/v1/auth/tokens/revoke', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ token_id: id }),
+        body: JSON.stringify({ name }),
       });
 
       if (res.ok) loadSettingsAndTokens();
     } catch (e) {
       console.error('Revoke token failed', e);
+    }
+  };
+
+  const handleRotateToken = async (name: string) => {
+    if (!confirm(`Rotate token "${name}"? The previous secret will be revoked immediately and a new secret will be generated.`)) return;
+
+    try {
+      const token = getStoredToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Let-Timer-Protocol': '1',
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/v1/auth/tokens/rotate', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name }),
+      });
+
+      if (res.ok) {
+        const data: CreatedTokenRes = await res.json();
+        setCreatedSecret(data.token);
+        loadSettingsAndTokens();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Failed to rotate token');
+      }
+    } catch (e) {
+      console.error('Rotate token failed', e);
     }
   };
 
@@ -294,13 +324,22 @@ export const SettingsView: React.FC = () => {
               </div>
 
               {!t.revoked_at ? (
-                <button
-                  onClick={() => handleRevokeToken(t.id, t.name)}
-                  className="p-1.5 text-[var(--muted)] hover:text-red-500 rounded-lg hover:bg-red-500/10 transition"
-                  title="Revoke token"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleRotateToken(t.name)}
+                    className="px-2 py-1 text-[10px] text-[var(--accent)] hover:bg-[var(--surface-hover)] border border-[var(--border)] rounded-md font-medium transition"
+                    title="Rotate token"
+                  >
+                    Rotate
+                  </button>
+                  <button
+                    onClick={() => handleRevokeToken(t.name)}
+                    className="p-1.5 text-[var(--muted)] hover:text-red-500 rounded-lg hover:bg-red-500/10 transition"
+                    title="Revoke token"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               ) : (
                 <span className="text-[10px] text-red-500 font-medium">Revoked</span>
               )}

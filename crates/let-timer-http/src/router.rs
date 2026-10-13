@@ -8,7 +8,10 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::auth::AuthLayer;
-use crate::handlers::{create_token, health, list_tokens, me_handler, revoke_token, rpc_handler};
+use crate::handlers::{
+    create_token, health, list_tokens, me_handler, metrics_handler, revoke_token, rotate_token,
+    rpc_handler,
+};
 use crate::openapi::ApiDoc;
 use crate::rest::*;
 
@@ -52,7 +55,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         // Auth management
         .route("/api/v1/auth/tokens", post(create_token).get(list_tokens))
         .route("/api/v1/auth/tokens/revoke", post(revoke_token))
+        .route("/api/v1/auth/tokens/rotate", post(rotate_token))
         .route("/api/v1/auth/me", get(me_handler))
+        // Metrics endpoint
+        .route("/metrics", get(metrics_handler))
         // REST: Tasks
         .route("/api/v1/tasks", get(list_tasks).post(create_task))
         .route("/api/v1/tasks/current", get(current_task))

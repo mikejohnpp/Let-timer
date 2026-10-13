@@ -41,12 +41,101 @@ fn init_logging() {
     }
 }
 
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(name = "let-timer-daemon", about = "Background daemon for Let-timer")]
+struct Opts {
+    /// Bind address for HTTP server (e.g. 127.0.0.1:8765 or 0.0.0.0:8765)
+    #[arg(long, visible_alias = "listen", env = "LET_TIMER_LISTEN")]
+    http: Option<String>,
+
+    #[command(subcommand)]
+    cmd: Option<DaemonSubcommand>,
+}
+
+#[derive(Subcommand)]
+enum DaemonSubcommand {
+    /// Token management commands
+    Token {
+        #[command(subcommand)]
+        action: TokenAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum TokenAction {
+    /// Create a new API token
+    Create { name: String },
+    /// Rotate an existing API token
+    Rotate { name: String },
+    /// Revoke an API token
+    Revoke { name: String },
+    /// List all API tokens
+    List,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let opts = Opts::parse();
+
+    // 1. Handle standalone token subcommands without running the daemon server
+    if let Some(DaemonSubcommand::Token { action }) = opts.cmd {
+        let database = Database::open_default()?;
+        let repo = let_timer_core::TokenRepository::new(database.conn());
+
+        match action {
+            TokenAction::Create { name } => {
+                let created = repo.create(&name)?;
+                println!("Created token '{}':\n{}", created.name, created.token);
+            }
+            TokenAction::Rotate { name } => {
+                let created = repo.rotate(&name)?;
+                println!("Rotated token '{}':\n{}", created.name, created.token);
+            }
+            TokenAction::Revoke { name } => {
+                let revoked = repo.revoke(&name)?;
+                if revoked {
+                    println!("Revoked token '{}'", name);
+                } else {
+                    eprintln!("Token '{}' not found or already revoked", name);
+                    std::process::exit(1);
+                }
+            }
+            TokenAction::List => {
+                let tokens = repo.list_all()?;
+                if tokens.is_empty() {
+                    println!("No tokens found.");
+                } else {
+                    for t in tokens {
+                        let status = if t.revoked_at.is_some() {
+                            "revoked"
+                        } else {
+                            "active"
+                        };
+                        println!("#{}: {} ({})", t.id, t.name, status);
+                    }
+                }
+            }
+        }
+        return Ok(());
+    }
+
     init_logging();
     let path = let_timer_core::ipc::socket_path();
     let path = path.to_string_lossy().into_owned();
     let database = Arc::new(Mutex::new(Database::open_default()?));
+
+    // Bootstrap token initialization if env is present
+    if let Ok(bootstrap_token) = std::env::var("LET_TIMER_BOOTSTRAP_TOKEN")
+        && !bootstrap_token.trim().is_empty()
+    {
+        let db = database.lock().unwrap_or_else(|e| e.into_inner());
+        let repo = let_timer_core::TokenRepository::new(db.conn());
+        let _ = repo.create_with_raw_token("bootstrap", bootstrap_token.trim());
+        tracing::info!("bootstrap token configured");
+    }
+
     let notify_signal = Arc::new(Notify::new());
     let event_bus = Arc::new(EventBus::default());
     let notifier = Arc::new(CompositeNotifier::from_env_or_default(true));
@@ -65,8 +154,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     })
     .await?;
 
-    // Optional HTTP server (if LET_TIMER_BIND is set, e.g. "127.0.0.1:8765" or "0.0.0.0:8765")
-    let http_handle = if let Ok(bind_addr) = std::env::var("LET_TIMER_BIND") {
+    // Optional HTTP server (from CLI flag --http/--listen or env LET_TIMER_LISTEN / LET_TIMER_HTTP / LET_TIMER_BIND)
+    let bind_addr = opts
+        .http
+        .or_else(|| std::env::var("LET_TIMER_LISTEN").ok())
+        .or_else(|| std::env::var("LET_TIMER_HTTP").ok())
+        .or_else(|| std::env::var("LET_TIMER_BIND").ok());
+
+    let http_handle = if let Some(bind_addr) = bind_addr {
         let is_loopback = bind_addr.starts_with("127.")
             || bind_addr.starts_with("localhost:")
             || bind_addr.starts_with("[::1]");

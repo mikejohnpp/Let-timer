@@ -18,6 +18,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 let-timer-http = { path = "../let-timer-http" }
 axum = { workspace = true }
+clap = { workspace = true }
 
 [features]
 default = []
