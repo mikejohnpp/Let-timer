@@ -23,6 +23,7 @@ rusqlite = { version = "0.40", features = ["bundled", "chrono"] }
 clap = { version = "4", features = ["derive"] }
 inquire = { version = "0.9", features = ["fuzzy", "date"] }
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = { version = "0.10", features = ["serde"] }
 color-eyre = "0.6.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }

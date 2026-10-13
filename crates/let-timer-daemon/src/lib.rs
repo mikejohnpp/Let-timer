@@ -7,8 +7,17 @@ use let_timer_core::{
     WorkspaceRepository, WorkspaceScope,
 };
 
-fn resolve_workspace_id(conn: &Connection, scope: &WorkspaceScope) -> Result<Option<i64>, String> {
-    match scope {
+fn resolve_workspace_id(
+    conn: &Connection,
+    scope: &WorkspaceScope,
+    override_scope: Option<&WorkspaceScope>,
+) -> Result<Option<i64>, String> {
+    let effective_scope = match scope {
+        WorkspaceScope::Active => override_scope.unwrap_or(&WorkspaceScope::Active),
+        other => other,
+    };
+
+    match effective_scope {
         WorkspaceScope::Active => {
             let settings = SettingsRepository::new(conn);
             settings
@@ -39,14 +48,24 @@ fn resolve_workspace_id(conn: &Connection, scope: &WorkspaceScope) -> Result<Opt
     }
 }
 
-pub fn create_task(conn: &Connection, mut task: NewTask) -> Response {
+pub fn create_task(
+    conn: &Connection,
+    mut task: NewTask,
+    override_scope: Option<&WorkspaceScope>,
+) -> Response {
     if task.workspace_id == 0 {
-        match SettingsRepository::new(conn).active_workspace_id() {
-            Ok(id) => task.workspace_id = id,
+        match resolve_workspace_id(conn, &WorkspaceScope::Active, override_scope) {
+            Ok(Some(id)) => task.workspace_id = id,
+            Ok(None) => match SettingsRepository::new(conn).active_workspace_id() {
+                Ok(id) => task.workspace_id = id,
+                Err(e) => {
+                    return Response::Error {
+                        message: e.to_string(),
+                    };
+                }
+            },
             Err(e) => {
-                return Response::Error {
-                    message: e.to_string(),
-                };
+                return Response::Error { message: e };
             }
         }
     }
@@ -80,8 +99,13 @@ pub fn edit_task(conn: &Connection, id: i64, update: UpdateTask, now: DateTime<U
     }
 }
 
-pub fn find_tasks(conn: &Connection, query: &str, scope: &WorkspaceScope) -> Response {
-    let ws_id = match resolve_workspace_id(conn, scope) {
+pub fn find_tasks(
+    conn: &Connection,
+    query: &str,
+    scope: &WorkspaceScope,
+    override_scope: Option<&WorkspaceScope>,
+) -> Response {
+    let ws_id = match resolve_workspace_id(conn, scope, override_scope) {
         Ok(id) => id,
         Err(e) => return Response::Error { message: e },
     };
@@ -95,8 +119,12 @@ pub fn find_tasks(conn: &Connection, query: &str, scope: &WorkspaceScope) -> Res
     }
 }
 
-pub fn list_tasks(conn: &Connection, query: &ListQuery) -> Response {
-    let ws_id = match resolve_workspace_id(conn, &query.workspace) {
+pub fn list_tasks(
+    conn: &Connection,
+    query: &ListQuery,
+    override_scope: Option<&WorkspaceScope>,
+) -> Response {
+    let ws_id = match resolve_workspace_id(conn, &query.workspace, override_scope) {
         Ok(id) => id,
         Err(e) => return Response::Error { message: e },
     };
@@ -131,10 +159,10 @@ pub fn current_task(conn: &Connection, now: DateTime<Utc>) -> Response {
 pub fn get_start_candidates(
     conn: &Connection,
     scope: &WorkspaceScope,
-    now: DateTime<Utc>,
+    ctx: &let_timer_core::RequestContext,
 ) -> Result<Vec<Task>, String> {
-    let ws_id = resolve_workspace_id(conn, scope)?;
-    let today = now.date_naive();
+    let ws_id = resolve_workspace_id(conn, scope, ctx.workspace.as_ref())?;
+    let today = ctx.today;
     let repo = TaskRepository::new(conn);
     let candidates = repo
         .query(ws_id, None, None, None, None, None)
@@ -160,8 +188,12 @@ pub fn get_start_candidates(
     Ok(eligible)
 }
 
-pub fn start_candidates(conn: &Connection, scope: &WorkspaceScope, now: DateTime<Utc>) -> Response {
-    match get_start_candidates(conn, scope, now) {
+pub fn start_candidates(
+    conn: &Connection,
+    scope: &WorkspaceScope,
+    ctx: &let_timer_core::RequestContext,
+) -> Response {
+    match get_start_candidates(conn, scope, ctx) {
         Ok(tasks) => Response::OkList(tasks),
         Err(e) => Response::Error { message: e },
     }
@@ -172,7 +204,7 @@ pub fn start_task(
     id: Option<i64>,
     next: bool,
     switch: bool,
-    now: DateTime<Utc>,
+    ctx: &let_timer_core::RequestContext,
 ) -> Response {
     let target_id = match id {
         Some(id) => id,
@@ -182,7 +214,7 @@ pub fn start_task(
                     message: "specify a task ID or use --next".to_string(),
                 };
             }
-            let candidates = match get_start_candidates(conn, &WorkspaceScope::Active, now) {
+            let candidates = match get_start_candidates(conn, &WorkspaceScope::Active, ctx) {
                 Ok(c) => c,
                 Err(e) => return Response::Error { message: e },
             };
@@ -198,7 +230,7 @@ pub fn start_task(
     };
 
     let service = TaskService::new(conn);
-    match service.start(target_id, switch, now) {
+    match service.start(target_id, switch, ctx.now) {
         Ok(snap) => Response::Timer(snap),
         Err(e) => Response::Error {
             message: e.to_string(),
@@ -417,18 +449,21 @@ pub fn daemon_status(conn: &Connection) -> Response {
     }
 }
 
-pub fn current_workspace(conn: &Connection) -> Response {
-    let settings = SettingsRepository::new(conn);
-    let active_id = match settings.active_workspace_id() {
-        Ok(id) => id,
-        Err(e) => {
-            return Response::Error {
-                message: e.to_string(),
-            };
-        }
-    };
+pub fn current_workspace(conn: &Connection, override_scope: Option<&WorkspaceScope>) -> Response {
     let repo = WorkspaceRepository::new(conn);
-    match repo.get_by_id(active_id) {
+    let ws_id = match resolve_workspace_id(conn, &WorkspaceScope::Active, override_scope) {
+        Ok(Some(id)) => id,
+        Ok(None) => match SettingsRepository::new(conn).active_workspace_id() {
+            Ok(id) => id,
+            Err(e) => {
+                return Response::Error {
+                    message: e.to_string(),
+                };
+            }
+        },
+        Err(e) => return Response::Error { message: e },
+    };
+    match repo.get_by_id(ws_id) {
         Ok(ws) => Response::CurrentWorkspace(ws),
         Err(e) => Response::Error {
             message: e.to_string(),
@@ -545,8 +580,9 @@ pub use scheduler::Scheduler;
 pub fn handle_command(
     cmd: let_timer_core::Command,
     conn: &Connection,
-    now: DateTime<Utc>,
+    ctx: &let_timer_core::RequestContext,
     notify: Option<&tokio::sync::Notify>,
+    events: Option<&let_timer_core::EventBus>,
 ) -> Response {
     let affects_timer = matches!(
         cmd,
@@ -563,29 +599,32 @@ pub fn handle_command(
             | let_timer_core::Command::Reopen { .. }
             | let_timer_core::Command::DeleteWorkspace { .. }
     );
+    let is_switch = matches!(cmd, let_timer_core::Command::SwitchWorkspace { .. });
 
     use let_timer_core::Command;
     let res = match cmd {
-        Command::Create(new_task) => create_task(conn, new_task),
+        Command::Create(new_task) => create_task(conn, new_task, ctx.workspace.as_ref()),
         Command::Delete { id } => delete_task(conn, id),
-        Command::Edit { id, update } => edit_task(conn, id, update, now),
-        Command::Find { query, workspace } => find_tasks(conn, &query, &workspace),
-        Command::List(query) => list_tasks(conn, &query),
-        Command::Current => current_task(conn, now),
-        Command::Start { id, next, switch } => start_task(conn, id, next, switch, now),
-        Command::StartCandidates { workspace } => start_candidates(conn, &workspace, now),
-        Command::Pause { id } => pause_task(conn, id, now),
-        Command::Resume { id } => resume_task(conn, id, now),
-        Command::Stop { id } => stop_task(conn, id, now),
-        Command::Restart { id } => restart_task(conn, id, now),
-        Command::Done { id, force } => done_task(conn, id, force, now),
-        Command::Cancel { id } => cancel_task(conn, id, now),
-        Command::Reopen { id } => reopen_task(conn, id, now),
+        Command::Edit { id, update } => edit_task(conn, id, update, ctx.now),
+        Command::Find { query, workspace } => {
+            find_tasks(conn, &query, &workspace, ctx.workspace.as_ref())
+        }
+        Command::List(query) => list_tasks(conn, &query, ctx.workspace.as_ref()),
+        Command::Current => current_task(conn, ctx.now),
+        Command::Start { id, next, switch } => start_task(conn, id, next, switch, ctx),
+        Command::StartCandidates { workspace } => start_candidates(conn, &workspace, ctx),
+        Command::Pause { id } => pause_task(conn, id, ctx.now),
+        Command::Resume { id } => resume_task(conn, id, ctx.now),
+        Command::Stop { id } => stop_task(conn, id, ctx.now),
+        Command::Restart { id } => restart_task(conn, id, ctx.now),
+        Command::Done { id, force } => done_task(conn, id, force, ctx.now),
+        Command::Cancel { id } => cancel_task(conn, id, ctx.now),
+        Command::Reopen { id } => reopen_task(conn, id, ctx.now),
         Command::Ping => Response::Pong,
         Command::ListWorkspaces => list_workspaces(conn),
         Command::CreateWorkspace(new_workspace) => create_workspace(conn, &new_workspace),
         Command::SwitchWorkspace { target } => switch_workspace(conn, target),
-        Command::CurrentWorkspace => current_workspace(conn),
+        Command::CurrentWorkspace => current_workspace(conn, ctx.workspace.as_ref()),
         Command::DeleteWorkspace { id } => delete_workspace(conn, id),
         Command::ListMediaLists => list_media_lists(conn),
         Command::CreateMediaList(new_media_list) => create_media_list(conn, &new_media_list),
@@ -603,10 +642,45 @@ pub fn handle_command(
         Command::CreateMedia(new_media) => create_media(conn, &new_media),
         Command::DeleteMedia { id } => delete_media(conn, id),
         Command::DaemonStatus => daemon_status(conn),
+        Command::GetTimezone => {
+            let settings = SettingsRepository::new(conn);
+            Response::Timezone(
+                settings
+                    .get_timezone()
+                    .unwrap_or_else(|_| "UTC".to_string()),
+            )
+        }
+        Command::SetTimezone(ref tz) => {
+            let settings = SettingsRepository::new(conn);
+            match settings.set_timezone(tz) {
+                Ok(()) => Response::OkEmpty,
+                Err(e) => Response::Error {
+                    message: e.to_string(),
+                },
+            }
+        }
     };
 
     if affects_timer && let Some(n) = notify {
         n.notify_one();
+    }
+
+    if let Some(bus) = events {
+        if affects_timer {
+            match &res {
+                Response::Timer(snap) => {
+                    bus.publish(let_timer_core::Event::TimerChanged(snap.clone()));
+                }
+                Response::Error { .. } => {}
+                _ => {
+                    if let Ok(Some(snap)) = TaskService::new(conn).current(ctx.now) {
+                        bus.publish(let_timer_core::Event::TimerChanged(snap));
+                    }
+                }
+            }
+        } else if is_switch && let Response::Workspace(ref ws) = res {
+            bus.publish(let_timer_core::Event::WorkspaceChanged(ws.clone()));
+        }
     }
 
     res
@@ -616,8 +690,9 @@ pub fn handle_command(
 mod tests {
     use super::*;
     use let_timer_core::{
-        Command, Database, IpcClient, IpcServer, ListQuery, MediaType, NewMedia, NewMediaList,
-        NewTask, Priority, Response, SortOrder, TaskStatus, TimerState, UpdateTask, WorkspaceScope,
+        Command, Database, Event, EventBus, IpcClient, IpcServer, ListQuery, MediaType, NewMedia,
+        NewMediaList, NewTask, Priority, RequestContext, Response, SortOrder, TaskStatus,
+        TimerState, UpdateTask, WorkspaceScope, WorkspaceTarget,
     };
     use std::sync::{Arc, Mutex};
 
@@ -635,7 +710,8 @@ mod tests {
         let server = IpcServer::new(&socket_str, move |cmd| {
             let now = Utc::now();
             let db_guard = db_clone.lock().unwrap();
-            handle_command(cmd, db_guard.conn(), now, None)
+            let ctx = let_timer_core::RequestContext::utc(now);
+            handle_command(cmd, db_guard.conn(), &ctx, None, None)
         })
         .await
         .unwrap();
@@ -841,7 +917,8 @@ mod tests {
         let server = IpcServer::new(&sock_str, move |cmd| {
             let now = Utc::now();
             let db_guard = db_clone.lock().unwrap_or_else(|e| e.into_inner());
-            handle_command(cmd, db_guard.conn(), now, None)
+            let ctx = let_timer_core::RequestContext::utc(now);
+            handle_command(cmd, db_guard.conn(), &ctx, None, None)
         })
         .await
         .unwrap();
@@ -1047,7 +1124,8 @@ mod tests {
             .with_timezone(&Utc);
         let server = IpcServer::new(&sock_str, move |cmd| {
             let db_guard = db_clone.lock().unwrap_or_else(|e| e.into_inner());
-            handle_command(cmd, db_guard.conn(), now, None)
+            let ctx = let_timer_core::RequestContext::utc(now);
+            handle_command(cmd, db_guard.conn(), &ctx, None, None)
         })
         .await
         .unwrap();
@@ -1152,7 +1230,8 @@ mod tests {
         let server = IpcServer::new(&socket_str, move |cmd| {
             let now = Utc::now();
             let db_guard = db_clone.lock().unwrap();
-            handle_command(cmd, db_guard.conn(), now, None)
+            let ctx = let_timer_core::RequestContext::utc(now);
+            handle_command(cmd, db_guard.conn(), &ctx, None, None)
         })
         .await
         .unwrap();
@@ -1374,5 +1453,204 @@ mod tests {
         }
 
         server_handle.abort();
+    }
+
+    #[test]
+    fn timezone_order_scheduled_today_uses_local_date() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.conn();
+
+        let repo = TaskRepository::new(conn);
+        // UTC time: 2026-10-12 20:00:00 UTC
+        // Asia/Ho_Chi_Minh: UTC+7 => 2026-10-13 03:00:00 local time
+        let now = DateTime::parse_from_rfc3339("2026-10-12T20:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let date_12 = chrono::NaiveDate::from_ymd_opt(2026, 10, 12).unwrap();
+        let date_13 = chrono::NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
+
+        let t1 = repo
+            .create(&NewTask {
+                name: "Task scheduled on Oct 12".into(),
+                workspace_id: 1,
+                priority: Priority::Immediate,
+                scheduled_on: Some(date_12),
+                description: None,
+                estimated_mins: None,
+                media_list_id: None,
+            })
+            .unwrap();
+
+        let t2 = repo
+            .create(&NewTask {
+                name: "Task scheduled on Oct 13".into(),
+                workspace_id: 1,
+                priority: Priority::Immediate,
+                scheduled_on: Some(date_13),
+                description: None,
+                estimated_mins: None,
+                media_list_id: None,
+            })
+            .unwrap();
+
+        // 1. With UTC context: today is Oct 12 => t1 is first
+        let ctx_utc = RequestContext::new(now, date_12, None);
+        let candidates_utc = get_start_candidates(conn, &WorkspaceScope::Active, &ctx_utc).unwrap();
+        assert_eq!(candidates_utc[0].id, t1.id);
+
+        // 2. With Asia/Ho_Chi_Minh context: today is Oct 13 => t2 is first
+        let ctx_vn = RequestContext::from_settings(conn, now, Some("Asia/Ho_Chi_Minh"), None);
+        assert_eq!(ctx_vn.today, date_13);
+        let candidates_vn = get_start_candidates(conn, &WorkspaceScope::Active, &ctx_vn).unwrap();
+        assert_eq!(candidates_vn[0].id, t2.id);
+    }
+
+    #[test]
+    fn workspace_override_beats_db_setting_without_modifying_it() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.conn();
+
+        let ws_repo = WorkspaceRepository::new(conn);
+        let ws2 = ws_repo
+            .create(&NewWorkspace {
+                name: "Work".into(),
+                description: None,
+            })
+            .unwrap();
+
+        let task_repo = TaskRepository::new(conn);
+        task_repo
+            .create(&NewTask {
+                name: "Task in Default".into(),
+                workspace_id: 1,
+                priority: Priority::Immediate,
+                scheduled_on: None,
+                description: None,
+                estimated_mins: None,
+                media_list_id: None,
+            })
+            .unwrap();
+
+        let t_work = task_repo
+            .create(&NewTask {
+                name: "Task in Work".into(),
+                workspace_id: ws2.id,
+                priority: Priority::Immediate,
+                scheduled_on: None,
+                description: None,
+                estimated_mins: None,
+                media_list_id: None,
+            })
+            .unwrap();
+
+        let now = Utc::now();
+        // Request with workspace override = Work (#2)
+        let ctx_override =
+            RequestContext::new(now, now.date_naive(), Some(WorkspaceScope::Id(ws2.id)));
+        let res = handle_command(
+            Command::List(ListQuery::default()),
+            conn,
+            &ctx_override,
+            None,
+            None,
+        );
+
+        match res {
+            Response::OkList(tasks) => {
+                assert_eq!(tasks.len(), 1);
+                assert_eq!(tasks[0].id, t_work.id);
+            }
+            other => panic!("expected OkList, got {other:?}"),
+        }
+
+        // DB active workspace is still 1!
+        let settings = SettingsRepository::new(conn);
+        assert_eq!(settings.active_workspace_id().unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn event_bus_publishes_on_mutation_and_switch() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.conn();
+        let event_bus = EventBus::new(16);
+        let mut sub = event_bus.subscribe();
+
+        let now = Utc::now();
+        let ctx = RequestContext::utc(now);
+
+        // 1. Create a workspace
+        let res = handle_command(
+            Command::CreateWorkspace(NewWorkspace {
+                name: "Study".into(),
+                description: None,
+            }),
+            conn,
+            &ctx,
+            None,
+            Some(&event_bus),
+        );
+        assert!(matches!(res, Response::Workspace(_)));
+
+        // 2. Switch workspace -> should emit WorkspaceChanged
+        let res = handle_command(
+            Command::SwitchWorkspace {
+                target: WorkspaceTarget::Name("Study".into()),
+            },
+            conn,
+            &ctx,
+            None,
+            Some(&event_bus),
+        );
+        assert!(matches!(res, Response::Workspace(_)));
+
+        let event = sub.recv().await.unwrap();
+        match event {
+            Event::WorkspaceChanged(ws) => assert_eq!(ws.name, "Study"),
+            other => panic!("expected WorkspaceChanged, got {other:?}"),
+        }
+
+        // 3. Create and start a task -> should emit TimerChanged
+        let task_res = handle_command(
+            Command::Create(NewTask {
+                name: "Focus".into(),
+                workspace_id: 1,
+                priority: Priority::Urgent,
+                scheduled_on: None,
+                description: None,
+                estimated_mins: Some(25),
+                media_list_id: None,
+            }),
+            conn,
+            &ctx,
+            None,
+            Some(&event_bus),
+        );
+        let task_id = match task_res {
+            Response::Ok(Some(t)) => t.id,
+            other => panic!("expected Ok(Some), got {other:?}"),
+        };
+
+        let start_res = handle_command(
+            Command::Start {
+                id: Some(task_id),
+                next: false,
+                switch: false,
+            },
+            conn,
+            &ctx,
+            None,
+            Some(&event_bus),
+        );
+        assert!(matches!(start_res, Response::Timer(_)));
+
+        let event2 = sub.recv().await.unwrap();
+        match event2 {
+            Event::TimerChanged(snap) => {
+                assert_eq!(snap.task.id, task_id);
+                assert_eq!(snap.state, TimerState::Running);
+            }
+            other => panic!("expected TimerChanged, got {other:?}"),
+        }
     }
 }

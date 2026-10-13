@@ -149,7 +149,7 @@ impl FromStr for MediaType {
 // ─── Workspace ───────────────────────────────────────────────────────
 
 /// A workspace groups tasks together.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Workspace {
     pub id: i64,
     pub name: String,

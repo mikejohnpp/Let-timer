@@ -6,7 +6,7 @@ use inquire::error::CustomUserError;
 use inquire::validator::Validation;
 use inquire::{DateSelect, InquireError, Select, Text};
 use let_timer_core::{
-    Command, IpcClient, MediaList, NewMediaList, NewWorkspace, Priority, Response, Workspace,
+    Client, Command, MediaList, NewMediaList, NewWorkspace, Priority, Response, Workspace,
 };
 
 /// Validator factory: input must contain something other than whitespace.
@@ -130,7 +130,7 @@ impl fmt::Display for WorkspaceChoice {
 
 /// Resolve a workspace id, prompting the user when `--workspace` was not given.
 /// Offers an inline "create a new workspace" option, Vite-style.
-pub async fn resolve_workspace(client: &mut IpcClient) -> Result<i64, Box<dyn Error>> {
+pub async fn resolve_workspace(client: &mut Client) -> Result<i64, Box<dyn Error>> {
     let workspaces = match client.request(&Command::ListWorkspaces).await? {
         Response::WorkspaceList(list) => list,
         Response::Error { message } => return Err(message.into()),
@@ -186,7 +186,7 @@ impl fmt::Display for MediaListChoice {
 
 /// Resolve an optional media list id, prompting the user when `--media-list`
 /// was not given. Offers "None" and an inline "create a new media list".
-pub async fn resolve_media_list(client: &mut IpcClient) -> Result<Option<i64>, Box<dyn Error>> {
+pub async fn resolve_media_list(client: &mut Client) -> Result<Option<i64>, Box<dyn Error>> {
     let lists = match client.request(&Command::ListMediaLists).await? {
         Response::MediaLists(list) => list,
         Response::Error { message } => return Err(message.into()),

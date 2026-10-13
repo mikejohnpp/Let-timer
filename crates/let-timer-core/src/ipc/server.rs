@@ -115,7 +115,12 @@ async fn handle_connect(
                         continue;
                     }
                 };
-                let res = (handler)(command);
+                let handler_clone = Arc::clone(&handler);
+                let res = tokio::task::spawn_blocking(move || (handler_clone)(command))
+                    .await
+                    .unwrap_or_else(|e| Response::Error {
+                        message: format!("handler join error: {e}"),
+                    });
 
                 if let Ok(out) = serde_json::to_string(&res) {
                     let _ = write_half.write_all(out.as_bytes()).await;
@@ -218,9 +223,70 @@ mod tests {
 
         let meta = std::fs::metadata(&sock_path).unwrap();
         let mode = meta.permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600, "socket permissions should be 0600, got {mode:o}");
+        assert_eq!(
+            mode, 0o600,
+            "socket permissions should be 0600, got {mode:o}"
+        );
 
         drop(server);
+        let _ = std::fs::remove_file(sock_path);
+    }
+
+    #[tokio::test]
+    async fn slow_handler_does_not_block_concurrent_requests() {
+        let temp_dir = std::env::temp_dir().join(format!("test-ipc-slow-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let sock_path = temp_dir.join("slow.sock");
+        let sock_str = sock_path.to_string_lossy().to_string();
+
+        let server = IpcServer::new(&sock_str, |cmd| {
+            if matches!(cmd, Command::Current) {
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                Response::OkEmpty
+            } else {
+                Response::Pong
+            }
+        })
+        .await
+        .unwrap();
+
+        let server_handle = tokio::spawn(async move {
+            let _ = server.run().await;
+        });
+
+        // Spawn client 1: sends slow Command::Current
+        let sock1 = sock_str.clone();
+        let client1 = tokio::spawn(async move {
+            let client = UnixStream::connect(&sock1).await.unwrap();
+            let (read_half, mut write_half) = client.into_split();
+            let mut reader = BufReader::new(read_half);
+            write_half.write_all(b"\"Current\"\n").await.unwrap();
+            let mut line = String::new();
+            reader.read_line(&mut line).await.unwrap();
+        });
+
+        // Give client1 a tiny head start to reach the slow handler
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+        // Client 2: sends Ping, must finish quickly before client 1
+        let start = std::time::Instant::now();
+        let client2 = UnixStream::connect(&sock_str).await.unwrap();
+        let (read_half2, mut write_half2) = client2.into_split();
+        let mut reader2 = BufReader::new(read_half2);
+        write_half2.write_all(b"\"Ping\"\n").await.unwrap();
+        let mut line2 = String::new();
+        reader2.read_line(&mut line2).await.unwrap();
+        let elapsed = start.elapsed();
+
+        assert!(
+            elapsed < std::time::Duration::from_millis(100),
+            "Ping took too long: {elapsed:?}"
+        );
+        let res: Response = serde_json::from_str(line2.trim()).unwrap();
+        assert!(matches!(res, Response::Pong));
+
+        let _ = client1.await;
+        server_handle.abort();
         let _ = std::fs::remove_file(sock_path);
     }
 }

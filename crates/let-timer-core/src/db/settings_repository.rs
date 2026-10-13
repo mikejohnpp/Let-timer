@@ -96,6 +96,22 @@ impl<'a> SettingsRepository<'a> {
 
         self.set("active_workspace_id", &id.to_string())
     }
+
+    /// Get the configured timezone name (defaulting to "UTC").
+    pub fn get_timezone(&self) -> Result<String, DbError> {
+        let tz = self.get("timezone")?.unwrap_or_else(|| "UTC".to_string());
+        Ok(tz)
+    }
+
+    /// Set and validate the configured timezone.
+    pub fn set_timezone(&self, tz: &str) -> Result<(), DbError> {
+        if tz.parse::<chrono_tz::Tz>().is_err() {
+            return Err(DbError::Configuration(format!(
+                "invalid IANA timezone: {tz}"
+            )));
+        }
+        self.set("timezone", tz)
+    }
 }
 
 #[cfg(test)]
@@ -125,5 +141,16 @@ mod tests {
 
         // Setting a nonexistent workspace errors
         assert!(repo.set_active_workspace_id(9999).is_err());
+    }
+
+    #[test]
+    fn timezone_setting_get_and_set_validation() {
+        let db = Database::open_in_memory().unwrap();
+        let repo = SettingsRepository::new(db.conn());
+
+        assert_eq!(repo.get_timezone().unwrap(), "UTC");
+        assert!(repo.set_timezone("Asia/Ho_Chi_Minh").is_ok());
+        assert_eq!(repo.get_timezone().unwrap(), "Asia/Ho_Chi_Minh");
+        assert!(repo.set_timezone("Invalid/Timezone").is_err());
     }
 }

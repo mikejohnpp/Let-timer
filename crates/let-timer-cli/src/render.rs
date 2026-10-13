@@ -203,6 +203,8 @@ pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Resul
 
         Response::Timer(snapshot) => timer_detail(out, snapshot),
 
+        Response::Timezone(tz) => writeln!(out, "Timezone: {tz}"),
+
         // Nobody reads this one here: the caller has to exit non-zero over it,
         // and it belongs on stderr.
         Response::Error { .. } => Ok(()),

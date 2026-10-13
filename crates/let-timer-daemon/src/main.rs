@@ -1,14 +1,22 @@
 use std::sync::{Arc, Mutex};
 
 use chrono::Utc;
-use let_timer_core::{Command, Database, IpcServer, NotifySend, Response};
+use let_timer_core::{
+    Command, CompositeNotifier, Database, EventBus, IpcServer, RequestContext, Response,
+};
 use let_timer_daemon::{Scheduler, handle_command};
 use tokio::sync::Notify;
 
-fn invoke_command(cmd: Command, db: &Arc<Mutex<Database>>, notify: &Arc<Notify>) -> Response {
+fn invoke_command(
+    cmd: Command,
+    db: &Arc<Mutex<Database>>,
+    notify: &Arc<Notify>,
+    events: &Arc<EventBus>,
+) -> Response {
     let now = Utc::now();
     let db_guard = db.lock().unwrap_or_else(|e| e.into_inner());
-    handle_command(cmd, db_guard.conn(), now, Some(notify))
+    let ctx = RequestContext::from_settings(db_guard.conn(), now, None, None);
+    handle_command(cmd, db_guard.conn(), &ctx, Some(notify), Some(events))
 }
 
 fn init_logging() {
@@ -40,17 +48,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = path.to_string_lossy().into_owned();
     let database = Arc::new(Mutex::new(Database::open_default()?));
     let notify_signal = Arc::new(Notify::new());
-    let notifier = Arc::new(NotifySend);
+    let event_bus = Arc::new(EventBus::default());
+    let notifier = Arc::new(CompositeNotifier::from_env_or_default(true));
 
-    let scheduler = Scheduler::new(Arc::clone(&database), notifier, Arc::clone(&notify_signal));
+    let scheduler = Scheduler::new(Arc::clone(&database), notifier, Arc::clone(&notify_signal))
+        .with_events(Arc::clone(&event_bus));
     let scheduler_handle = tokio::spawn(async move {
         scheduler.run().await;
     });
 
     let db_clone = Arc::clone(&database);
     let notify_clone = Arc::clone(&notify_signal);
+    let events_clone = Arc::clone(&event_bus);
     let server = IpcServer::new(&path, move |cmd| {
-        invoke_command(cmd, &db_clone, &notify_clone)
+        invoke_command(cmd, &db_clone, &notify_clone, &events_clone)
     })
     .await?;
 

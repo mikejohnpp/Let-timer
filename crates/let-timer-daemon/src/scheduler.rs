@@ -12,6 +12,7 @@ pub struct Scheduler {
     notifier: Arc<dyn Notifier>,
     notify: Arc<Notify>,
     clock: Arc<dyn Fn() -> DateTime<Utc> + Send + Sync>,
+    events: Option<Arc<let_timer_core::EventBus>>,
 }
 
 impl Scheduler {
@@ -21,6 +22,7 @@ impl Scheduler {
             notifier,
             notify,
             clock: Arc::new(Utc::now),
+            events: None,
         }
     }
 
@@ -35,7 +37,13 @@ impl Scheduler {
             notifier,
             notify,
             clock,
+            events: None,
         }
+    }
+
+    pub fn with_events(mut self, events: Arc<let_timer_core::EventBus>) -> Self {
+        self.events = Some(events);
+        self
     }
 
     /// Evaluates the running task at instant `now`.
@@ -71,6 +79,13 @@ impl Scheduler {
             let title = "Time's up";
             let body = format!("{} ({} mins)", snapshot.task.name, est_mins);
             self.notifier.notify(title, &body);
+
+            if let Some(bus) = &self.events {
+                bus.publish(let_timer_core::Event::TimerExpired {
+                    task: snapshot.task.clone(),
+                    estimate_mins: est_mins,
+                });
+            }
 
             let _ = conn.execute(
                 "UPDATE tasks SET notified_at = ?1 WHERE id = ?2",

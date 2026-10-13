@@ -28,9 +28,8 @@ use crate::interactive::{
 };
 use clap::Parser;
 use let_timer_core::{
-    Command, IpcClient, ListQuery, MediaType, NewMedia, NewMediaList, NewTask, NewWorkspace,
-    Priority, Response, SortOrder, TaskStatus, UpdateTask, WorkspaceScope, WorkspaceTarget,
-    date_on,
+    Client, Command, ListQuery, MediaType, NewMedia, NewMediaList, NewTask, NewWorkspace, Priority,
+    Response, SortOrder, TaskStatus, UpdateTask, WorkspaceScope, WorkspaceTarget, date_on,
 };
 
 /// Anything that stopped the program from doing what it was asked.
@@ -198,9 +197,9 @@ async fn once(cli: &Cli, command: &Commands) -> Result<(), Failure> {
 }
 
 /// The daemon, or an explanation of why there isn't one.
-async fn connect() -> Result<IpcClient, Failure> {
+async fn connect() -> Result<Client, Failure> {
     let path = let_timer_core::ipc::socket_path();
-    IpcClient::connect(&path)
+    Client::connect_unix(&path)
         .await
         .map_err(|error| Failure::Daemon(error.to_string()))
 }
@@ -214,7 +213,7 @@ async fn connect() -> Result<IpcClient, Failure> {
 /// anything else has cost the user nothing.
 async fn build_command(
     command: &Commands,
-    client: &mut IpcClient,
+    client: &mut Client,
     no_interactive: bool,
 ) -> Result<Command, Box<dyn std::error::Error>> {
     match command {
@@ -700,7 +699,7 @@ fn required<'a>(
 /// naming the flag that would have supplied them.
 #[allow(clippy::too_many_arguments)]
 async fn build_new_task(
-    client: &mut IpcClient,
+    client: &mut Client,
     no_interactive: bool,
     name: &Option<String>,
     on: &Option<String>,
@@ -930,7 +929,7 @@ mod tests {
     /// A daemon to build against, or nothing when there is none on this
     /// machine -- which is the normal case in a test. Kept beside the tests
     /// that need one so a missing daemon skips them rather than failing them.
-    async fn client() -> Option<IpcClient> {
+    async fn client() -> Option<Client> {
         connect().await.ok()
     }
 

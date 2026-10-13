@@ -107,6 +107,8 @@ pub enum Command {
         id: i64,
     },
     DaemonStatus,
+    GetTimezone,
+    SetTimezone(String),
 }
 
 /// Target identifier when switching workspaces (by ID or exact/fuzzy name).
@@ -146,6 +148,7 @@ pub enum Response {
     },
     Medias(Vec<Media>),
     Media(Media),
+    Timezone(String),
     Error {
         message: String,
     },
