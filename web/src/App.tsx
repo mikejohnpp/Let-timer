@@ -148,7 +148,6 @@ export const AppContent: React.FC = () => {
 
       {!isFocusView && (
         <BottomTabBar
-          className="relative z-20"
           currentView={currentView}
           onNavigate={navigate}
         />

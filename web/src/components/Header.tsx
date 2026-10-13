@@ -231,14 +231,14 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header
-      className={`w-full bg-transparent border-none transition-all duration-300 h-[var(--header-h)] ${
+      className={`w-full border-none transition-all duration-300 h-[var(--header-h)] ${
         isFocusView
-          ? `fixed top-0 inset-x-0 z-50 ${
+          ? `fixed top-0 inset-x-0 z-50 bg-transparent ${
               focusVisible
                 ? 'opacity-100 translate-y-0 pointer-events-auto'
                 : 'opacity-0 -translate-y-2 pointer-events-none'
             }`
-          : 'relative lg:sticky top-0 z-40 opacity-100 translate-y-0 pointer-events-auto'
+          : 'sticky top-0 z-40 bg-[var(--bg)]/80 backdrop-blur-md opacity-100 translate-y-0 pointer-events-auto'
       } ${className || ''}`}
     >
       <div className="w-full px-4 sm:px-8 h-full flex items-center justify-between gap-4">
@@ -338,8 +338,8 @@ export const Header: React.FC<HeaderProps> = ({
           </Popover>
         </div>
 
-        {/* Center: Navigation Tabs */}
-        <div className="flex items-center justify-center flex-1">
+        {/* Center: Navigation Tabs (Desktop only; on mobile bottom tab bar is used) */}
+        <div className="hidden lg:flex items-center justify-center flex-1">
           <nav className="flex items-center gap-1 text-xs font-medium">
             {navTabs.map((t) => {
               const isActive = currentView === t.view;
