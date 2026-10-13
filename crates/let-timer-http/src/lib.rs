@@ -6,6 +6,7 @@ pub mod handlers;
 pub mod openapi;
 pub mod rest;
 pub mod router;
+pub mod sse;
 
 pub use openapi::ApiDoc;
 pub use router::{AppState, build_router};

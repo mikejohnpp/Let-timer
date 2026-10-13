@@ -47,6 +47,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(SwaggerUi::new("/swagger-ui").url("/api/v1/openapi.json", openapi))
         // RPC parity endpoint
         .route("/api/v1/rpc", post(rpc_handler))
+        // Real-time Event Stream (SSE)
+        .route("/api/v1/events", get(crate::sse::events_handler))
         // Auth management
         .route("/api/v1/auth/tokens", post(create_token).get(list_tokens))
         .route("/api/v1/auth/tokens/revoke", post(revoke_token))
@@ -397,6 +399,36 @@ mod tests {
         let body = res.into_body().collect().await.unwrap().to_bytes();
         let err_json: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(err_json["error"]["code"], "not_found");
+    }
+
+    #[tokio::test]
+    async fn sse_stream_delivers_events() {
+        let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+        let events = Arc::new(EventBus::default());
+        let state = Arc::new(AppState {
+            db: Arc::clone(&db),
+            is_loopback: true,
+            command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+                let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+            }),
+            timer_notify: None,
+            events: Some(Arc::clone(&events)),
+        });
+
+        let app = build_router(state);
+
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/v1/events")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get("content-type").unwrap(),
+            "text/event-stream"
+        );
     }
 
     #[test]

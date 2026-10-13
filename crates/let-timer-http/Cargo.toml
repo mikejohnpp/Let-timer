@@ -10,6 +10,9 @@ let-timer-core = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures-util = { workspace = true }
+async-stream = { workspace = true }
 rusqlite = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }

@@ -72,6 +72,93 @@ impl Notifier for RecordingNotifier {
     }
 }
 
+/// Ntfy HTTP notifier: POSTs notification to ntfy topic.
+#[derive(Debug, Clone)]
+pub struct NtfyNotifier {
+    pub url: String,
+}
+
+impl NtfyNotifier {
+    pub fn new(url: String) -> Self {
+        Self { url }
+    }
+}
+
+impl Notifier for NtfyNotifier {
+    fn notify(&self, title: &str, body: &str) {
+        let url = self.url.clone();
+        let title = title.to_string();
+        let body = body.to_string();
+
+        tokio::spawn(async move {
+            let client = match reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .build()
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::warn!("Failed to build reqwest client for Ntfy: {e}");
+                    return;
+                }
+            };
+
+            let res = client
+                .post(&url)
+                .header("Title", title)
+                .header("Priority", "urgent")
+                .body(body)
+                .send()
+                .await;
+
+            if let Err(e) = res {
+                tracing::warn!("Failed to send Ntfy notification to {url}: {e}");
+            }
+        });
+    }
+}
+
+/// Generic Webhook notifier: POSTs JSON payload to target URL.
+#[derive(Debug, Clone)]
+pub struct WebhookNotifier {
+    pub url: String,
+}
+
+impl WebhookNotifier {
+    pub fn new(url: String) -> Self {
+        Self { url }
+    }
+}
+
+impl Notifier for WebhookNotifier {
+    fn notify(&self, title: &str, body: &str) {
+        let url = self.url.clone();
+        let payload = serde_json::json!({
+            "event": "timer_expired",
+            "title": title,
+            "body": body,
+            "at": chrono::Utc::now().to_rfc3339(),
+        });
+
+        tokio::spawn(async move {
+            let client = match reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .build()
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::warn!("Failed to build reqwest client for Webhook: {e}");
+                    return;
+                }
+            };
+
+            let res = client.post(&url).json(&payload).send().await;
+            if let Err(e) = res {
+                tracing::warn!("Failed to send Webhook notification to {url}: {e}");
+            }
+        });
+    }
+}
+
 /// Composite notifier that dispatches to multiple child notifiers safely.
 pub struct CompositeNotifier {
     notifiers: Vec<Arc<dyn Notifier>>,
@@ -82,7 +169,7 @@ impl CompositeNotifier {
         Self { notifiers }
     }
 
-    /// Build a composite notifier from comma-separated list of names (e.g. "desktop,sse").
+    /// Build a composite notifier from comma-separated list of names (e.g. "desktop,ntfy,webhook").
     pub fn from_env_or_default(default_desktop: bool) -> Self {
         let env_val = std::env::var("LET_TIMER_NOTIFY").ok();
         let default_val = if default_desktop { "desktop" } else { "none" };
@@ -93,7 +180,24 @@ impl CompositeNotifier {
             match name {
                 "desktop" => list.push(Arc::new(NotifySend)),
                 "log" => list.push(Arc::new(LogNotifier)),
-                // ntfy, webhook, sse will be wired in S4
+                "ntfy" => {
+                    if let Ok(url) = std::env::var("LET_TIMER_NTFY_URL") {
+                        list.push(Arc::new(NtfyNotifier::new(url)));
+                    } else {
+                        tracing::warn!(
+                            "LET_TIMER_NOTIFY contains 'ntfy' but LET_TIMER_NTFY_URL is unset"
+                        );
+                    }
+                }
+                "webhook" => {
+                    if let Ok(url) = std::env::var("LET_TIMER_WEBHOOK_URL") {
+                        list.push(Arc::new(WebhookNotifier::new(url)));
+                    } else {
+                        tracing::warn!(
+                            "LET_TIMER_NOTIFY contains 'webhook' but LET_TIMER_WEBHOOK_URL is unset"
+                        );
+                    }
+                }
                 _ => {}
             }
         }
@@ -157,5 +261,43 @@ mod tests {
 
         assert_eq!(rec1.count(), 1);
         assert_eq!(rec2.count(), 1);
+    }
+
+    #[tokio::test]
+    async fn ntfy_notifier_sends_http_request() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let url = format!("http://{addr}/test-topic");
+
+        let server_task = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 1024];
+            let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf)
+                .await
+                .unwrap();
+            let req_str = String::from_utf8_lossy(&buf[..n]);
+
+            let response = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+            tokio::io::AsyncWriteExt::write_all(&mut stream, response.as_bytes())
+                .await
+                .unwrap();
+            req_str.to_string()
+        });
+
+        let notifier = NtfyNotifier::new(url);
+        notifier.notify("Test Alert", "Time has run out");
+
+        let req_content = tokio::time::timeout(std::time::Duration::from_secs(2), server_task)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert!(
+            req_content.contains("Title: Test Alert") || req_content.contains("title: Test Alert")
+        );
+        assert!(
+            req_content.contains("Priority: urgent") || req_content.contains("priority: urgent")
+        );
+        assert!(req_content.contains("Time has run out"));
     }
 }
