@@ -91,6 +91,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/workspaces/{id}", delete(delete_workspace))
         // REST: Medias
         .route("/api/v1/medias", get(list_medias).post(create_media))
+        .route("/api/v1/media/upload", post(upload_media))
         .route("/api/v1/medias/{id}", delete(delete_media))
         // REST: Media Lists
         .route(
@@ -112,6 +113,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             get(get_timezone).put(set_timezone),
         )
         // Middlewares
+        .layer(axum::extract::DefaultBodyLimit::max(100 * 1024 * 1024))
         .layer(AuthLayer::new(Arc::clone(&state)))
         .layer(cors)
         .fallback(static_or_spa_handler)
@@ -126,6 +128,20 @@ struct WebAssets;
 async fn static_or_spa_handler(uri: axum::http::Uri) -> axum::response::Response {
     use axum::response::IntoResponse;
     let path = uri.path().trim_start_matches('/');
+
+    // 0. Managed Media Assets: /api/v1/media/files/*
+    if let Some(media_subpath) = path.strip_prefix("api/v1/media/files/") {
+        if let Ok(media_root) = let_timer_core::default_media_dir() {
+            let clean_subpath = media_subpath.trim_start_matches('/');
+            if !clean_subpath.contains("..") {
+                let file_path = media_root.join(clean_subpath);
+                if file_path.is_file() {
+                    return serve_file_from_disk(&file_path).await;
+                }
+            }
+        }
+        return (axum::http::StatusCode::NOT_FOUND, "Media file not found").into_response();
+    }
 
     // 1. Check disk directory override if LET_TIMER_WEB_DIR is set
     if let Ok(web_dir) = std::env::var("LET_TIMER_WEB_DIR") {

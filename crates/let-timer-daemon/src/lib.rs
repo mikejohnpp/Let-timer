@@ -411,9 +411,45 @@ pub fn list_medias(conn: &Connection, media_type: Option<MediaType>) -> Response
     }
 }
 
-pub fn create_media(conn: &Connection, new_media: &NewMedia) -> Response {
+pub fn create_media(
+    conn: &Connection,
+    new_media: &NewMedia,
+    import_file: Option<&str>,
+) -> Response {
+    let mut media_to_create = new_media.clone();
+
+    // If an import_file was specified (e.g. from local CLI), copy it into the managed media storage
+    if let Some(src_str) = import_file {
+        let src_path = std::path::Path::new(src_str);
+        match let_timer_core::LocalStorageBackend::default_storage() {
+            Ok(storage) => {
+                use let_timer_core::StorageBackend;
+                let sub_dir = match media_to_create.media_type {
+                    let_timer_core::MediaType::Image => "images",
+                    let_timer_core::MediaType::Music => "audio",
+                    let_timer_core::MediaType::Poem => "poems",
+                };
+                match storage.copy_local(src_path, sub_dir) {
+                    Ok(stored_url) => {
+                        media_to_create.url = stored_url;
+                    }
+                    Err(e) => {
+                        return Response::Error {
+                            message: format!("failed to import local media file: {e}"),
+                        };
+                    }
+                }
+            }
+            Err(e) => {
+                return Response::Error {
+                    message: format!("cannot access media storage: {e}"),
+                };
+            }
+        }
+    }
+
     let repo = MediaRepository::new(conn);
-    match repo.create(new_media) {
+    match repo.create(&media_to_create) {
         Ok(m) => Response::Media(m),
         Err(e) => Response::Error {
             message: e.to_string(),
@@ -422,7 +458,17 @@ pub fn create_media(conn: &Connection, new_media: &NewMedia) -> Response {
 }
 
 pub fn delete_media(conn: &Connection, id: i64) -> Response {
+    use let_timer_core::StorageBackend;
     let repo = MediaRepository::new(conn);
+    // Find existing media to clean up managed physical file
+    if let Ok(existing) = repo.get_by_id(id)
+        && let Some(rel_path) =
+            let_timer_core::LocalStorageBackend::rel_path_from_url(&existing.url)
+        && let Ok(storage) = let_timer_core::LocalStorageBackend::default_storage()
+    {
+        let _ = storage.delete(rel_path);
+    }
+
     match repo.delete(id) {
         Ok(()) => Response::OkEmpty,
         Err(e) => Response::Error {
@@ -640,7 +686,9 @@ pub fn handle_command(
             media_id,
         } => remove_media_from_list(conn, media_list_id, media_id),
         Command::ListMedias { media_type } => list_medias(conn, media_type),
-        Command::CreateMedia(new_media) => create_media(conn, &new_media),
+        Command::CreateMedia { media, import_file } => {
+            create_media(conn, &media, import_file.as_deref())
+        }
         Command::DeleteMedia { id } => delete_media(conn, id),
         Command::DaemonStatus => daemon_status(conn),
         Command::GetTimezone => {
@@ -1246,13 +1294,16 @@ mod tests {
 
         // 1. Create media items
         let res = client
-            .request(&Command::CreateMedia(NewMedia {
-                name: "Nature Wallpaper".into(),
-                description: Some("Forest in morning light".into()),
-                url: "https://example.com/forest.jpg".into(),
-                media_type: MediaType::Image,
-                content: None,
-            }))
+            .request(&Command::CreateMedia {
+                media: NewMedia {
+                    name: "Nature Wallpaper".into(),
+                    description: Some("Forest in morning light".into()),
+                    url: "https://example.com/forest.jpg".into(),
+                    media_type: MediaType::Image,
+                    content: None,
+                },
+                import_file: None,
+            })
             .await
             .unwrap();
         let media_image = match res {
@@ -1262,13 +1313,16 @@ mod tests {
         assert_eq!(media_image.media_type, MediaType::Image);
 
         let res = client
-            .request(&Command::CreateMedia(NewMedia {
-                name: "Lo-Fi Beats".into(),
-                description: None,
-                url: "https://example.com/beats.mp3".into(),
-                media_type: MediaType::Music,
-                content: None,
-            }))
+            .request(&Command::CreateMedia {
+                media: NewMedia {
+                    name: "Lo-Fi Beats".into(),
+                    description: None,
+                    url: "https://example.com/beats.mp3".into(),
+                    media_type: MediaType::Music,
+                    content: None,
+                },
+                import_file: None,
+            })
             .await
             .unwrap();
         let media_music = match res {
@@ -1277,13 +1331,16 @@ mod tests {
         };
 
         let res = client
-            .request(&Command::CreateMedia(NewMedia {
-                name: "The Road Not Taken".into(),
-                description: Some("Robert Frost poem".into()),
-                url: "https://example.com/poem.txt".into(),
-                media_type: MediaType::Poem,
-                content: Some("Two roads diverged in a yellow wood...".into()),
-            }))
+            .request(&Command::CreateMedia {
+                media: NewMedia {
+                    name: "The Road Not Taken".into(),
+                    description: Some("Robert Frost poem".into()),
+                    url: "https://example.com/poem.txt".into(),
+                    media_type: MediaType::Poem,
+                    content: Some("Two roads diverged in a yellow wood...".into()),
+                },
+                import_file: None,
+            })
             .await
             .unwrap();
         let media_poem = match res {

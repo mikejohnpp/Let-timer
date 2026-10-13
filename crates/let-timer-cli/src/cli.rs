@@ -370,6 +370,9 @@ pub enum MediaCommand {
     Create {
         #[arg(short, long)]
         name: Option<String>,
+        /// Local file to import into media storage.
+        #[arg(short = 'f', long, value_name = "PATH")]
+        file: Option<String>,
         #[arg(short, long)]
         url: Option<String>,
         #[arg(short = 't', long, value_name = "image|music|poem")]
@@ -596,7 +599,7 @@ mod tests {
     fn every_command_the_daemon_has_is_reachable() {
         // One row per `Command` in the protocol. A refactor that drops one, or
         // files it under the wrong component, fails here.
-        let reachable: [(&[&str], Commands); 29] = [
+        let reachable: [(&[&str], Commands); 30] = [
             (
                 &["tasks", "create", "-n", "wash up"],
                 Commands::Task(TaskCommand::Create {
@@ -770,8 +773,20 @@ mod tests {
                 ],
                 Commands::Media(MediaCommand::Create {
                     name: Some("song".into()),
+                    file: None,
                     url: Some("http://example.com/a.mp3".into()),
                     media_type: Some("music".into()),
+                    description: None,
+                    content: None,
+                }),
+            ),
+            (
+                &["medias", "create", "-f", "/path/to/song.mp3"],
+                Commands::Media(MediaCommand::Create {
+                    name: None,
+                    file: Some("/path/to/song.mp3".into()),
+                    url: None,
+                    media_type: None,
                     description: None,
                     content: None,
                 }),

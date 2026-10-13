@@ -33,6 +33,7 @@ use crate::rest::*;
         delete_workspace,
         list_medias,
         create_media,
+        upload_media,
         delete_media,
         list_media_lists,
         create_media_list,

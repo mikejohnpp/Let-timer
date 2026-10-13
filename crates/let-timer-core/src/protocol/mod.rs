@@ -103,7 +103,10 @@ pub enum Command {
     ListMedias {
         media_type: Option<MediaType>,
     },
-    CreateMedia(NewMedia),
+    CreateMedia {
+        media: NewMedia,
+        import_file: Option<String>,
+    },
     DeleteMedia {
         id: i64,
     },

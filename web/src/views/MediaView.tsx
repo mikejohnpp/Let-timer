@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Trash2,
@@ -7,6 +7,7 @@ import {
   BookOpen,
   X,
   ExternalLink,
+  Upload,
 } from 'lucide-react';
 import type { components } from '../api/schema';
 import { apiFetch } from '../api/client';
@@ -28,6 +29,10 @@ type MediaItem = components['schemas']['MediaDto'];
 type MediaListDetail = components['schemas']['MediaListDetailDto'];
 
 function getDisplayHost(url: string) {
+  if (url.startsWith('/api/v1/media/files/')) {
+    const filename = url.split('/').pop() || 'file';
+    return `local storage (${filename.substring(0, 10)}…)`;
+  }
   try {
     return new URL(url).hostname.replace('www.', '');
   } catch {
@@ -48,12 +53,16 @@ export const MediaView: React.FC = () => {
   const [isCreatingList, setIsCreatingList] = useState(false);
 
   // New item form
+  const [newItemSource, setNewItemSource] = useState<'upload' | 'url'>('upload');
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const [newItemUrl, setNewItemUrl] = useState('');
   const [newItemType, setNewItemType] = useState<'image' | 'music' | 'poem'>('music');
   const [newItemDesc, setNewItemDesc] = useState('');
   const [newItemContent, setNewItemContent] = useState('');
   const [isCreatingItem, setIsCreatingItem] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const itemFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const { showToast } = useToast();
   const confirm = useConfirm();
@@ -120,8 +129,66 @@ export const MediaView: React.FC = () => {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedUploadFile(file);
+    if (!newItemName.trim()) {
+      setNewItemName(file.name.replace(/\.[^/.]+$/, ''));
+    }
+    if (file.type.startsWith('audio/') || /\.(mp3|wav|ogg|flac|m4a|aac)$/i.test(file.name)) {
+      setNewItemType('music');
+    } else if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg|avif)$/i.test(file.name)) {
+      setNewItemType('image');
+    }
+  };
+
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (newItemSource === 'upload') {
+      if (!selectedUploadFile) {
+        showToast('Please select a file to upload', 'danger');
+        return;
+      }
+      setIsUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', selectedUploadFile);
+        formData.append('name', newItemName.trim() || selectedUploadFile.name.replace(/\.[^/.]+$/, ''));
+        formData.append('media_type', newItemType === 'poem' ? 'image' : newItemType);
+        if (newItemDesc.trim()) {
+          formData.append('description', newItemDesc.trim());
+        }
+
+        const res = await apiFetch('/api/v1/media/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (res.ok) {
+          setNewItemName('');
+          setNewItemUrl('');
+          setNewItemDesc('');
+          setNewItemContent('');
+          setSelectedUploadFile(null);
+          if (itemFileInputRef.current) itemFileInputRef.current.value = '';
+          setIsCreatingItem(false);
+          showToast('Media uploaded and saved to library', 'success');
+          loadData();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          showToast(err.message || 'Failed to upload media', 'danger');
+        }
+      } catch (e: unknown) {
+        showToast(e instanceof Error ? e.message : 'Error uploading file', 'danger');
+      } finally {
+        setIsUploading(false);
+      }
+      return;
+    }
+
     if (!newItemName.trim() || !newItemUrl.trim()) return;
 
     try {
@@ -144,6 +211,7 @@ export const MediaView: React.FC = () => {
         setNewItemUrl('');
         setNewItemDesc('');
         setNewItemContent('');
+        setSelectedUploadFile(null);
         setIsCreatingItem(false);
         showToast('Created media item', 'success');
         loadData();
@@ -321,47 +389,136 @@ export const MediaView: React.FC = () => {
       {/* New Item Form */}
       {isCreatingItem && (
         <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5 mb-2">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add new media item</h2>
-          <form onSubmit={handleCreateItem} className="flex flex-col gap-3">
-            <div className="grid sm:grid-cols-3 gap-3">
-              <FormField label="Title" required>
-                {(id) => (
-                  <Input
-                    id={id}
-                    required
-                    placeholder="e.g. Forest birds"
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                  />
-                )}
-              </FormField>
-
-              <FormField label="URL or URI" required>
-                {(id) => (
-                  <Input
-                    id={id}
-                    required
-                    placeholder="https://... or data:..."
-                    value={newItemUrl}
-                    onChange={(e) => setNewItemUrl(e.target.value)}
-                  />
-                )}
-              </FormField>
-
-              <FormField label="Type">
-                {(id) => (
-                  <Select
-                    id={id}
-                    value={newItemType}
-                    onChange={(e) => setNewItemType(e.target.value as 'image' | 'music' | 'poem')}
-                  >
-                    <option value="music">Music / Audio</option>
-                    <option value="image">Image / Art</option>
-                    <option value="poem">Poem (Schema v4)</option>
-                  </Select>
-                )}
-              </FormField>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Add new media item</h2>
+            <div className="flex items-center gap-1 bg-[var(--surface-hover)]/60 p-0.5 rounded-lg border border-[var(--border)]/40">
+              <button
+                type="button"
+                onClick={() => setNewItemSource('upload')}
+                className={`px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer ${
+                  newItemSource === 'upload'
+                    ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
+                    : 'text-[var(--muted)] hover:text-[var(--text)]'
+                }`}
+              >
+                Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewItemSource('url')}
+                className={`px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer ${
+                  newItemSource === 'url'
+                    ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
+                    : 'text-[var(--muted)] hover:text-[var(--text)]'
+                }`}
+              >
+                External URL
+              </button>
             </div>
+          </div>
+
+          <form onSubmit={handleCreateItem} className="flex flex-col gap-3">
+            {newItemSource === 'upload' ? (
+              <div className="flex flex-col gap-3">
+                <FormField label="File (Image or Audio)" required>
+                  {() => (
+                    <div>
+                      <input
+                        ref={itemFileInputRef}
+                        type="file"
+                        accept="image/*,audio/*,.mp3,.wav,.ogg,.flac,.m4a,.aac,.jpg,.jpeg,.png,.gif,.webp,.svg,.avif"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+                      <div
+                        onClick={() => itemFileInputRef.current?.click()}
+                        className="border border-dashed border-[var(--border)] hover:border-[var(--accent-text)] rounded-lg p-4 text-center cursor-pointer bg-[var(--surface-hover)]/30 transition flex flex-col items-center gap-1.5"
+                      >
+                        <Upload className="w-5 h-5 text-[var(--muted)]" />
+                        {selectedUploadFile ? (
+                          <div className="text-xs">
+                            <span className="font-medium text-[var(--text)]">{selectedUploadFile.name}</span>{' '}
+                            <span className="text-[var(--muted)]">
+                              ({(selectedUploadFile.size / 1024 / 1024).toFixed(2)} MB)
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-[var(--muted)]">
+                            <span className="font-medium text-[var(--accent-text)]">Click to choose a file</span> or drag & drop (Image or Audio)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </FormField>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <FormField label="Title (optional, defaults to filename)">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        placeholder="e.g. Ambient Focus"
+                        value={newItemName}
+                        onChange={(e) => setNewItemName(e.target.value)}
+                      />
+                    )}
+                  </FormField>
+
+                  <FormField label="Type">
+                    {(id) => (
+                      <Select
+                        id={id}
+                        value={newItemType}
+                        onChange={(e) => setNewItemType(e.target.value as 'image' | 'music')}
+                      >
+                        <option value="music">Music / Audio</option>
+                        <option value="image">Image / Art</option>
+                      </Select>
+                    )}
+                  </FormField>
+                </div>
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-3 gap-3">
+                <FormField label="Title" required>
+                  {(id) => (
+                    <Input
+                      id={id}
+                      required
+                      placeholder="e.g. Forest birds"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                    />
+                  )}
+                </FormField>
+
+                <FormField label="URL or URI" required>
+                  {(id) => (
+                    <Input
+                      id={id}
+                      required
+                      placeholder="https://... or data:..."
+                      value={newItemUrl}
+                      onChange={(e) => setNewItemUrl(e.target.value)}
+                    />
+                  )}
+                </FormField>
+
+                <FormField label="Type">
+                  {(id) => (
+                    <Select
+                      id={id}
+                      value={newItemType}
+                      onChange={(e) => setNewItemType(e.target.value as 'image' | 'music' | 'poem')}
+                    >
+                      <option value="music">Music / Audio</option>
+                      <option value="image">Image / Art</option>
+                      <option value="poem">Poem (Schema v4)</option>
+                    </Select>
+                  )}
+                </FormField>
+              </div>
+            )}
 
             <FormField label="Description (optional)">
               {(id) => (
@@ -374,7 +531,7 @@ export const MediaView: React.FC = () => {
               )}
             </FormField>
 
-            {newItemType === 'poem' && (
+            {newItemSource === 'url' && newItemType === 'poem' && (
               <FormField label="Inline poem verses (optional)">
                 {(id) => (
                   <Textarea
@@ -390,11 +547,20 @@ export const MediaView: React.FC = () => {
             )}
 
             <div className="flex justify-end gap-2 mt-2">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreatingItem(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsCreatingItem(false);
+                  setSelectedUploadFile(null);
+                  if (itemFileInputRef.current) itemFileInputRef.current.value = '';
+                }}
+              >
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" size="sm">
-                Create item
+              <Button type="submit" variant="primary" size="sm" disabled={isUploading}>
+                {isUploading ? 'Uploading…' : newItemSource === 'upload' ? 'Upload file' : 'Create item'}
               </Button>
             </div>
           </form>

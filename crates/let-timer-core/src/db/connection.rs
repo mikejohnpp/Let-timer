@@ -394,6 +394,33 @@ pub fn default_db_path() -> Result<PathBuf, DbError> {
     ))
 }
 
+/// Resolve the default media storage directory: `~/.local/share/let-timer/media`.
+///
+/// Can be overridden with the `LET_TIMER_MEDIA_DIR` environment variable.
+pub fn default_media_dir() -> Result<PathBuf, DbError> {
+    if let Some(override_path) = std::env::var_os("LET_TIMER_MEDIA_DIR")
+        && !override_path.is_empty()
+    {
+        return Ok(PathBuf::from(override_path));
+    }
+    if let Some(base) = std::env::var_os("XDG_DATA_HOME")
+        && !base.is_empty()
+    {
+        return Ok(PathBuf::from(base).join("let-timer").join("media"));
+    }
+    if let Some(home) = std::env::var_os("HOME")
+        && !home.is_empty()
+    {
+        return Ok(PathBuf::from(home)
+            .join(".local/share")
+            .join("let-timer")
+            .join("media"));
+    }
+    Err(DbError::Configuration(
+        "neither LET_TIMER_MEDIA_DIR, XDG_DATA_HOME nor HOME is set".to_string(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

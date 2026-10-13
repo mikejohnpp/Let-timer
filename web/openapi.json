@@ -252,6 +252,37 @@
         }
       }
     },
+    "/api/v1/media/upload": {
+      "post": {
+        "tags": [
+          "Medias"
+        ],
+        "summary": "POST /api/v1/media/upload",
+        "operationId": "upload_media",
+        "responses": {
+          "201": {
+            "description": "Media uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/medias": {
       "get": {
         "tags": [

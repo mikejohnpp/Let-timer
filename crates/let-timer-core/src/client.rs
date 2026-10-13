@@ -106,6 +106,114 @@ impl HttpClient {
         serde_json::from_slice::<Response>(&body_bytes)
             .map_err(|e| TransportError::Other(format!("failed to parse server response: {e}")))
     }
+
+    pub async fn upload_media(
+        &self,
+        file_path: &Path,
+        name: Option<&str>,
+        media_type: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<Response, TransportError> {
+        let upload_url = format!("{}/api/v1/media/upload", self.url);
+
+        let file_bytes = tokio::fs::read(file_path).await.map_err(|e| {
+            TransportError::Other(format!("failed to read file {}: {e}", file_path.display()))
+        })?;
+
+        let file_name = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("media.bin")
+            .to_string();
+
+        let mtype = media_type.unwrap_or_else(|| {
+            let ext = file_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+            match ext.as_str() {
+                "mp3" | "wav" | "ogg" | "flac" | "m4a" | "aac" => "music",
+                _ => "image",
+            }
+        });
+
+        let file_part = reqwest::multipart::Part::bytes(file_bytes).file_name(file_name);
+
+        let mut form = reqwest::multipart::Form::new()
+            .part("file", file_part)
+            .text("media_type", mtype.to_string());
+
+        if let Some(n) = name {
+            form = form.text("name", n.to_string());
+        }
+        if let Some(d) = description {
+            form = form.text("description", d.to_string());
+        }
+
+        let mut req = self.client.post(&upload_url);
+        if let Some(ref t) = self.token {
+            req = req.header("Authorization", format!("Bearer {t}"));
+        }
+        if let Some(ref ws) = self.workspace_pin {
+            req = req.header("X-Let-Timer-Workspace", ws.clone());
+        }
+
+        let res = req.multipart(form).send().await.map_err(|e| {
+            if e.is_timeout() {
+                TransportError::Timeout(e.to_string())
+            } else if e.is_connect() {
+                TransportError::Unreachable(e.to_string())
+            } else {
+                TransportError::Other(e.to_string())
+            }
+        })?;
+
+        let status = res.status();
+        let body_bytes = res
+            .bytes()
+            .await
+            .map_err(|e| TransportError::Other(format!("failed to read response bytes: {e}")))?;
+
+        if status.is_success() {
+            #[derive(serde::Deserialize)]
+            struct UploadResponse {
+                id: i64,
+                name: String,
+                description: Option<String>,
+                url: String,
+                media_type: String,
+                content: Option<String>,
+                created_at: String,
+                updated_at: String,
+            }
+
+            let dto = serde_json::from_slice::<UploadResponse>(&body_bytes).map_err(|e| {
+                TransportError::Other(format!("failed to parse media response: {e}"))
+            })?;
+
+            let mtype = dto
+                .media_type
+                .parse::<crate::MediaType>()
+                .unwrap_or(crate::MediaType::Image);
+
+            Ok(Response::Media(crate::Media {
+                id: dto.id,
+                name: dto.name,
+                description: dto.description,
+                url: dto.url,
+                media_type: mtype,
+                content: dto.content,
+                created_at: dto.created_at,
+                updated_at: dto.updated_at,
+            }))
+        } else {
+            let err_text = String::from_utf8_lossy(&body_bytes);
+            Err(TransportError::Other(format!(
+                "upload failed ({status}): {err_text}"
+            )))
+        }
+    }
 }
 
 pub enum Client {
@@ -137,6 +245,66 @@ impl Client {
                 .await
                 .map_err(|e| TransportError::Other(e.to_string())),
             Client::Http(http) => http.request(command).await,
+        }
+    }
+
+    pub async fn upload_media(
+        &mut self,
+        file_path: &Path,
+        name: Option<&str>,
+        media_type: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<Response, TransportError> {
+        match self {
+            Client::Unix(_) => {
+                let canonical = std::fs::canonicalize(file_path).map_err(|e| {
+                    TransportError::Other(format!("invalid file path {}: {e}", file_path.display()))
+                })?;
+                let file_name = file_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("media")
+                    .to_string();
+                let mtype = match media_type {
+                    Some(t) => t
+                        .parse::<crate::MediaType>()
+                        .map_err(|e| TransportError::Other(format!("invalid media type: {e}")))?,
+                    None => {
+                        let ext = file_path
+                            .extension()
+                            .and_then(|e| e.to_str())
+                            .unwrap_or("")
+                            .to_lowercase();
+                        match ext.as_str() {
+                            "mp3" | "wav" | "ogg" | "flac" | "m4a" | "aac" => {
+                                crate::MediaType::Music
+                            }
+                            _ => crate::MediaType::Image,
+                        }
+                    }
+                };
+                let final_name = name.map(|s| s.to_string()).unwrap_or_else(|| {
+                    file_name
+                        .rsplit_once('.')
+                        .map(|(b, _)| b.to_string())
+                        .unwrap_or(file_name)
+                });
+                self.request(&Command::CreateMedia {
+                    media: crate::NewMedia {
+                        name: final_name,
+                        description: description.map(|s| s.to_string()),
+                        url: String::new(),
+                        media_type: mtype,
+                        content: None,
+                    },
+                    import_file: Some(canonical.to_string_lossy().to_string()),
+                })
+                .await
+            }
+            Client::Http(http) => {
+                http.upload_media(file_path, name, media_type, description)
+                    .await
+            }
         }
     }
 }

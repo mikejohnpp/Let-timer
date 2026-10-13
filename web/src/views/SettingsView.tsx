@@ -126,44 +126,35 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleUploadWallpaper = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadWallpaper = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      if (dataUrl) {
-        try {
-          apiFetch('/api/v1/medias', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: file.name.replace(/\.[^/.]+$/, ''),
-              media_type: 'image',
-              url: dataUrl,
-              description: 'Uploaded wallpaper',
-            }),
-          })
-            .then(async (res) => {
-              if (res.ok) {
-                const savedMedia = await res.json();
-                setMediaImages((prev) => [savedMedia, ...prev]);
-              }
-            })
-            .catch(() => {});
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', file.name.replace(/\.[^/.]+$/, ''));
+      formData.append('media_type', 'image');
+      formData.append('description', 'Uploaded wallpaper');
 
-          await setWallpaper(dataUrl);
-          showToast('Wallpaper applied successfully', 'success');
-        } catch {
-          showToast('Failed to apply wallpaper', 'danger');
-        }
+      const res = await apiFetch('/api/v1/media/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to upload wallpaper file');
       }
-    };
-    reader.readAsDataURL(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+
+      const savedMedia = await res.json();
+      setMediaImages((prev) => [savedMedia, ...prev]);
+      await setWallpaper(savedMedia.url);
+      showToast('Wallpaper uploaded & applied successfully', 'success');
+    } catch {
+      showToast('Failed to apply wallpaper', 'danger');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const loadSettingsAndTokens = async () => {

@@ -954,7 +954,16 @@ pub async fn create_media(
         content: dto.content,
     };
 
-    match execute_command(&state, &headers, Command::CreateMedia(new_media)).await {
+    match execute_command(
+        &state,
+        &headers,
+        Command::CreateMedia {
+            media: new_media,
+            import_file: None,
+        },
+    )
+    .await
+    {
         Ok(CoreResponse::Media(m)) => {
             (StatusCode::CREATED, Json(MediaDto::from(m))).into_response()
         }
@@ -982,6 +991,141 @@ pub async fn delete_media(
     match execute_command(&state, &headers, Command::DeleteMedia { id }).await {
         Ok(CoreResponse::OkEmpty) => StatusCode::NO_CONTENT.into_response(),
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err((status, code, msg)) => error_response(status, code, msg),
+    }
+}
+
+/// POST /api/v1/media/upload
+#[utoipa::path(
+    post,
+    path = "/api/v1/media/upload",
+    responses(
+        (status = 201, description = "Media uploaded", body = MediaDto),
+        (status = 400, description = "Bad Request", body = ErrorEnvelopeDto),
+    ),
+    tag = "Medias"
+)]
+pub async fn upload_media(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    mut multipart: axum::extract::Multipart,
+) -> Response {
+    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut file_name: Option<String> = None;
+    let mut name: Option<String> = None;
+    let mut description: Option<String> = None;
+    let mut media_type_str: Option<String> = None;
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let field_name = field.name().unwrap_or("").to_string();
+        match field_name.as_str() {
+            "file" => {
+                file_name = field.file_name().map(|s| s.to_string());
+                if let Ok(bytes) = field.bytes().await {
+                    file_bytes = Some(bytes.to_vec());
+                }
+            }
+            "name" => {
+                if let Ok(text) = field.text().await {
+                    name = Some(text);
+                }
+            }
+            "description" => {
+                if let Ok(text) = field.text().await {
+                    description = Some(text);
+                }
+            }
+            "media_type" => {
+                if let Ok(text) = field.text().await {
+                    media_type_str = Some(text);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let Some(data) = file_bytes else {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "missing_file",
+            "multipart request must include a 'file' field",
+        );
+    };
+
+    let filename = file_name.unwrap_or_else(|| "media.bin".to_string());
+    let media_type = match media_type_str
+        .as_deref()
+        .unwrap_or("image")
+        .parse::<MediaType>()
+    {
+        Ok(mt) => mt,
+        Err(_) => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_media_type",
+                "media_type must be image, music, or poem",
+            );
+        }
+    };
+
+    let sub_dir = match media_type {
+        MediaType::Image => "images",
+        MediaType::Music => "audio",
+        MediaType::Poem => "poems",
+    };
+
+    let storage = match let_timer_core::LocalStorageBackend::default_storage() {
+        Ok(s) => s,
+        Err(e) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "storage_error",
+                format!("failed to initialize storage: {e}"),
+            );
+        }
+    };
+
+    use let_timer_core::StorageBackend;
+    let stored_url = match storage.put(sub_dir, &filename, &data) {
+        Ok(url) => url,
+        Err(e) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "storage_error",
+                format!("failed to save media file: {e}"),
+            );
+        }
+    };
+
+    let final_name = name.unwrap_or_else(|| {
+        filename
+            .rsplit_once('.')
+            .map(|(base, _)| base.to_string())
+            .unwrap_or(filename)
+    });
+
+    let new_media = NewMedia {
+        name: final_name,
+        description,
+        url: stored_url,
+        media_type,
+        content: None,
+    };
+
+    match execute_command(
+        &state,
+        &headers,
+        Command::CreateMedia {
+            media: new_media,
+            import_file: None,
+        },
+    )
+    .await
+    {
+        Ok(CoreResponse::Media(m)) => {
+            (StatusCode::CREATED, Json(MediaDto::from(m))).into_response()
+        }
+        Ok(res) => (StatusCode::CREATED, Json(res)).into_response(),
         Err((status, code, msg)) => error_response(status, code, msg),
     }
 }

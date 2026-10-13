@@ -118,6 +118,31 @@ async fn once(cli: &Cli, command: &Commands) -> Result<(), Failure> {
         }
     }
 
+    // Special handling for `medias create --file <PATH>`: uploads directly (local copy or HTTP multipart)
+    if let Commands::Media(MediaCommand::Create {
+        file: Some(file_path),
+        name,
+        media_type,
+        description,
+        ..
+    }) = command
+    {
+        let res = client
+            .upload_media(
+                std::path::Path::new(file_path),
+                name.as_deref(),
+                media_type.as_deref(),
+                description.as_deref(),
+            )
+            .await
+            .map_err(|e| Failure::Daemon(e.to_string()))?;
+        if let Response::Error { message } = &res {
+            return Err(Failure::Refused(message.clone()));
+        }
+        render::print(&res, cli.json).map_err(|error| Failure::Usage(error.to_string()))?;
+        return Ok(());
+    }
+
     let command_proto = match build_command(command, &mut client, cli.no_interactive).await {
         Ok(c) => c,
         Err(error) => {
@@ -802,6 +827,7 @@ async fn build_command(
         }
         Commands::Media(MediaCommand::Create {
             name,
+            file: _,
             url,
             media_type,
             description,
@@ -848,13 +874,16 @@ async fn build_command(
                 Some(c) if !c.trim().is_empty() => Some(c.trim().to_string()),
                 _ => None,
             };
-            Ok(Command::CreateMedia(NewMedia {
-                name,
-                url,
-                media_type,
-                description,
-                content,
-            }))
+            Ok(Command::CreateMedia {
+                media: NewMedia {
+                    name,
+                    url,
+                    media_type,
+                    description,
+                    content,
+                },
+                import_file: None,
+            })
         }
         Commands::Media(MediaCommand::Delete { id }) => {
             if !no_interactive {

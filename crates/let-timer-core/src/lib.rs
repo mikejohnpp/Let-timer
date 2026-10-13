@@ -7,6 +7,7 @@ pub mod notify;
 pub mod parse;
 pub mod protocol;
 pub mod service;
+pub mod storage;
 
 pub use client::{Client, TransportError};
 pub use context::RequestContext;
@@ -15,7 +16,7 @@ pub use db::{
     MediaRepository, MediaType, NewMedia, NewMediaList, NewTask, NewWorkspace, ParsePriorityError,
     Priority, SessionEndReason, SessionRepository, SettingsRepository, Task, TaskRepository,
     TaskSession, TaskStatus, TokenRepository, UpdateMedia, UpdateMediaList, UpdateTask,
-    UpdateWorkspace, Workspace, WorkspaceRepository, default_db_path,
+    UpdateWorkspace, Workspace, WorkspaceRepository, default_db_path, default_media_dir,
 };
 pub use events::{Event, EventBus};
 pub use ipc::client::IpcClient;
@@ -26,3 +27,4 @@ pub use protocol::{Command, ListQuery, Response, SortOrder, WorkspaceScope, Work
 pub use service::{
     Action, ServiceError, TaskService, TimerSnapshot, TimerState, TransitionError, next_status,
 };
+pub use storage::{LocalStorageBackend, StorageBackend, StorageError};
