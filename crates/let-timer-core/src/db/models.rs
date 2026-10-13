@@ -351,6 +351,28 @@ pub struct TaskSession {
     pub end_reason: Option<SessionEndReason>,
 }
 
+// ─── API Token ─────────────────────────────────────────────────────────
+
+/// A hashed API token record in the database.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApiToken {
+    pub id: i64,
+    pub name: String,
+    pub token_hash: String,
+    pub created_at: String,
+    pub last_used_at: Option<String>,
+    pub revoked_at: Option<String>,
+}
+
+/// Token creation metadata and raw secret returned only once.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatedToken {
+    pub id: i64,
+    pub name: String,
+    pub token: String,
+    pub created_at: String,
+}
+
 /// Serde helper for `Option<Option<T>>` fields.
 ///
 /// `None` (leave alone) and `Some(None)` (set NULL) both serialize to `null`,

@@ -11,11 +11,11 @@ pub mod service;
 pub use client::{Client, TransportError};
 pub use context::RequestContext;
 pub use db::{
-    Database, DbError, Media, MediaList, MediaListRepository, MediaRepository, MediaType, NewMedia,
-    NewMediaList, NewTask, NewWorkspace, ParsePriorityError, Priority, SessionEndReason,
-    SessionRepository, SettingsRepository, Task, TaskRepository, TaskSession, TaskStatus,
-    UpdateMedia, UpdateMediaList, UpdateTask, UpdateWorkspace, Workspace, WorkspaceRepository,
-    default_db_path,
+    ApiToken, CreatedToken, Database, DbError, Media, MediaList, MediaListRepository,
+    MediaRepository, MediaType, NewMedia, NewMediaList, NewTask, NewWorkspace, ParsePriorityError,
+    Priority, SessionEndReason, SessionRepository, SettingsRepository, Task, TaskRepository,
+    TaskSession, TaskStatus, TokenRepository, UpdateMedia, UpdateMediaList, UpdateTask,
+    UpdateWorkspace, Workspace, WorkspaceRepository, default_db_path,
 };
 pub use events::{Event, EventBus};
 pub use ipc::client::IpcClient;

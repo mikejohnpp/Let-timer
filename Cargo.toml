@@ -4,6 +4,7 @@ members = [
     "crates/let-timer-core",
     "crates/let-timer-cli",
     "crates/let-timer-daemon",
+    "crates/let-timer-http",
 ]
 
 [workspace.package]
@@ -27,4 +28,10 @@ chrono-tz = { version = "0.10", features = ["serde"] }
 color-eyre = "0.6.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+sha2 = "0.11"
+rand = "0.10"
+base64 = "0.23"
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.7", features = ["cors", "trace"] }
 let-timer-core = { path = "crates/let-timer-core" }

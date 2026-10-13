@@ -65,7 +65,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     })
     .await?;
 
-    server.run().await?;
+    // Optional HTTP server (if LET_TIMER_BIND is set, e.g. "127.0.0.1:8765" or "0.0.0.0:8765")
+    let http_handle = if let Ok(bind_addr) = std::env::var("LET_TIMER_BIND") {
+        let is_loopback = bind_addr.starts_with("127.")
+            || bind_addr.starts_with("localhost:")
+            || bind_addr.starts_with("[::1]");
+        let app_state = Arc::new(let_timer_http::AppState {
+            db: Arc::clone(&database),
+            is_loopback,
+            command_handler: Arc::new(move |cmd, conn, ctx, notify, events| {
+                let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+            }),
+            timer_notify: Some(Arc::clone(&notify_signal)),
+            events: Some(Arc::clone(&event_bus)),
+        });
+
+        let app = let_timer_http::build_router(app_state);
+        tracing::info!("starting HTTP server on {}", bind_addr);
+        let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
+        Some(tokio::spawn(async move {
+            if let Err(e) = axum::serve(listener, app).await {
+                tracing::error!("HTTP server error: {}", e);
+            }
+        }))
+    } else {
+        None
+    };
+
+    tokio::select! {
+        res = server.run() => {
+            if let Err(e) = res {
+                tracing::error!("IPC server error: {}", e);
+            }
+        }
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("received ctrl-c signal");
+        }
+    }
+
+    if let Some(h) = http_handle {
+        h.abort();
+    }
     scheduler_handle.abort();
     tracing::info!("daemon exited cleanly");
     Ok(())

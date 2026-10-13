@@ -100,10 +100,19 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS api_tokens (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT NOT NULL UNIQUE,
+    token_hash   TEXT NOT NULL UNIQUE,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    last_used_at TEXT,
+    revoked_at   TEXT
+);
 ";
 
 /// Current schema version. Bump this whenever `migrate` needs a new step.
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 /// Wrapper around a `rusqlite::Connection` that handles opening the database
 /// file, creating the parent directory, running schema migrations, and
@@ -258,6 +267,20 @@ impl Database {
                     )));
                 }
             }
+        }
+
+        if current < 3 {
+            // v3: api_tokens table for HTTP API authentication
+            self.conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS api_tokens (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name         TEXT NOT NULL UNIQUE,
+                    token_hash   TEXT NOT NULL UNIQUE,
+                    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+                    last_used_at TEXT,
+                    revoked_at   TEXT
+                );",
+            )?;
         }
 
         self.conn
@@ -542,12 +565,12 @@ mod tests {
             .unwrap();
         assert_eq!(active_ws, "1");
 
-        // Verify user_version is 2
+        // Verify user_version is SCHEMA_VERSION (3)
         let version: i64 = db
             .conn()
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, SCHEMA_VERSION);
 
         drop(db);
         let _ = std::fs::remove_dir_all(&dir);
@@ -576,7 +599,13 @@ mod tests {
         let fresh_db = Database::open(&fresh_path).unwrap();
         let migrated_db = Database::open(&migrated_path).unwrap();
 
-        for table in ["tasks", "task_sessions", "settings", "workspaces"] {
+        for table in [
+            "tasks",
+            "task_sessions",
+            "settings",
+            "workspaces",
+            "api_tokens",
+        ] {
             let get_info = |db: &Database| -> Vec<(i64, String, String, i64, Option<String>, i64)> {
                 let mut stmt = db
                     .conn()
