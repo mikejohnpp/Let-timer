@@ -14,13 +14,15 @@
 //! any of this program's code runs.
 
 mod cli;
+mod config;
 mod interactive;
 mod render;
 
 use std::process::ExitCode;
 
 use crate::cli::{
-    Cli, Commands, DaemonCommand, MediaCommand, MediaListCommand, TaskCommand, WorkspaceCommand,
+    Cli, Commands, DaemonCommand, MediaCommand, MediaListCommand, ServerCommand, TaskCommand,
+    WorkspaceCommand,
 };
 use crate::interactive::{
     resolve_description, resolve_estimated_mins, resolve_media_list, resolve_name,
@@ -84,17 +86,37 @@ async fn run(cli: &Cli) -> Result<(), Failure> {
 
 /// Ask the daemon to do one thing, print the answer, and stop.
 async fn once(cli: &Cli, command: &Commands) -> Result<(), Failure> {
-    let mut client = match connect().await {
-        Ok(c) => c,
-        Err(e) => {
-            if let Commands::Task(TaskCommand::Current { format }) = command
-                && format == "short"
-            {
-                return Ok(());
+    // Special handling for local `server` commands that don't need a daemon connection
+    if let Commands::Server(server_cmd) = command {
+        return handle_server_command(server_cmd, cli.json).await;
+    }
+
+    let (mut client, current_profile) =
+        match connect(cli.server.as_deref(), cli.no_interactive).await {
+            Ok(c) => c,
+            Err(e) => {
+                if let Commands::Task(TaskCommand::Current { format }) = command
+                    && format == "short"
+                {
+                    return Ok(());
+                }
+                return Err(e);
             }
-            return Err(e);
+        };
+
+    // Special handling for `workspaces switch` on remote profile: updates profile pin
+    if let Commands::Workspace(WorkspaceCommand::Switch { target }) = command
+        && let Some(ref profile_name) = current_profile
+        && let Some(target_val) = target
+    {
+        let mut cfg = config::Config::load();
+        if let Some(prof) = cfg.servers.get_mut(profile_name) {
+            prof.workspace = Some(target_val.clone());
+            cfg.save().map_err(|e| Failure::Usage(e.to_string()))?;
+            println!("pinned workspace '{target_val}' for server '{profile_name}'");
+            return Ok(());
         }
-    };
+    }
 
     let command_proto = match build_command(command, &mut client, cli.no_interactive).await {
         Ok(c) => c,
@@ -197,11 +219,226 @@ async fn once(cli: &Cli, command: &Commands) -> Result<(), Failure> {
 }
 
 /// The daemon, or an explanation of why there isn't one.
-async fn connect() -> Result<Client, Failure> {
-    let path = let_timer_core::ipc::socket_path();
-    Client::connect_unix(&path)
-        .await
-        .map_err(|error| Failure::Daemon(error.to_string()))
+async fn connect(
+    server_flag: Option<&str>,
+    no_interactive: bool,
+) -> Result<(Client, Option<String>), Failure> {
+    // 1. Resolve server profile name or URL
+    // Order: --server flag -> LET_TIMER_SERVER env -> config.current -> "local"
+    let config = config::Config::load();
+    let target = server_flag
+        .map(|s| s.to_string())
+        .or_else(|| std::env::var("LET_TIMER_SERVER").ok())
+        .or_else(|| config.current.clone())
+        .unwrap_or_else(|| "local".to_string());
+
+    if target == "local" || target.is_empty() {
+        let path = let_timer_core::ipc::socket_path();
+        let client = Client::connect_unix(&path)
+            .await
+            .map_err(|error| Failure::Daemon(error.to_string()))?;
+        return Ok((client, None));
+    }
+
+    // Look up target in config or treat as direct URL
+    let (profile_name, profile) = if let Some(p) = config.servers.get(&target) {
+        (target.clone(), p.clone())
+    } else if target.starts_with("http://") || target.starts_with("https://") {
+        (
+            target.clone(),
+            config::ServerProfile {
+                url: target.clone(),
+                token: None,
+                token_file: None,
+                token_env: None,
+                workspace: None,
+            },
+        )
+    } else {
+        return Err(Failure::Usage(format!("unknown server profile '{target}'")));
+    };
+
+    let token = config::Config::resolve_token(&profile);
+
+    // Stderr banner in interactive mode when talking to non-local server
+    if !no_interactive {
+        eprintln!("→ {} ({})", profile_name, profile.url);
+    }
+
+    let client =
+        Client::http(profile.url.clone(), token, profile.workspace.clone()).map_err(|e| {
+            Failure::Daemon(format!(
+                "failed to initialize http client for server {profile_name}: {e}"
+            ))
+        })?;
+
+    Ok((client, Some(profile_name)))
+}
+
+async fn handle_server_command(cmd: &ServerCommand, json: bool) -> Result<(), Failure> {
+    let mut config = config::Config::load();
+
+    match cmd {
+        ServerCommand::List => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&config.servers)
+                        .map_err(|e| Failure::Usage(e.to_string()))?
+                );
+            } else {
+                let current = config.current.as_deref().unwrap_or("local");
+                println!("Active profile: {current}");
+                println!("Configured servers:");
+                println!("  * local (Unix domain socket)");
+                for (name, prof) in &config.servers {
+                    let pin = prof.workspace.as_deref().unwrap_or("(none)");
+                    let marker = if name == current { ">" } else { " " };
+                    println!("  {marker} {name}: {} [workspace: {pin}]", prof.url);
+                }
+            }
+        }
+        ServerCommand::Current => {
+            let current = config.current.as_deref().unwrap_or("local");
+            if json {
+                println!("{{\"current\":\"{current}\"}}");
+            } else {
+                println!("{current}");
+            }
+        }
+        ServerCommand::Use { name } => {
+            if name != "local" && !config.servers.contains_key(name) {
+                return Err(Failure::Usage(format!("unknown server profile '{name}'")));
+            }
+            config.current = if name == "local" {
+                None
+            } else {
+                Some(name.clone())
+            };
+            config.save().map_err(|e| Failure::Usage(e.to_string()))?;
+            println!("switched active server to '{name}'");
+        }
+        ServerCommand::Remove { name } => {
+            if config.servers.remove(name).is_none() {
+                return Err(Failure::Usage(format!("unknown server profile '{name}'")));
+            }
+            if config.current.as_deref() == Some(name) {
+                config.current = None;
+            }
+            config.save().map_err(|e| Failure::Usage(e.to_string()))?;
+            println!("removed server profile '{name}'");
+        }
+        ServerCommand::Add {
+            name,
+            url,
+            token_file,
+            token_env,
+            token_stdin,
+            workspace,
+        } => {
+            if name == "local" {
+                return Err(Failure::Usage("cannot name a profile 'local'".to_string()));
+            }
+
+            let token = if *token_stdin {
+                let prompt = inquire::Password::new("Enter API token:")
+                    .without_confirmation()
+                    .prompt()
+                    .map_err(|e| Failure::Usage(e.to_string()))?;
+                Some(prompt)
+            } else {
+                None
+            };
+
+            let profile = config::ServerProfile {
+                url: url.clone(),
+                token,
+                token_file: token_file.clone(),
+                token_env: token_env.clone(),
+                workspace: workspace.clone(),
+            };
+
+            let resolved_token = config::Config::resolve_token(&profile);
+
+            // Validate connection and health before saving
+            let test_client = Client::http(url.clone(), resolved_token, None)
+                .map_err(|e| Failure::Daemon(format!("failed to connect to {url}: {e}")))?;
+
+            let mut test_c = test_client;
+            let ping_res = test_c
+                .request(&Command::Ping)
+                .await
+                .map_err(|e| Failure::Daemon(format!("server validation failed: {e}")))?;
+
+            match ping_res {
+                Response::Pong => {}
+                _ => {
+                    return Err(Failure::Daemon(
+                        "unexpected response from server".to_string(),
+                    ));
+                }
+            }
+
+            config.servers.insert(name.clone(), profile);
+            config.save().map_err(|e| Failure::Usage(e.to_string()))?;
+            println!("successfully added server profile '{name}' ({url})");
+        }
+        ServerCommand::Status { name } => {
+            let target_name = name
+                .as_deref()
+                .or(config.current.as_deref())
+                .unwrap_or("local");
+
+            if target_name == "local" {
+                println!("Local server: Unix domain socket");
+                let path = let_timer_core::ipc::socket_path();
+                let mut client = Client::connect_unix(&path)
+                    .await
+                    .map_err(|e| Failure::Daemon(e.to_string()))?;
+                let start = std::time::Instant::now();
+                let res = client
+                    .request(&Command::DaemonStatus)
+                    .await
+                    .map_err(|e| Failure::Daemon(e.to_string()))?;
+                let latency = start.elapsed();
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string(&res).map_err(|e| Failure::Usage(e.to_string()))?
+                    );
+                } else {
+                    println!("Status: OK, latency: {:?}", latency);
+                }
+            } else if let Some(prof) = config.servers.get(target_name) {
+                let token = config::Config::resolve_token(prof);
+                let mut client = Client::http(prof.url.clone(), token, None)
+                    .map_err(|e| Failure::Daemon(e.to_string()))?;
+                let start = std::time::Instant::now();
+                let res = client
+                    .request(&Command::Ping)
+                    .await
+                    .map_err(|e| Failure::Daemon(e.to_string()))?;
+                let latency = start.elapsed();
+                if json {
+                    println!(
+                        "{{\"server\":\"{target_name}\",\"status\":\"ok\",\"latency_ms\":{}}}",
+                        latency.as_millis()
+                    );
+                } else {
+                    println!(
+                        "Server '{}' ({}) - Status: {:?}, Latency: {:?}",
+                        target_name, prof.url, res, latency
+                    );
+                }
+            } else {
+                return Err(Failure::Usage(format!(
+                    "unknown server profile '{target_name}'"
+                )));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Turn a parsed command into the protocol's, prompting for whatever was left
@@ -624,6 +861,10 @@ async fn build_command(
             }
             Ok(Command::DeleteMedia { id: *id })
         }
+
+        Commands::Server(_) => {
+            Err("server commands are handled locally and do not dispatch to daemon".into())
+        }
     }
 }
 
@@ -818,8 +1059,8 @@ mod tests {
         // No name and no terminal to prompt on: the error has to name the flag
         // that would have supplied it, because this is the whole message the
         // user gets.
-        let mut client = match connect().await {
-            Ok(client) => client,
+        let (mut client, _) = match connect(None, true).await {
+            Ok(pair) => pair,
             // No daemon on this machine, which is the normal case in a test:
             // the prompts would have needed one, and nothing was reached.
             Err(_) => return,
@@ -848,8 +1089,8 @@ mod tests {
     async fn a_workspace_without_a_name_is_refused_in_its_own_words() {
         // The workspace builder used to be the task builder, so a missing name
         // here would have been told to pass a task flag.
-        let mut client = match connect().await {
-            Ok(client) => client,
+        let (mut client, _) = match connect(None, true).await {
+            Ok(pair) => pair,
             Err(_) => return,
         };
 
@@ -930,7 +1171,7 @@ mod tests {
     /// machine -- which is the normal case in a test. Kept beside the tests
     /// that need one so a missing daemon skips them rather than failing them.
     async fn client() -> Option<Client> {
-        connect().await.ok()
+        connect(None, true).await.ok().map(|(c, _)| c)
     }
 
     #[tokio::test]

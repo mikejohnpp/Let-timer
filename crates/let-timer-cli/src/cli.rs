@@ -39,6 +39,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub json: bool,
 
+    /// Target a specific server profile (name or URL), or override LET_TIMER_SERVER.
+    #[arg(long, global = true)]
+    pub server: Option<String>,
+
     /// What this run is about, and what any command under it acts on.
     ///
     /// Required: a line that names nothing is refused before any of this
@@ -47,14 +51,11 @@ pub struct Cli {
     pub component: Component,
 }
 
-/// The three kinds of thing there are, and what can be asked of each.
+/// The kinds of thing there are, and what can be asked of each.
 ///
 /// Each variant carries its own commands, which is the point: nothing is
 /// offered here that the daemon has no command to answer, and nothing is
-/// offered that the interface already does better. A workspace cannot be edited
-/// because there is no protocol command that would answer one, and no component
-/// can be created from here because that is a form with a field list in it,
-/// not something to be typed on one line.
+/// offered that the interface already does better.
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
 pub enum Component {
     /// Tasks, in a schedule.
@@ -81,6 +82,11 @@ pub enum Component {
     Daemon {
         #[command(subcommand)]
         command: Option<DaemonCommand>,
+    },
+    /// Remote server profiles.
+    Server {
+        #[command(subcommand)]
+        command: Option<ServerCommand>,
     },
 }
 
@@ -121,6 +127,10 @@ impl Component {
                 Some(command) => Commands::Daemon(command.clone()),
                 None => Commands::Daemon(DaemonCommand::Status),
             },
+            Component::Server { command } => match command {
+                Some(command) => Commands::Server(command.clone()),
+                None => Commands::Server(ServerCommand::List),
+            },
         }
     }
 }
@@ -136,6 +146,7 @@ pub enum Commands {
     MediaList(MediaListCommand),
     Media(MediaCommand),
     Daemon(DaemonCommand),
+    Server(ServerCommand),
 }
 
 /// What can be asked of a task.
@@ -373,6 +384,40 @@ pub enum MediaCommand {
     },
 }
 
+/// What can be asked of remote servers.
+#[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
+pub enum ServerCommand {
+    /// Add a new server profile.
+    Add {
+        /// Name of the profile (e.g. "home", "work").
+        name: String,
+        /// Server base URL (e.g. "https://timer.example.com").
+        url: String,
+        /// Path to a file containing the API token.
+        #[arg(long)]
+        token_file: Option<String>,
+        /// Environment variable containing the API token.
+        #[arg(long)]
+        token_env: Option<String>,
+        /// Read token interactively or from stdin.
+        #[arg(long)]
+        token_stdin: bool,
+        /// Optional workspace pin.
+        #[arg(short, long)]
+        workspace: Option<String>,
+    },
+    /// List configured server profiles.
+    List,
+    /// Set current active server profile ("local" for local socket).
+    Use { name: String },
+    /// Remove a server profile by name.
+    Remove { name: String },
+    /// Show health and status of a server profile.
+    Status { name: Option<String> },
+    /// Print the currently active profile name.
+    Current,
+}
+
 #[cfg(test)]
 mod tests {
     use clap::CommandFactory;
@@ -432,6 +477,7 @@ mod tests {
                 "medias",
                 Commands::Media(MediaCommand::List { media_type: None }),
             ),
+            ("server", Commands::Server(ServerCommand::List)),
         ];
 
         for (name, expected) in cases {
