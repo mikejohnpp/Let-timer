@@ -211,3 +211,20 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Custom Wallpaper & Glassmorphism */
+:root[data-has-wallpaper="true"] {
+  --bg-glass-overlay: rgba(11, 15, 25, 0.55);
+}
+
+:root[data-has-wallpaper="true"][data-theme="light"] {
+  --bg-glass-overlay: rgba(248, 250, 252, 0.7);
+}
+
+:root[data-has-wallpaper="true"] header,
+:root[data-has-wallpaper="true"] nav,
+:root[data-has-wallpaper="true"] .glass-panel {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+

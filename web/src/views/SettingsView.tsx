@@ -10,8 +10,14 @@ import {
   Check,
   Palette,
   Timer,
+  Image as ImageIcon,
+  Upload,
+  Sparkles,
+  X,
 } from 'lucide-react';
+import type { components } from '../api/schema';
 import { getStoredToken, setStoredToken } from '../api/client';
+import { useWallpaper } from '../hooks/useWallpaper';
 import {
   Button,
   IconButton,
@@ -23,6 +29,8 @@ import {
   useToast,
   useConfirm,
 } from '../components/ui';
+
+type Media = components['schemas']['MediaDto'];
 
 export interface TokenInfo {
   id: number;
@@ -55,6 +63,18 @@ export const SettingsView: React.FC = () => {
 
   const { showToast } = useToast();
   const confirm = useConfirm();
+
+  const {
+    wallpaperUrl,
+    dynamicColor,
+    extractedColor,
+    setWallpaper,
+    setDynamicColor,
+    clearWallpaper,
+  } = useWallpaper();
+
+  const [mediaImages, setMediaImages] = useState<Media[]>([]);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Load preferences from localStorage
   useEffect(() => {
@@ -116,15 +136,61 @@ export const SettingsView: React.FC = () => {
     }
   };
 
+  const handleUploadWallpaper = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      if (dataUrl) {
+        try {
+          const token = getStoredToken();
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'X-Let-Timer-Protocol': '1',
+          };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+
+          fetch('/api/v1/medias', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              name: file.name.replace(/\.[^/.]+$/, ''),
+              media_type: 'image',
+              url: dataUrl,
+              description: 'Uploaded wallpaper',
+            }),
+          })
+            .then(async (res) => {
+              if (res.ok) {
+                const savedMedia = await res.json();
+                setMediaImages((prev) => [savedMedia, ...prev]);
+              }
+            })
+            .catch(() => {});
+
+          await setWallpaper(dataUrl);
+          showToast('Wallpaper applied successfully', 'success');
+        } catch {
+          showToast('Failed to apply wallpaper', 'danger');
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const loadSettingsAndTokens = async () => {
     try {
       const token = getStoredToken();
       const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const [resTz, resTok] = await Promise.all([
+      const [resTz, resTok, resMedias] = await Promise.all([
         fetch('/api/v1/settings/timezone', { headers }),
         fetch('/api/v1/auth/tokens', { headers }),
+        fetch('/api/v1/medias', { headers }),
       ]);
 
       if (resTz.ok) {
@@ -134,6 +200,10 @@ export const SettingsView: React.FC = () => {
       }
       if (resTok.ok) {
         setTokens(await resTok.json());
+      }
+      if (resMedias.ok) {
+        const allMedias: Media[] = await resMedias.json();
+        setMediaImages(allMedias.filter((m) => m.media_type === 'image' && m.url));
       }
     } catch (e) {
       console.error('Failed to load settings', e);
@@ -352,6 +422,135 @@ export const SettingsView: React.FC = () => {
               { value: 'forest', label: '🌲 Forest & Moss' },
             ]}
           />
+        </div>
+      </Card>
+
+      {/* App Wallpaper & Dynamic Palette Setting */}
+      <Card>
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
+            <ImageIcon className="w-4 h-4 text-[var(--accent-text)]" />
+            <span>App Wallpaper & Dynamic Colors</span>
+          </div>
+
+          {wallpaperUrl && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearWallpaper}
+              className="text-xs text-[var(--danger-text)]"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Remove</span>
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-[var(--muted)] mb-4">
+          Set an image background for the app and automatically extract its dominant colors as the theme accent.
+        </p>
+
+        {/* Dynamic color toggle */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-[var(--radius-control)] bg-[var(--surface-hover)] border border-[var(--border)] mb-4">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-[var(--accent-text)] shrink-0" />
+            <div>
+              <div className="text-xs font-semibold text-[var(--text)]">Extract Accent from Wallpaper</div>
+              <div className="text-[11px] text-[var(--muted)]">
+                Calibrates accent colors to WCAG AA contrast standards
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {dynamicColor && extractedColor && (
+              <div className="flex items-center gap-1.5 text-xs text-[var(--text)]">
+                <span
+                  className="w-4 h-4 rounded-full border border-[var(--border)] shadow-xs"
+                  style={{ backgroundColor: extractedColor }}
+                />
+                <span className="font-mono text-[11px] text-[var(--muted)]">{extractedColor}</span>
+              </div>
+            )}
+            <Checkbox
+              checked={dynamicColor}
+              onCheckedChange={(c) => setDynamicColor(!!c)}
+              label="Enable"
+            />
+          </div>
+        </div>
+
+        {/* Wallpaper Picker / Upload */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--muted)]">Choose Background</span>
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleUploadWallpaper}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload Image...</span>
+            </Button>
+          </div>
+
+          {/* Thumbnails grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 pt-1">
+            {/* None option */}
+            <button
+              type="button"
+              onClick={clearWallpaper}
+              className={`h-20 rounded-[var(--radius-control)] border flex flex-col items-center justify-center gap-1 text-xs transition cursor-pointer ${
+                !wallpaperUrl
+                  ? 'border-[var(--accent-text)] bg-[var(--accent-tint)] font-semibold text-[var(--accent-text)]'
+                  : 'border-[var(--border)] bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--text)]'
+              }`}
+            >
+              <X className="w-4 h-4" />
+              <span>None</span>
+            </button>
+
+            {/* Media images */}
+            {mediaImages.map((m) => {
+              const isSelected = wallpaperUrl === m.url;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => m.url && setWallpaper(m.url)}
+                  className={`h-20 rounded-[var(--radius-control)] border relative overflow-hidden group cursor-pointer transition ${
+                    isSelected
+                      ? 'border-[var(--accent-text)] ring-2 ring-[var(--accent-text)]/40 shadow-sm'
+                      : 'border-[var(--border)] hover:opacity-90'
+                  }`}
+                  title={m.name}
+                >
+                  <img
+                    src={m.url}
+                    alt={m.name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  {isSelected && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <div className="p-1 rounded-full bg-[var(--accent)] text-white">
+                        <Check className="w-3 h-3 stroke-[3]" />
+                      </div>
+                    </div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1">
+                    <p className="text-[10px] text-white truncate text-center">{m.name}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </Card>
 

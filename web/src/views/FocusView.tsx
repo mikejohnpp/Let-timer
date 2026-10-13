@@ -140,7 +140,9 @@ export const FocusView: React.FC<FocusViewProps> = ({
   const isPaused = snapshot.state === 'paused';
   const isOvertime = timerInfo.mode === 'overtime';
   const hasImageBg = images.length > 0;
-  const activeImage = hasImageBg ? images[currentImageIndex]?.url : null;
+  const appWallpaper = localStorage.getItem('let_timer_wallpaper');
+  const effectiveBg = hasImageBg ? (images[currentImageIndex]?.url || null) : appWallpaper;
+  const hasAnyBg = Boolean(effectiveBg);
 
   const handleLifecycle = async (action: 'pause' | 'resume' | 'done') => {
     try {
@@ -192,15 +194,15 @@ export const FocusView: React.FC<FocusViewProps> = ({
   return (
     <div className="relative min-h-[calc(100vh-var(--header-h))] w-full overflow-hidden flex flex-col justify-between p-6 sm:p-12 select-none">
       {/* Layer 0: Background Photo */}
-      {hasImageBg && activeImage && (
+      {hasAnyBg && effectiveBg && (
         <div
           className="absolute inset-0 bg-cover bg-center transition-all duration-1000 z-0"
-          style={{ backgroundImage: `url(${activeImage})` }}
+          style={{ backgroundImage: `url(${effectiveBg})` }}
         />
       )}
 
       {/* Layer 1: 65% Black Overlay (when image is present) */}
-      {hasImageBg && (
+      {hasAnyBg && (
         <div className="absolute inset-0 bg-[var(--imm-overlay)] z-1 pointer-events-none" />
       )}
 
@@ -212,7 +214,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
       >
         <span
           className={`text-xs uppercase tracking-widest font-semibold ${
-            hasImageBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'
+            hasAnyBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'
           }`}
         >
           {snapshot.workspace_name}
@@ -227,14 +229,14 @@ export const FocusView: React.FC<FocusViewProps> = ({
             isOvertime
               ? 'text-[var(--over-text)]'
               : isPaused
-              ? hasImageBg
+              ? hasAnyBg
                 ? 'text-[var(--imm-muted)]'
                 : 'text-[var(--muted)]'
-              : hasImageBg
+              : hasAnyBg
               ? 'text-[var(--imm-text)]'
               : 'text-[var(--accent-text)]'
           }`}
-          style={hasImageBg ? { textShadow: '0 2px 10px rgba(0,0,0,0.5)' } : undefined}
+          style={hasAnyBg ? { textShadow: '0 2px 10px rgba(0,0,0,0.5)' } : undefined}
         >
           {timerInfo.display}
         </div>
@@ -242,7 +244,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
         {/* Task Name */}
         <h1
           className={`font-serif text-2xl sm:text-3xl md:text-4xl font-bold mt-4 max-w-2xl px-4 ${
-            hasImageBg ? 'text-[var(--imm-text)]' : 'text-[var(--text)]'
+            hasAnyBg ? 'text-[var(--imm-text)]' : 'text-[var(--text)]'
           }`}
         >
           {snapshot.task.name}
@@ -251,7 +253,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
         {snapshot.task.description && (
           <p
             className={`text-xs sm:text-sm mt-2 max-w-lg truncate ${
-              hasImageBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'
+              hasAnyBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'
             }`}
           >
             {snapshot.task.description}
@@ -278,7 +280,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
             <button
               onClick={() => handleLifecycle('pause')}
               className={`w-12 h-12 rounded-full border flex items-center justify-center transition cursor-pointer ${
-                hasImageBg
+                hasAnyBg
                   ? 'border-[var(--imm-muted)] text-[var(--imm-text)] hover:bg-white/10'
                   : 'border-[var(--border-strong)] text-[var(--text)] hover:bg-[var(--surface-hover)]'
               }`}
@@ -317,7 +319,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
           <button
             onClick={() => setPanelOpen(true)}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs backdrop-blur-sm transition cursor-pointer ${
-              hasImageBg
+              hasAnyBg
                 ? 'bg-black/40 border-white/20 text-[var(--imm-text)] hover:bg-black/60'
                 : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-hover)]'
             }`}
@@ -334,7 +336,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
 
         <div
           className={`text-[11px] ${
-            hasImageBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'
+            hasAnyBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'
           }`}
         >
           Space: pause • Tap to wake

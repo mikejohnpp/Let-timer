@@ -12,6 +12,7 @@ import { LoginView } from './views/LoginView';
 import { useEventStream } from './hooks/useEventStream';
 import { useHashRoute } from './hooks/useHashRoute';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
+import { useWallpaper } from './hooks/useWallpaper';
 import { getStoredToken } from './api/client';
 import { ToastProvider, ConfirmProvider, ErrorState } from './components/ui';
 
@@ -22,6 +23,7 @@ export const AppContent: React.FC = () => {
   const [route, navigate] = useHashRoute();
   const currentView = route.view;
   const [isStartPickerOpen, setIsStartPickerOpen] = useState(false);
+  const { wallpaperUrl } = useWallpaper();
 
   const { connectionStatus, snapshot, receivedAt, refetchSnapshot } = useEventStream();
 
@@ -103,8 +105,18 @@ export const AppContent: React.FC = () => {
   const isFocusView = currentView === 'focus';
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] transition-colors">
+    <div className="relative min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] transition-colors">
+      {wallpaperUrl && (
+        <div
+          className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center transition-all duration-700"
+          style={{ backgroundImage: `url(${wallpaperUrl})` }}
+        >
+          <div className="absolute inset-0 bg-[var(--bg-glass-overlay)] backdrop-blur-[2px]" />
+        </div>
+      )}
+
       <Header
+        className="relative z-10"
         currentView={currentView}
         onNavigate={navigate}
         snapshot={snapshot}
@@ -113,16 +125,18 @@ export const AppContent: React.FC = () => {
       />
 
       {!isFocusView && (
-        <TimerBar
-          snapshot={snapshot}
-          receivedAt={receivedAt}
-          onOpenFocus={() => navigate('focus')}
-          onOpenStartPicker={() => setIsStartPickerOpen(true)}
-          onActionComplete={refetchSnapshot}
-        />
+        <div className="relative z-10">
+          <TimerBar
+            snapshot={snapshot}
+            receivedAt={receivedAt}
+            onOpenFocus={() => navigate('focus')}
+            onOpenStartPicker={() => setIsStartPickerOpen(true)}
+            onActionComplete={refetchSnapshot}
+          />
+        </div>
       )}
 
-      <main className={`flex-1 ${!isFocusView ? 'pb-20 lg:pb-12' : ''}`}>
+      <main className={`relative z-10 flex-1 ${!isFocusView ? 'pb-20 lg:pb-12' : ''}`}>
         {currentView === 'today' && (
           <TodayView
             snapshot={snapshot}
@@ -145,6 +159,7 @@ export const AppContent: React.FC = () => {
 
       {!isFocusView && (
         <BottomTabBar
+          className="relative z-20"
           currentView={currentView}
           onNavigate={navigate}
         />
