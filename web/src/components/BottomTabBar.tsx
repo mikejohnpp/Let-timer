@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Target, Folder, Image, Settings } from 'lucide-react';
+import { Calendar, Target, Image, Settings } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { AppView } from '../hooks/useHashRoute';
 
@@ -13,7 +13,6 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({ currentView, onNavig
   const tabs: { view: AppView; label: string; icon: React.ReactNode }[] = [
     { view: 'today', label: 'Today', icon: <Calendar className="w-5 h-5" /> },
     { view: 'focus', label: 'Focus', icon: <Target className="w-5 h-5" /> },
-    { view: 'workspaces', label: 'Spaces', icon: <Folder className="w-5 h-5" /> },
     { view: 'media', label: 'Media', icon: <Image className="w-5 h-5" /> },
     { view: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
   ];

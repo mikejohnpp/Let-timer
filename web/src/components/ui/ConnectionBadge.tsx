@@ -1,27 +1,31 @@
-import React from 'react';
-import { Wifi, RefreshCw, WifiOff } from 'lucide-react';
+import { RefreshCw, WifiOff } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 export interface ConnectionBadgeProps {
   status: 'connected' | 'reconnecting' | 'disconnected';
+  borderless?: boolean;
   className?: string;
 }
 
-export const ConnectionBadge: React.FC<ConnectionBadgeProps> = ({ status, className }) => {
+export const ConnectionBadge: React.FC<ConnectionBadgeProps> = ({
+  status,
+  borderless = true,
+  className,
+}) => {
   const configs = {
     connected: {
-      icon: <Wifi className="w-3.5 h-3.5 text-[var(--success)]" />,
+      icon: <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse" />,
       label: 'Live',
-      textClass: 'text-[var(--text)]',
+      textClass: 'text-[var(--muted)]',
     },
     reconnecting: {
-      icon: <RefreshCw className="w-3.5 h-3.5 text-[var(--warning)] animate-spin" />,
+      icon: <RefreshCw className="w-3 h-3 text-[var(--warning)] animate-spin" />,
       label: 'Syncing',
       textClass: 'text-[var(--warning-text)]',
     },
     disconnected: {
-      icon: <WifiOff className="w-3.5 h-3.5 text-[var(--danger)]" />,
+      icon: <WifiOff className="w-3 h-3 text-[var(--danger)]" />,
       label: 'Offline',
       textClass: 'text-[var(--danger-text)]',
     },
@@ -33,13 +37,15 @@ export const ConnectionBadge: React.FC<ConnectionBadgeProps> = ({ status, classN
     <div
       className={twMerge(
         clsx(
-          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] text-xs font-medium',
+          borderless
+            ? 'inline-flex items-center gap-1.5 px-1.5 py-0.5 text-xs font-medium select-none'
+            : 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] text-xs font-medium',
           className
         )
       )}
     >
       {current.icon}
-      <span className={clsx('hidden xl:inline text-[11px]', current.textClass)}>{current.label}</span>
+      <span className={clsx('text-[11px]', current.textClass)}>{current.label}</span>
     </div>
   );
 };

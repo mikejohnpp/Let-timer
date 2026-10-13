@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
+import { TimerBar } from './components/TimerBar';
 import { BottomTabBar } from './components/BottomTabBar';
 import { StartPickerModal } from './components/StartPickerModal';
 import { TodayView } from './views/TodayView';
@@ -118,15 +119,10 @@ export const AppContent: React.FC = () => {
         className="relative z-10"
         currentView={currentView}
         onNavigate={navigate}
-        snapshot={snapshot}
-        receivedAt={receivedAt}
-        onOpenFocus={() => navigate('focus')}
-        onOpenStartPicker={() => setIsStartPickerOpen(true)}
-        onActionComplete={refetchSnapshot}
         connectionStatus={connectionStatus}
       />
 
-      <main className={`relative z-10 flex-1 ${!isFocusView ? 'pb-20 lg:pb-12' : ''}`}>
+      <main className={`relative z-10 flex-1 ${!isFocusView ? 'pb-24 lg:pb-16' : ''}`}>
         {currentView === 'today' && (
           <TodayView
             snapshot={snapshot}
@@ -146,6 +142,19 @@ export const AppContent: React.FC = () => {
         {currentView === 'media' && <MediaView />}
         {currentView === 'settings' && <SettingsView />}
       </main>
+
+      {/* Floating Bottom Timer Island (Visible when running/paused, hidden when idle or in Focus) */}
+      {snapshot && snapshot.state !== 'idle' && !isFocusView && (
+        <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <TimerBar
+            snapshot={snapshot}
+            receivedAt={receivedAt}
+            onOpenFocus={() => navigate('focus')}
+            onOpenStartPicker={() => setIsStartPickerOpen(true)}
+            onActionComplete={refetchSnapshot}
+          />
+        </div>
+      )}
 
       {!isFocusView && (
         <BottomTabBar

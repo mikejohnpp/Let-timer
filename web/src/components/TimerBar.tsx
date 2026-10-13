@@ -163,15 +163,9 @@ export const TimerBar: React.FC<TimerBarProps> = ({
 
   if (!snapshot || snapshot.state === 'idle') {
     return (
-      <div className="flex items-center gap-2 text-[var(--muted)] text-xs select-none">
-        <span className="text-[11px] opacity-75">Nothing running</span>
-        <button
-          onClick={onOpenStartPicker}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] transition cursor-pointer font-medium text-xs border border-[var(--border)] hover:border-[var(--border-strong)]"
-        >
-          <Play className="w-3 h-3 fill-current text-[var(--accent-text)]" />
-          <span>Start a task…</span>
-        </button>
+      <div className="sr-only" aria-hidden="true">
+        <span>Nothing running</span>
+        <button onClick={onOpenStartPicker}>Start a task…</button>
       </div>
     );
   }
@@ -182,12 +176,12 @@ export const TimerBar: React.FC<TimerBarProps> = ({
 
   return (
     <div
-      className={`flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-1 rounded-full border transition-all duration-200 select-none shadow-xs ${
+      className={`flex items-center gap-2.5 sm:gap-3 px-3.5 sm:px-4 py-1.5 rounded-full border transition-all duration-300 select-none shadow-xl backdrop-blur-md ${
         isOvertime
-          ? 'bg-[var(--over-bg)] border-[var(--timer-over)]'
+          ? 'bg-[var(--over-bg)]/95 border-[var(--timer-over)]'
           : isPaused
-          ? 'bg-[var(--surface-hover)] border-[var(--border)]'
-          : 'bg-[var(--surface)] border-[var(--border-strong)]/30'
+          ? 'bg-[var(--surface-hover)]/95 border-[var(--border)]'
+          : 'bg-[var(--surface)]/90 border-[var(--border-strong)]/30'
       }`}
     >
       <LiveRegion message={liveAnnouncement} role={liveRole} />
