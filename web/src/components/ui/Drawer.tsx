@@ -29,10 +29,10 @@ export const Drawer: React.FC<DrawerProps> = ({
           className={twMerge(
             clsx(
               'fixed z-50 bg-[var(--surface)] border-[var(--border)] shadow-xl flex flex-col outline-none transition ease-out duration-200',
-              // Desktop: right drawer
-              'sm:inset-y-0 sm:right-0 sm:w-full sm:max-w-md sm:border-l sm:h-full',
-              // Mobile: bottom sheet
-              'inset-x-0 bottom-0 max-h-[90vh] border-t rounded-t-[var(--radius-modal)] sm:rounded-none',
+              // Base (mobile bottom sheet):
+              'inset-x-0 bottom-0 max-h-[92vh] border-t rounded-t-[var(--radius-modal)]',
+              // Desktop (right-side drawer, 100% full viewport height):
+              'sm:inset-y-0 sm:top-0 sm:bottom-0 sm:right-0 sm:left-auto sm:h-screen sm:max-h-none sm:w-full sm:max-w-md sm:border-l sm:border-t-0 sm:rounded-none',
               className
             )
           )}
