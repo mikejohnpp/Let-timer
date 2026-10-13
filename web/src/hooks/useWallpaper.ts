@@ -31,13 +31,20 @@ export function useWallpaper(): WallpaperState {
   useEffect(() => {
     if (wallpaperUrl) {
       document.documentElement.setAttribute('data-has-wallpaper', 'true');
+      if (dynamicColor && !extractedColor) {
+        extractDominantColor(wallpaperUrl).then((color) => {
+          localStorage.setItem('let_timer_extracted_color', color);
+          setExtractedColor(color);
+          applyDynamicPalette(color);
+        });
+      }
     } else {
       document.documentElement.removeAttribute('data-has-wallpaper');
     }
 
     if (dynamicColor && extractedColor) {
       applyDynamicPalette(extractedColor);
-    } else {
+    } else if (!dynamicColor) {
       applyDynamicPalette(null);
     }
   }, [wallpaperUrl, dynamicColor, extractedColor]);
@@ -55,7 +62,18 @@ export function useWallpaper(): WallpaperState {
     });
 
     observer.observe(document.documentElement, { attributes: true });
-    return () => observer.disconnect();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleMediaChange = () => {
+      if (dynamicColor && extractedColor) {
+        applyDynamicPalette(extractedColor);
+      }
+    };
+    mediaQuery.addEventListener('change', handleMediaChange);
+
+    return () => {
+      observer.disconnect();
+      mediaQuery.removeEventListener('change', handleMediaChange);
+    };
   }, [dynamicColor, extractedColor]);
 
   const setWallpaper = useCallback(
@@ -135,3 +153,4 @@ export function useWallpaper(): WallpaperState {
     clearWallpaper,
   };
 }
+

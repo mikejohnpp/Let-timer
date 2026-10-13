@@ -17,12 +17,16 @@ describe('palette color utilities', () => {
     expect(hexToRgb('invalid')).toBeNull();
   });
 
-  it('generates WCAG AA compliant palette for light mode', () => {
+  it('generates full WCAG AA compliant palette for light mode', () => {
     const colors = ['#e11d48', '#2563eb', '#16a34a', '#ca8a04', '#9333ea'];
-    const lightBg = '#ffffff';
 
     for (const color of colors) {
       const palette = generateDynamicPalette(color, false);
+      expect(palette.bg).toBeDefined();
+      expect(palette.surface).toBeDefined();
+      expect(palette.surfaceHover).toBeDefined();
+      expect(palette.border).toBeDefined();
+      expect(palette.borderStrong).toBeDefined();
       expect(palette.accent).toBeDefined();
       expect(palette.onAccent).toBe('#ffffff');
 
@@ -31,23 +35,43 @@ describe('palette color utilities', () => {
       expect(buttonContrast).toBeGreaterThanOrEqual(4.5);
 
       // Accent text on light surface: must pass AA (>= 4.5:1)
-      const textContrast = contrastRatio(palette.accentText, lightBg);
-      expect(textContrast).toBeGreaterThanOrEqual(4.5);
+      const accentTextContrast = contrastRatio(palette.accentText, palette.surface);
+      expect(accentTextContrast).toBeGreaterThanOrEqual(4.5);
+
+      // Main text on surface: must pass AAA (>= 7.0:1)
+      const textContrast = contrastRatio(palette.text, palette.surface);
+      expect(textContrast).toBeGreaterThanOrEqual(7.0);
+
+      // Muted text on surface: must pass AA (>= 4.5:1)
+      const mutedContrast = contrastRatio(palette.muted, palette.surface);
+      expect(mutedContrast).toBeGreaterThanOrEqual(4.5);
     }
   });
 
-  it('generates WCAG AA compliant palette for dark mode', () => {
+  it('generates full WCAG AA compliant palette for dark mode', () => {
     const colors = ['#e11d48', '#2563eb', '#16a34a', '#ca8a04', '#9333ea'];
-    const darkBg = '#0b0f19';
 
     for (const color of colors) {
       const palette = generateDynamicPalette(color, true);
+      expect(palette.bg).toBeDefined();
+      expect(palette.surface).toBeDefined();
+      expect(palette.surfaceHover).toBeDefined();
+      expect(palette.border).toBeDefined();
+      expect(palette.borderStrong).toBeDefined();
       expect(palette.accent).toBeDefined();
       expect(palette.onAccent).toBe('#ffffff');
 
-      // Accent text on dark background: must pass AA (>= 4.5:1)
-      const textContrast = contrastRatio(palette.accentText, darkBg);
-      expect(textContrast).toBeGreaterThanOrEqual(4.5);
+      // Accent text on dark surface/bg: must pass AA (>= 4.5:1)
+      const accentTextContrast = contrastRatio(palette.accentText, palette.bg);
+      expect(accentTextContrast).toBeGreaterThanOrEqual(4.5);
+
+      // Main text on surface: must pass AAA (>= 7.0:1)
+      const textContrast = contrastRatio(palette.text, palette.surface);
+      expect(textContrast).toBeGreaterThanOrEqual(7.0);
+
+      // Muted text on surface: must pass AA (>= 4.5:1)
+      const mutedContrast = contrastRatio(palette.muted, palette.surface);
+      expect(mutedContrast).toBeGreaterThanOrEqual(4.5);
     }
   });
 });

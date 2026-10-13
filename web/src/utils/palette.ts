@@ -2,14 +2,23 @@ import { contrastRatio } from './contrast';
 
 /**
  * Color extraction & WCAG-compliant dynamic palette generator.
+ * Harmonizes the entire application color scheme from an image.
  */
 
 export interface DynamicTokens {
+  bg: string;
+  surface: string;
+  surfaceHover: string;
+  border: string;
+  borderStrong: string;
+  text: string;
+  muted: string;
   accent: string;
   accentHover: string;
   accentText: string;
   accentTint: string;
   onAccent: string;
+  bgGlassOverlay: string;
 }
 
 // Convert RGB to HSL
@@ -92,7 +101,7 @@ function calibrateLightness(
 ): string {
   let l = startL;
   const step = direction === 'darken' ? -1 : 1;
-  const limit = direction === 'darken' ? 5 : 95;
+  const limit = direction === 'darken' ? 4 : 96;
 
   while (direction === 'darken' ? l >= limit : l <= limit) {
     const hex = hslToHex(h, s, l);
@@ -105,52 +114,84 @@ function calibrateLightness(
 }
 
 /**
- * Generate WCAG AA compliant theme tokens based on a dominant color.
+ * Generate a complete, cohesive WCAG AA/AAA theme palette based on a dominant image color.
  */
 export function generateDynamicPalette(hexColor: string, isDark: boolean): DynamicTokens {
   const rgb = hexToRgb(hexColor) || [79, 70, 229]; // fallback indigo
   const [h, s] = rgbToHsl(rgb[0], rgb[1], rgb[2]);
 
   // Ensure decent saturation for brand identity
-  const sat = Math.max(40, Math.min(s, 85));
+  const sat = Math.max(35, Math.min(s, 85));
 
   if (isDark) {
-    // Dark mode:
-    // Background is dark (#0b0f19)
-    // 1. Accent text must be readable on dark background (>= 4.5:1)
-    const accentText = calibrateLightness(h, sat, 60, '#0b0f19', 4.5, 'lighten');
+    // ─── Dark Mode Palette ──────────────────────────────────────────
+    // Subtle chromatic tint on deep dark surfaces
+    const bg = hslToHex(h, 20, 7);
+    const surface = hslToHex(h, 22, 11);
+    const surfaceHover = hslToHex(h, 24, 17);
+    const border = hslToHex(h, 22, 20);
+    const borderStrong = hslToHex(h, 26, 45);
 
-    // 2. Button background: white on accent must pass (>= 4.5:1)
+    // Text guarantees high readability on dark surface
+    const text = calibrateLightness(h, 14, 95, surface, 7.0, 'lighten');
+    const muted = calibrateLightness(h, 15, 64, surface, 4.5, 'lighten');
+
+    // Vibrant accent tokens
     const accent = calibrateLightness(h, sat, 45, '#ffffff', 4.5, 'darken');
     const rgbAccent = hexToRgb(accent) || [79, 70, 229];
     const [, , lAccent] = rgbToHsl(...rgbAccent);
     const accentHover = hslToHex(h, sat, Math.min(lAccent + 6, 85));
+    const accentText = calibrateLightness(h, sat, 68, bg, 4.5, 'lighten');
 
     return {
+      bg,
+      surface,
+      surfaceHover,
+      border,
+      borderStrong,
+      text,
+      muted,
       accent,
       accentHover,
       accentText,
-      accentTint: `hsla(${h}, ${sat}%, 45%, 0.18)`,
+      accentTint: `hsla(${h}, ${sat}%, 45%, 0.20)`,
       onAccent: '#ffffff',
+      bgGlassOverlay: `hsla(${h}, 22%, 7%, 0.60)`,
     };
   } else {
-    // Light mode:
-    // Background/Surface is light (#ffffff)
-    // 1. Accent text must be readable on white surface (>= 4.5:1)
-    const accentText = calibrateLightness(h, sat, 40, '#ffffff', 4.5, 'darken');
+    // ─── Light Mode Palette ─────────────────────────────────────────
+    // Subtle chromatic tint on clean bright surfaces
+    const bg = hslToHex(h, 12, 97);
+    const surface = hslToHex(h, 14, 99);
+    const surfaceHover = hslToHex(h, 16, 93);
+    const border = hslToHex(h, 18, 86);
+    const borderStrong = hslToHex(h, 25, 55);
 
-    // 2. Button background: white text on accent must pass (>= 4.5:1)
-    const accent = calibrateLightness(h, sat, 40, '#ffffff', 4.5, 'darken');
+    // Text guarantees high readability on bright surface
+    const text = calibrateLightness(h, 25, 11, surface, 7.0, 'darken');
+    const muted = calibrateLightness(h, 18, 40, surface, 4.5, 'darken');
+
+    // Vibrant accent tokens
+    const accent = calibrateLightness(h, sat, 35, '#ffffff', 4.5, 'darken');
     const rgbAccent = hexToRgb(accent) || [79, 70, 229];
     const [, , lAccent] = rgbToHsl(...rgbAccent);
     const accentHover = hslToHex(h, sat, Math.max(lAccent - 5, 10));
+    const accentText = calibrateLightness(h, sat, 30, surface, 4.5, 'darken');
 
     return {
+      bg,
+      surface,
+      surfaceHover,
+      border,
+      borderStrong,
+      text,
+      muted,
       accent,
       accentHover,
       accentText,
-      accentTint: `hsla(${h}, ${sat}%, 35%, 0.12)`,
+      accentTint: `hsla(${h}, ${sat}%, 35%, 0.14)`,
       onAccent: '#ffffff',
+      bgGlassOverlay: `hsla(${h}, 15%, 96%, 0.65)`,
     };
   }
 }
@@ -233,17 +274,31 @@ export async function extractDominantColor(imageUrl: string): Promise<string> {
   });
 }
 
+const DYNAMIC_CSS_VARS = [
+  '--bg',
+  '--surface',
+  '--surface-hover',
+  '--border',
+  '--border-strong',
+  '--text',
+  '--muted',
+  '--accent',
+  '--accent-hover',
+  '--accent-text',
+  '--accent-tint',
+  '--on-accent',
+  '--bg-glass-overlay',
+];
+
 /**
- * Apply or reset dynamic palette in DOM.
+ * Apply or reset dynamic palette across the entire application DOM.
  */
 export function applyDynamicPalette(hexColor: string | null) {
   const root = document.documentElement;
   if (!hexColor) {
-    root.style.removeProperty('--accent');
-    root.style.removeProperty('--accent-hover');
-    root.style.removeProperty('--accent-text');
-    root.style.removeProperty('--accent-tint');
-    root.style.removeProperty('--on-accent');
+    for (const v of DYNAMIC_CSS_VARS) {
+      root.style.removeProperty(v);
+    }
     root.removeAttribute('data-dynamic-palette');
     return;
   }
@@ -256,10 +311,19 @@ export function applyDynamicPalette(hexColor: string | null) {
 
   const tokens = generateDynamicPalette(hexColor, isDark);
 
+  root.style.setProperty('--bg', tokens.bg);
+  root.style.setProperty('--surface', tokens.surface);
+  root.style.setProperty('--surface-hover', tokens.surfaceHover);
+  root.style.setProperty('--border', tokens.border);
+  root.style.setProperty('--border-strong', tokens.borderStrong);
+  root.style.setProperty('--text', tokens.text);
+  root.style.setProperty('--muted', tokens.muted);
   root.style.setProperty('--accent', tokens.accent);
   root.style.setProperty('--accent-hover', tokens.accentHover);
   root.style.setProperty('--accent-text', tokens.accentText);
   root.style.setProperty('--accent-tint', tokens.accentTint);
   root.style.setProperty('--on-accent', tokens.onAccent);
+  root.style.setProperty('--bg-glass-overlay', tokens.bgGlassOverlay);
+
   root.setAttribute('data-dynamic-palette', 'true');
 }
