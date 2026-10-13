@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  rust-check:
+    name: Rust (Format, Clippy, Tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check Formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy Linter
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run Tests
+        run: cargo test --workspace
+
+      - name: Check OpenAPI Drift
+        run: |
+          cargo run -p let-timer-http --bin gen-openapi
+          git diff --exit-code web/openapi.json || (echo "web/openapi.json has uncommitted changes. Run 'cargo run -p let-timer-http --bin gen-openapi' and commit the result." && exit 1)
+
+  web-check:
+    name: Web App (Lint, Test, Build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript Lint
+        run: npm run lint
+
+      - name: Run Tests
+        run: npm run test
+
+      - name: Production Build
+        run: npm run build

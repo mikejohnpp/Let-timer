@@ -18,3 +18,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 let-timer-http = { path = "../let-timer-http" }
 axum = { workspace = true }
+
+[features]
+default = []
+embed-web = ["let-timer-http/embed-web"]

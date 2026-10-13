@@ -68,6 +68,7 @@ where
                 || path == "/api/v1/auth/login"
                 || path == "/api/v1/openapi.json"
                 || path.starts_with("/swagger-ui")
+                || !path.starts_with("/api")
             {
                 return inner.call(req).await;
             }

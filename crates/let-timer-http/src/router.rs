@@ -108,7 +108,86 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         // Middlewares
         .layer(AuthLayer::new(Arc::clone(&state)))
         .layer(cors)
+        .fallback(static_or_spa_handler)
         .with_state(state)
+}
+
+#[cfg(feature = "embed-web")]
+#[derive(rust_embed::RustEmbed)]
+#[folder = "../../web/dist"]
+struct WebAssets;
+
+async fn static_or_spa_handler(uri: axum::http::Uri) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let path = uri.path().trim_start_matches('/');
+
+    // 1. Check disk directory override if LET_TIMER_WEB_DIR is set
+    if let Ok(web_dir) = std::env::var("LET_TIMER_WEB_DIR") {
+        let dir_path = std::path::Path::new(&web_dir);
+        let file_path = if path.is_empty() {
+            dir_path.join("index.html")
+        } else {
+            dir_path.join(path)
+        };
+
+        if file_path.is_file() {
+            return serve_file_from_disk(&file_path).await;
+        }
+
+        // SPA fallback: index.html
+        let index_path = dir_path.join("index.html");
+        if index_path.is_file() {
+            return serve_file_from_disk(&index_path).await;
+        }
+    }
+
+    // 2. Embedded assets
+    #[cfg(feature = "embed-web")]
+    {
+        let asset_path = if path.is_empty() { "index.html" } else { path };
+
+        if let Some(file) = WebAssets::get(asset_path) {
+            return serve_embedded_file(asset_path, file);
+        }
+
+        // SPA fallback to index.html
+        if let Some(file) = WebAssets::get("index.html") {
+            return serve_embedded_file("index.html", file);
+        }
+    }
+
+    (axum::http::StatusCode::NOT_FOUND, "Not Found").into_response()
+}
+
+async fn serve_file_from_disk(path: &std::path::Path) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    match std::fs::read(path) {
+        Ok(bytes) => {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+            ([(axum::http::header::CONTENT_TYPE, mime.as_ref())], bytes).into_response()
+        }
+        Err(_) => (axum::http::StatusCode::NOT_FOUND, "Not Found").into_response(),
+    }
+}
+
+#[cfg(feature = "embed-web")]
+fn serve_embedded_file(path: &str, file: rust_embed::EmbeddedFile) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let mime = mime_guess::from_path(path).first_or_octet_stream();
+    let cache_control = if path == "index.html" || path.ends_with(".html") {
+        "no-cache"
+    } else {
+        "public, max-age=31536000, immutable"
+    };
+
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, mime.as_ref()),
+            (axum::http::header::CACHE_CONTROL, cache_control),
+        ],
+        file.data,
+    )
+        .into_response()
 }
 
 #[cfg(test)]

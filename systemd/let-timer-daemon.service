@@ -1,13 +1,18 @@
 [Unit]
 Description=Let-timer background task manager and timer daemon
 Documentation=https://github.com/mikejohnpp/Let-timer
-After=default.target
+After=network.target
 
 [Service]
 Type=simple
 ExecStart=%h/.cargo/bin/let-timer-daemon
 Restart=on-failure
 RestartSec=5s
+Environment=RUST_LOG=info
+# Optional server mode configuration:
+# Environment=LET_TIMER_HTTP=127.0.0.1:8765
+# Environment=LET_TIMER_NOTIFY=desktop
+# Environment=LET_TIMER_TIMEZONE=UTC
 
 [Install]
 WantedBy=default.target

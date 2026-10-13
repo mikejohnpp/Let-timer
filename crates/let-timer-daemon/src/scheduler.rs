@@ -132,6 +132,7 @@ mod tests {
     use super::*;
     use let_timer_core::{NewTask, Priority, RecordingNotifier, UpdateTask};
 
+    #[allow(clippy::type_complexity)]
     fn setup_scheduler() -> (
         Arc<Mutex<Database>>,
         Arc<RecordingNotifier>,

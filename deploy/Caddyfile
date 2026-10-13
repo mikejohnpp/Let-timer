@@ -1,0 +1,17 @@
+{$DOMAIN:localhost} {
+    # Encode responses (gzip, zstd)
+    encode gzip zstd
+
+    # Security Headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+
+    # Reverse proxy to Let-timer daemon with SSE flush_interval -1
+    reverse_proxy let-timer:8765 {
+        flush_interval -1
+    }
+}

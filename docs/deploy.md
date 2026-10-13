@@ -1,0 +1,159 @@
+# Deploying Let-timer Server & Web App
+
+This guide walks you through deploying Let-timer on a VPS or cloud server with Docker Compose and Caddy (auto-HTTPS), or via systemd on bare-metal.
+
+---
+
+## 1. Quick Start with Docker Compose (Recommended)
+
+### Prerequisites
+
+- A Linux server (Debian/Ubuntu, Rocky, Arch, etc.) with Docker and Docker Compose installed.
+- A domain or subdomain pointed to your server's public IP (e.g. `timer.example.com`).
+- Ports `80` and `443` open in your firewall.
+
+### Step 1: Clone Repository and Setup Environment
+
+```bash
+git clone https://github.com/mikejohnpp/Let-timer.git
+cd Let-timer/deploy
+
+cp .env.example .env
+nano .env
+```
+
+Set your configuration in `.env`:
+
+```env
+DOMAIN=timer.example.com
+LET_TIMER_BOOTSTRAP_TOKEN=your-random-secret-token-here
+LET_TIMER_TIMEZONE=Asia/Ho_Chi_Minh
+LET_TIMER_NOTIFY=ntfy
+LET_TIMER_NTFY_URL=https://ntfy.sh/my-private-topic
+```
+
+### Step 2: Start the Containers
+
+```bash
+docker compose up -d
+```
+
+Caddy automatically provisions a free Let's Encrypt TLS certificate for your domain and proxies HTTP/WebSocket/SSE traffic to Let-timer with zero manual configuration.
+
+### Step 3: Create an API Token for Your Devices
+
+If you didn't set a bootstrap token or want an additional named token:
+
+```bash
+docker compose exec let-timer let-timer-daemon token create laptop
+```
+
+This will print a secure token once:
+
+```text
+Created token 'laptop':
+lt_tok_9a8b7c6d5e4f3a2b1c...
+```
+
+### Step 4: Connect from the Web App and Remote CLI
+
+1. **Web App**: Visit `https://timer.example.com` in your browser. Paste your token to log in. You can also install it as a PWA on iOS/Android or desktop.
+2. **CLI**: On your laptop, configure the remote server profile:
+
+```bash
+let-timer server add vps https://timer.example.com --token-stdin
+# Paste the token when prompted
+
+# Switch your CLI to talk to the VPS
+let-timer server use vps
+
+# All daily commands now interact seamlessly with your VPS server!
+let-timer tasks list
+let-timer tasks start
+let-timer tasks current
+```
+
+---
+
+## 2. Upgrades and Maintenance
+
+### Upgrading to New Releases
+
+```bash
+cd Let-timer/deploy
+
+# 1. Automatic pre-upgrade DB backup
+docker compose exec let-timer cp /data/let-timer.db "/data/let-timer.db.bak.$(date +%Y%m%d%H%M%S)"
+
+# 2. Pull new images and restart
+docker compose pull
+docker compose up -d
+```
+
+Database migrations run automatically on startup via `PRAGMA user_version` and are transactional.
+
+---
+
+## 3. Backups and Disaster Recovery
+
+### Local Backup
+
+To create an ad-hoc snapshot:
+
+```bash
+docker compose exec let-timer sqlite3 /data/let-timer.db ".backup '/data/backup-$(date +%Y%m%d).db'"
+```
+
+### Continuous S3 / R2 Replication (Litestream)
+
+To enable automatic continuous replication to Cloudflare R2 or AWS S3:
+
+1. Configure `LITESTREAM_*` in `deploy/.env`.
+2. Start the backup profile:
+
+```bash
+docker compose --profile backup up -d
+```
+
+### Restore Drill
+
+To restore from a Litestream replica:
+
+```bash
+docker compose run --rm litestream restore -o /data/let-timer.db /data/let-timer.db
+docker compose up -d let-timer
+```
+
+---
+
+## 4. Bare-Metal Deployment with Systemd
+
+If you prefer running without Docker:
+
+1. Build the release binaries:
+
+```bash
+cargo build --release --bin let-timer-daemon --bin let-timer --features let-timer-daemon/embed-web
+sudo cp target/release/let-timer-daemon /usr/local/bin/
+sudo cp target/release/let-timer /usr/local/bin/
+```
+
+2. Copy the systemd service file:
+
+```bash
+cp systemd/let-timer-daemon.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now let-timer-daemon
+```
+
+3. Configure reverse proxy (Caddy / Nginx) to forward to `http://127.0.0.1:8765`. For Caddy, ensure `flush_interval -1` is configured for SSE streams.
+
+---
+
+## 5. Security Checklist
+
+- [x] **No root execution**: Containers run as non-root user `let-timer (uid 1000)`.
+- [x] **Read-only rootfs**: All state is confined to `/data`.
+- [x] **Tokens hashed at rest**: Tokens are salted and hashed (SHA-256) in the SQLite database and shown only once.
+- [x] **Minimal firewall surface**: Only ports 80/443 exposed publicly; daemon port 8765 is internal to the Docker network.
+- [x] **SSE connection flush**: Caddy proxy config flushes chunks immediately (`flush_interval -1`).
