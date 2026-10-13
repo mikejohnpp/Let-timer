@@ -230,6 +230,7 @@ mod tests {
             description: None,
             url: "file:///sound.mp3".to_string(),
             media_type: MediaType::Music,
+            content: None,
         })
         .unwrap()
     }

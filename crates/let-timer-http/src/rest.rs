@@ -950,6 +950,7 @@ pub async fn create_media(
         description: dto.description,
         url: dto.url,
         media_type,
+        content: dto.content,
     };
 
     match execute_command(&state, &headers, Command::CreateMedia(new_media)).await {

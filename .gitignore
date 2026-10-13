@@ -23,3 +23,6 @@ AGENTS.md
 
 .devenv
 web/.design/
+web/node_modules/
+web/dist/
+*.tsbuildinfo

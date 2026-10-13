@@ -145,5 +145,24 @@ fn extract_token<B>(req: &Request<B>) -> Option<String> {
         return Some(custom_str.trim().to_string());
     }
 
+    if let Some(cookie_val) = req.headers().get("Cookie")
+        && let Ok(cookie_str) = cookie_val.to_str()
+    {
+        for part in cookie_str.split(';') {
+            let part = part.trim();
+            if let Some(val) = part.strip_prefix("let_timer_token=") {
+                return Some(val.to_string());
+            }
+        }
+    }
+
+    if let Some(query) = req.uri().query() {
+        for part in query.split('&') {
+            if let Some(val) = part.strip_prefix("token=") {
+                return Some(val.to_string());
+            }
+        }
+    }
+
     None
 }

@@ -182,6 +182,7 @@ pub struct Media {
     pub description: Option<String>,
     pub url: String,
     pub media_type: MediaType,
+    pub content: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -193,15 +194,27 @@ pub struct NewMedia {
     pub description: Option<String>,
     pub url: String,
     pub media_type: MediaType,
+    pub content: Option<String>,
 }
 
 /// Fields that can be updated on an existing media entry.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateMedia {
     pub name: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "double_option"
+    )]
     pub description: Option<Option<String>>,
     pub url: Option<String>,
     pub media_type: Option<MediaType>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "double_option"
+    )]
+    pub content: Option<Option<String>>,
 }
 
 // ─── MediaList ───────────────────────────────────────────────────────

@@ -1,0 +1,83 @@
+:root {
+  /* Light Theme */
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+
+  /* Timer Semantic States */
+  --timer-run: #0284c7;     /* Sky/Blue: active running */
+  --timer-pause: #eab308;   /* Yellow/Amber: paused */
+  --timer-over: #f97316;    /* Amber/Orange: overtime (calm question, NOT error red) */
+  --timer-done: #10b981;    /* Emerald/Green */
+
+  /* Status Colors */
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+}
+
+[data-theme="dark"],
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0f19;
+    --surface: #111827;
+    --surface-hover: #1f2937;
+    --border: #1f293d;
+    --text: #f9fafb;
+    --muted: #9ca3af;
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+
+    --timer-run: #38bdf8;
+    --timer-pause: #fde047;
+    --timer-over: #fb923c;
+    --timer-done: #34d399;
+
+    --danger: #f87171;
+    --success: #34d399;
+    --warning: #fbbf24;
+  }
+}
+
+[data-theme="dark"] {
+  --bg: #0b0f19;
+  --surface: #111827;
+  --surface-hover: #1f2937;
+  --border: #1f293d;
+  --text: #f9fafb;
+  --muted: #9ca3af;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+
+  --timer-run: #38bdf8;
+  --timer-pause: #fde047;
+  --timer-over: #fb923c;
+  --timer-done: #34d399;
+
+  --danger: #f87171;
+  --success: #34d399;
+  --warning: #fbbf24;
+}
+
+/* Tabular digits for timers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Screen reader only utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

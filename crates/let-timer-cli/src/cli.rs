@@ -376,6 +376,9 @@ pub enum MediaCommand {
         media_type: Option<String>,
         #[arg(short, long)]
         description: Option<String>,
+        /// Inline content (e.g. poem text).
+        #[arg(short, long)]
+        content: Option<String>,
     },
     /// Delete a media item by id.
     Delete {
@@ -770,6 +773,7 @@ mod tests {
                     url: Some("http://example.com/a.mp3".into()),
                     media_type: Some("music".into()),
                     description: None,
+                    content: None,
                 }),
             ),
             (

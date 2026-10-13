@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS medias (
                         'music',
                         'poem'
                     )),
+    content         TEXT,
     created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -112,7 +113,7 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 ";
 
 /// Current schema version. Bump this whenever `migrate` needs a new step.
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 /// Wrapper around a `rusqlite::Connection` that handles opening the database
 /// file, creating the parent directory, running schema migrations, and
@@ -281,6 +282,11 @@ impl Database {
                     revoked_at   TEXT
                 );",
             )?;
+        }
+
+        if current < 4 {
+            // v4: `medias.content` for poem inline text
+            self.add_column_if_missing("medias", "content", "TEXT")?;
         }
 
         self.conn
@@ -565,12 +571,146 @@ mod tests {
             .unwrap();
         assert_eq!(active_ws, "1");
 
-        // Verify user_version is SCHEMA_VERSION (3)
+        // Verify user_version is SCHEMA_VERSION (4)
         let version: i64 = db
             .conn()
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
+
+        drop(db);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn migration_v3_to_v4_on_file_db() {
+        let dir =
+            std::env::temp_dir().join(format!("let-timer-migration-v4-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let path = dir.join("v3.db");
+
+        // 1. Create a schema v3 database directly using rusqlite
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE workspaces (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                 );
+                 CREATE TABLE medias (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     name TEXT NOT NULL,
+                     description TEXT,
+                     url TEXT NOT NULL,
+                     type TEXT NOT NULL CHECK (type in ('image', 'music', 'poem')),
+                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                 );
+                 CREATE TABLE media_list (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     name TEXT NOT NULL,
+                     description TEXT,
+                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                 );
+                 CREATE TABLE media_media_list (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     media_id INTEGER NOT NULL,
+                     media_list_id INTEGER NOT NULL,
+                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                 );
+                 CREATE TABLE tasks (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     workspace_id INTEGER NOT NULL,
+                     media_list_id INTEGER,
+                     name TEXT NOT NULL,
+                     description TEXT,
+                     priority INTEGER NOT NULL DEFAULT 0,
+                     status TEXT NOT NULL DEFAULT 'pending',
+                     estimated_mins INTEGER,
+                     scheduled_on TEXT,
+                     run_no INTEGER NOT NULL DEFAULT 0,
+                     notified_at TEXT,
+                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                 );
+                 CREATE TABLE task_sessions (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     task_id INTEGER NOT NULL,
+                     run_no INTEGER NOT NULL,
+                     started_at TEXT NOT NULL,
+                     ended_at TEXT,
+                     end_reason TEXT
+                 );
+                 CREATE TABLE settings (
+                     key TEXT PRIMARY KEY,
+                     value TEXT NOT NULL
+                 );
+                 CREATE TABLE api_tokens (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     name TEXT NOT NULL UNIQUE,
+                     token_hash TEXT NOT NULL UNIQUE,
+                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                     last_used_at TEXT,
+                     revoked_at TEXT
+                 );
+                 INSERT INTO workspaces (id, name) VALUES (1, 'Default');
+                 INSERT INTO settings (key, value) VALUES ('active_workspace_id', '1');
+                 INSERT INTO medias (id, name, description, url, type)
+                     VALUES (1, 'Sonnet 18', 'Shakespeare', 'urn:poem:18', 'poem');
+                 PRAGMA user_version = 3;",
+            )
+            .unwrap();
+        }
+
+        // 2. Open via Database wrapper -> triggers migration to v4
+        let db = Database::open(&path).expect("open and migrate v3 db");
+
+        // Verify user_version is 4
+        let version: i64 = db
+            .conn()
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 4);
+
+        // Verify content column exists in medias
+        let has_content: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('medias') WHERE name = 'content'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(has_content, 1);
+
+        // Verify existing media has NULL content
+        let existing_content: Option<String> = db
+            .conn()
+            .query_row("SELECT content FROM medias WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(existing_content, None);
+
+        // Verify we can update content
+        db.conn()
+            .execute(
+                "UPDATE medias SET content = 'Shall I compare thee to a summer''s day?' WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        let updated: Option<String> = db
+            .conn()
+            .query_row("SELECT content FROM medias WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            updated.as_deref(),
+            Some("Shall I compare thee to a summer's day?")
+        );
 
         drop(db);
         let _ = std::fs::remove_dir_all(&dir);
@@ -605,6 +745,9 @@ mod tests {
             "settings",
             "workspaces",
             "api_tokens",
+            "medias",
+            "media_list",
+            "media_media_list",
         ] {
             let get_info = |db: &Database| -> Vec<(i64, String, String, i64, Option<String>, i64)> {
                 let mut stmt = db

@@ -804,6 +804,7 @@ async fn build_command(
             url,
             media_type,
             description,
+            content,
         }) => {
             let name = match required(name, "media", "--name", no_interactive) {
                 Asked::Given(n) => n.to_string(),
@@ -842,11 +843,16 @@ async fn build_command(
                 None if no_interactive => None,
                 None => resolve_description()?,
             };
+            let content = match content {
+                Some(c) if !c.trim().is_empty() => Some(c.trim().to_string()),
+                _ => None,
+            };
             Ok(Command::CreateMedia(NewMedia {
                 name,
                 url,
                 media_type,
                 description,
+                content,
             }))
         }
         Commands::Media(MediaCommand::Delete { id }) => {

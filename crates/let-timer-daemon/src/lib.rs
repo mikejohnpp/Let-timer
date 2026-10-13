@@ -1249,6 +1249,7 @@ mod tests {
                 description: Some("Forest in morning light".into()),
                 url: "https://example.com/forest.jpg".into(),
                 media_type: MediaType::Image,
+                content: None,
             }))
             .await
             .unwrap();
@@ -1264,6 +1265,7 @@ mod tests {
                 description: None,
                 url: "https://example.com/beats.mp3".into(),
                 media_type: MediaType::Music,
+                content: None,
             }))
             .await
             .unwrap();
@@ -1278,6 +1280,7 @@ mod tests {
                 description: Some("Robert Frost poem".into()),
                 url: "https://example.com/poem.txt".into(),
                 media_type: MediaType::Poem,
+                content: Some("Two roads diverged in a yellow wood...".into()),
             }))
             .await
             .unwrap();

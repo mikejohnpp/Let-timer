@@ -21,6 +21,7 @@ impl<'a> MediaRepository<'a> {
             description: row.get("description")?,
             url: row.get("url")?,
             media_type: type_raw.parse().unwrap_or(MediaType::Image),
+            content: row.get("content")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })
@@ -54,12 +55,13 @@ impl<'a> MediaRepository<'a> {
 
     pub fn create(&self, new_media: &NewMedia) -> Result<Media, DbError> {
         self.conn.execute(
-            "INSERT INTO medias (name, description, url, type) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO medias (name, description, url, type, content) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![
                 new_media.name,
                 new_media.description,
                 new_media.url,
                 new_media.media_type.as_str(),
+                new_media.content,
             ],
         )?;
         let id = self.conn.last_insert_rowid();
@@ -96,6 +98,13 @@ impl<'a> MediaRepository<'a> {
             self.conn.execute(
                 "UPDATE medias SET type = ?1 WHERE id = ?2",
                 params![media_type.as_str(), id],
+            )?;
+        }
+
+        if let Some(ref content_opt) = update.content {
+            self.conn.execute(
+                "UPDATE medias SET content = ?1 WHERE id = ?2",
+                params![content_opt.as_deref(), id],
             )?;
         }
 
@@ -165,6 +174,7 @@ mod tests {
             description: Some("Ambient track".to_string()),
             url: "file:///sounds/focus-rain.mp3".to_string(),
             media_type: MediaType::Music,
+            content: None,
         }
     }
 
@@ -175,9 +185,55 @@ mod tests {
 
         let media = repo.create(&sample()).unwrap();
         assert_eq!(media.media_type, MediaType::Music);
+        assert_eq!(media.content, None);
 
         let fetched = repo.get_by_id(media.id).unwrap();
         assert_eq!(fetched.url, sample().url);
+    }
+
+    #[test]
+    fn create_poem_with_content_and_update_it() {
+        let db = setup();
+        let repo = MediaRepository::new(db.conn());
+
+        let poem = repo
+            .create(&NewMedia {
+                name: "The Road Not Taken".to_string(),
+                description: Some("Poem by Robert Frost".to_string()),
+                url: "urn:poem:frost".to_string(),
+                media_type: MediaType::Poem,
+                content: Some("Two roads diverged in a yellow wood...".to_string()),
+            })
+            .unwrap();
+        assert_eq!(
+            poem.content.as_deref(),
+            Some("Two roads diverged in a yellow wood...")
+        );
+
+        let updated = repo
+            .update(
+                poem.id,
+                &UpdateMedia {
+                    content: Some(Some("And sorry I could not travel both...".to_string())),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            updated.content.as_deref(),
+            Some("And sorry I could not travel both...")
+        );
+
+        let cleared = repo
+            .update(
+                poem.id,
+                &UpdateMedia {
+                    content: Some(None),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(cleared.content, None);
     }
 
     #[test]
@@ -224,6 +280,7 @@ mod tests {
             description: None,
             url: "file:///img/mountain.jpg".to_string(),
             media_type: MediaType::Image,
+            content: None,
         })
         .unwrap();
 

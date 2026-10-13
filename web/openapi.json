@@ -1613,6 +1613,12 @@
           "media_type"
         ],
         "properties": {
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "description": {
             "type": [
               "string",
@@ -1771,6 +1777,12 @@
           "updated_at"
         ],
         "properties": {
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "created_at": {
             "type": "string"
           },

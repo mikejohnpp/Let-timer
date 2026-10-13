@@ -88,6 +88,7 @@ pub struct CreateMediaDto {
     pub url: String,
     #[schema(example = "image")]
     pub media_type: String,
+    pub content: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -162,6 +163,7 @@ pub struct MediaDto {
     pub description: Option<String>,
     pub url: String,
     pub media_type: String,
+    pub content: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -174,6 +176,7 @@ impl From<Media> for MediaDto {
             description: m.description,
             url: m.url,
             media_type: m.media_type.as_str().to_string(),
+            content: m.content,
             created_at: m.created_at,
             updated_at: m.updated_at,
         }
