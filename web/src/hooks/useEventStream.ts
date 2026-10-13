@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { components } from '../api/schema';
-import { getStoredToken } from '../api/client';
+import { getStoredToken, apiFetch } from '../api/client';
 
 export type TimerSnapshot = components['schemas']['TimerSnapshotDto'];
 
@@ -19,14 +19,7 @@ export function useEventStream(): UseEventStreamResult {
 
   const fetchCurrentSnapshot = useCallback(async () => {
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const res = await fetch('/api/v1/tasks/current', { headers });
+      const res = await apiFetch('/api/v1/tasks/current');
       if (res.ok) {
         const data: TimerSnapshot = await res.json();
         setSnapshot(data);

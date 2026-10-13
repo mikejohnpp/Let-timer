@@ -32,6 +32,32 @@ export const apiClient = createClient<paths>({
   baseUrl: '',
 });
 
+export function getApiHeaders(extra?: HeadersInit): Headers {
+  const headers = new Headers(extra);
+  if (!headers.has('X-Let-Timer-Protocol')) {
+    headers.set('X-Let-Timer-Protocol', '1');
+  }
+  const token = getStoredToken();
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  const ws = getStoredWorkspace();
+  if (ws && !headers.has('X-Let-Timer-Workspace')) {
+    headers.set('X-Let-Timer-Workspace', ws);
+  }
+  return headers;
+}
+
+export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const headers = getApiHeaders(init?.headers);
+  const res = await fetch(input, { ...init, headers });
+  if (res.status === 401) {
+    setStoredToken(null);
+    window.dispatchEvent(new CustomEvent('let-timer-auth-expired'));
+  }
+  return res;
+}
+
 // Configure middleware for Authorization and Workspace headers
 apiClient.use({
   async onRequest({ request }) {
@@ -56,3 +82,4 @@ apiClient.use({
     return response;
   },
 });
+

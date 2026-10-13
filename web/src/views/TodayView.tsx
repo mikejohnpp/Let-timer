@@ -18,7 +18,7 @@ import {
 import type { components } from '../api/schema';
 import type { TimerSnapshot } from '../hooks/useEventStream';
 import { TaskDrawer } from '../components/TaskDrawer';
-import { getStoredToken } from '../api/client';
+import { getStoredWorkspace, apiFetch } from '../api/client';
 import { toLocalISODate } from '../utils/timer';
 import {
   StatusGlyph,
@@ -70,13 +70,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const loadTasks = useCallback(async () => {
     setIsLoading(true);
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const [resDate, resOverdue] = await Promise.all([
-        fetch(`/api/v1/tasks?date=${selectedDate}`, { headers }),
-        isToday ? fetch(`/api/v1/tasks?date=${selectedDate}&overdue=true`, { headers }) : Promise.resolve(null),
+        apiFetch(`/api/v1/tasks?date=${selectedDate}`),
+        isToday ? apiFetch(`/api/v1/tasks?date=${selectedDate}&overdue=true`) : Promise.resolve(null),
       ]);
 
       if (resDate.ok) {
@@ -160,21 +156,18 @@ export const TodayView: React.FC<TodayViewProps> = ({
     if (!quickAddParsed || !quickAddParsed.name) return;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/tasks', {
+      const currentWsId = getStoredWorkspace();
+      const res = await apiFetch('/api/v1/tasks', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           name: quickAddParsed.name,
           estimated_mins: quickAddParsed.estMins,
           scheduled_on: selectedDate,
           priority: 0,
+          workspace_id: currentWsId ? Number(currentWsId) : undefined,
         }),
       });
 
@@ -199,11 +192,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
       : `/api/v1/tasks/${task.id}/start`;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(url, { method: 'POST', headers });
+      const res = await apiFetch(url, { method: 'POST' });
       if (res.ok) {
         onRefreshTimer();
         loadTasks();
@@ -243,12 +232,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
     }
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       let url = `/api/v1/tasks/${task.id}/${action}`;
       let method = 'POST';
+      let headers: Record<string, string> | undefined;
 
       if (action === 'delete') {
         url = `/api/v1/tasks/${task.id}`;
@@ -258,10 +244,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
       } else if (action === 'move_to_today') {
         url = `/api/v1/tasks/${task.id}`;
         method = 'PATCH';
-        headers['Content-Type'] = 'application/json';
+        headers = { 'Content-Type': 'application/json' };
       }
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers,
         body: action === 'move_to_today' ? JSON.stringify({ scheduled_on: toLocalISODate() }) : undefined,

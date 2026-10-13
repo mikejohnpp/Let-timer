@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play, ArrowRight, AlertTriangle } from 'lucide-react';
 import type { components } from '../api/schema';
 import type { TimerSnapshot } from '../hooks/useEventStream';
-import { getStoredToken } from '../api/client';
+import { apiFetch } from '../api/client';
 import {
   Modal,
   Checkbox,
@@ -40,11 +40,7 @@ export const StartPickerModal: React.FC<StartPickerModalProps> = ({
       setIsLoading(true);
       setError(null);
       try {
-        const token = getStoredToken();
-        const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch('/api/v1/tasks/start-candidates', { headers });
+        const res = await apiFetch('/api/v1/tasks/start-candidates');
         if (res.ok) {
           const data: Task[] = await res.json();
           setCandidates(data);
@@ -63,18 +59,13 @@ export const StartPickerModal: React.FC<StartPickerModalProps> = ({
 
   const handleStartTask = async (taskId: number) => {
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const url =
         hasRunningTask && switchConfirmed
           ? `/api/v1/tasks/${taskId}/start?switch=true`
           : `/api/v1/tasks/${taskId}/start`;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
-        headers,
       });
 
       if (!res.ok) {

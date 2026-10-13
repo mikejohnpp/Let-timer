@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { components } from '../api/schema';
-import { getStoredToken, getStoredWorkspace, setStoredWorkspace } from '../api/client';
+import { getStoredWorkspace, setStoredWorkspace, apiFetch } from '../api/client';
 import {
   Button,
   IconButton,
@@ -31,11 +31,7 @@ export const WorkspacesView: React.FC = () => {
   const loadWorkspaces = async () => {
     setIsLoading(true);
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/workspaces', { headers });
+      const res = await apiFetch('/api/v1/workspaces');
       if (res.ok) {
         const data: Workspace[] = await res.json();
         setWorkspaces(data);
@@ -52,10 +48,19 @@ export const WorkspacesView: React.FC = () => {
     loadWorkspaces();
   }, []);
 
-  const handleSelectWorkspace = (id: number) => {
+  const handleSelectWorkspace = async (id: number) => {
     const idStr = id.toString();
     setActiveWsId(idStr);
     setStoredWorkspace(idStr);
+    try {
+      await apiFetch('/api/v1/workspaces/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+    } catch (e) {
+      console.error('Failed to sync switch with daemon', e);
+    }
     window.dispatchEvent(new CustomEvent('let-timer-workspace-changed'));
     showToast('Workspace switched', 'info');
   };
@@ -66,16 +71,11 @@ export const WorkspacesView: React.FC = () => {
 
     setError(null);
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/workspaces', {
+      const res = await apiFetch('/api/v1/workspaces', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           name: newWsName.trim(),
           description: newWsDesc.trim() || null,
@@ -108,13 +108,8 @@ export const WorkspacesView: React.FC = () => {
     if (!ok) return;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/workspaces/${id}`, {
+      const res = await apiFetch(`/api/v1/workspaces/${id}`, {
         method: 'DELETE',
-        headers,
       });
 
       if (res.ok) {

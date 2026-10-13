@@ -14,7 +14,7 @@ import {
 import type { TimerSnapshot } from '../hooks/useEventStream';
 import type { components } from '../api/schema';
 import { computeTimerDisplay, type FormattedTimer } from '../utils/timer';
-import { getStoredToken } from '../api/client';
+import { apiFetch } from '../api/client';
 import { useToast } from '../components/ui';
 
 type MediaListDetail = components['schemas']['MediaListDetailDto'];
@@ -61,11 +61,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
 
     async function loadMediaList() {
       try {
-        const token = getStoredToken();
-        const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch(`/api/v1/media-lists/${snapshot?.task.media_list_id}`, { headers });
+        const res = await apiFetch(`/api/v1/media-lists/${snapshot?.task.media_list_id}`);
         if (res.ok) {
           const data: MediaListDetail = await res.json();
           setMediaListDetail(data);
@@ -193,13 +189,8 @@ export const FocusView: React.FC<FocusViewProps> = ({
 
   const handleLifecycle = async (action: 'pause' | 'resume' | 'done') => {
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/tasks/${snapshot.task.id}/${action}`, {
+      const res = await apiFetch(`/api/v1/tasks/${snapshot.task.id}/${action}`, {
         method: 'POST',
-        headers,
       });
       if (res.ok) onRefreshTimer();
       else {
@@ -216,16 +207,11 @@ export const FocusView: React.FC<FocusViewProps> = ({
     const newEst = currentEst + 5;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/tasks/${snapshot.task.id}`, {
+      const res = await apiFetch(`/api/v1/tasks/${snapshot.task.id}`, {
         method: 'PATCH',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ estimated_mins: newEst }),
       });
 

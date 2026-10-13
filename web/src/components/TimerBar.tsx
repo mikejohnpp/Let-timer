@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import type { TimerSnapshot } from '../hooks/useEventStream';
 import { computeTimerDisplay, type FormattedTimer } from '../utils/timer';
-import { getStoredToken } from '../api/client';
+import { apiFetch } from '../api/client';
 import {
   IconButton,
   DropdownMenu,
@@ -103,13 +103,8 @@ export const TimerBar: React.FC<TimerBarProps> = ({
 
     setIsSubmitting(true);
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/tasks/${snapshot.task.id}/${action}`, {
+      const res = await apiFetch(`/api/v1/tasks/${snapshot.task.id}/${action}`, {
         method: 'POST',
-        headers,
       });
 
       if (!res.ok) {
@@ -133,16 +128,11 @@ export const TimerBar: React.FC<TimerBarProps> = ({
 
     setIsSubmitting(true);
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/tasks/${snapshot.task.id}`, {
+      const res = await apiFetch(`/api/v1/tasks/${snapshot.task.id}`, {
         method: 'PATCH',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ estimated_mins: newEst }),
       });
 

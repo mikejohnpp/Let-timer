@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2 } from 'lucide-react';
 import type { components } from '../api/schema';
-import { getStoredToken } from '../api/client';
+import { getStoredWorkspace, apiFetch } from '../api/client';
 import { toLocalISODate } from '../utils/timer';
 import {
   Drawer,
@@ -70,11 +70,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
 
     async function loadMediaLists() {
       try {
-        const token = getStoredToken();
-        const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch('/api/v1/media-lists', { headers });
+        const res = await apiFetch('/api/v1/media-lists');
         if (res.ok) {
           const data: MediaList[] = await res.json();
           setMediaLists(data);
@@ -102,18 +98,13 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
     const dateVal = scheduledOn.trim() || null;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       let res: globalThis.Response;
       if (taskToEdit) {
-        res = await fetch(`/api/v1/tasks/${taskToEdit.id}`, {
+        res = await apiFetch(`/api/v1/tasks/${taskToEdit.id}`, {
           method: 'PATCH',
-          headers,
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({
             name: name.trim(),
             description: description.trim() || null,
@@ -124,9 +115,12 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
           }),
         });
       } else {
-        res = await fetch('/api/v1/tasks', {
+        const currentWsId = getStoredWorkspace();
+        res = await apiFetch('/api/v1/tasks', {
           method: 'POST',
-          headers,
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({
             name: name.trim(),
             description: description.trim() || null,
@@ -134,6 +128,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
             scheduled_on: dateVal,
             priority,
             media_list_id: mlId,
+            workspace_id: currentWsId ? Number(currentWsId) : undefined,
           }),
         });
       }
@@ -165,13 +160,8 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
 
     setIsSubmitting(true);
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/tasks/${taskToEdit.id}`, {
+      const res = await apiFetch(`/api/v1/tasks/${taskToEdit.id}`, {
         method: 'DELETE',
-        headers,
       });
 
       if (res.ok) {

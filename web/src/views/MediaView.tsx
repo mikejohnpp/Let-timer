@@ -9,7 +9,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import type { components } from '../api/schema';
-import { getStoredToken } from '../api/client';
+import { apiFetch } from '../api/client';
 import {
   Button,
   IconButton,
@@ -61,13 +61,9 @@ export const MediaView: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const [resLists, resItems] = await Promise.all([
-        fetch('/api/v1/media-lists', { headers }),
-        fetch('/api/v1/medias', { headers }),
+        apiFetch('/api/v1/media-lists'),
+        apiFetch('/api/v1/medias'),
       ]);
 
       if (resLists.ok) setLists(await resLists.json());
@@ -86,11 +82,7 @@ export const MediaView: React.FC = () => {
 
   const loadListDetail = async (id: number) => {
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/media-lists/${id}`, { headers });
+      const res = await apiFetch(`/api/v1/media-lists/${id}`);
       if (res.ok) setSelectedList(await res.json());
     } catch (e) {
       console.error('Failed to load media list detail', e);
@@ -102,16 +94,11 @@ export const MediaView: React.FC = () => {
     if (!newListName.trim()) return;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/media-lists', {
+      const res = await apiFetch('/api/v1/media-lists', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           name: newListName.trim(),
           description: newListDesc.trim() || null,
@@ -138,16 +125,11 @@ export const MediaView: React.FC = () => {
     if (!newItemName.trim() || !newItemUrl.trim()) return;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/medias', {
+      const res = await apiFetch('/api/v1/medias', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           name: newItemName.trim(),
           url: newItemUrl.trim(),
@@ -176,16 +158,11 @@ export const MediaView: React.FC = () => {
 
   const handleAddItemToList = async (listId: number, mediaId: number) => {
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/media-lists/${listId}/medias`, {
+      const res = await apiFetch(`/api/v1/media-lists/${listId}/medias`, {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ media_id: mediaId }),
       });
 
@@ -200,13 +177,8 @@ export const MediaView: React.FC = () => {
 
   const handleRemoveItemFromList = async (listId: number, mediaId: number) => {
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/media-lists/${listId}/medias/${mediaId}`, {
+      const res = await apiFetch(`/api/v1/media-lists/${listId}/medias/${mediaId}`, {
         method: 'DELETE',
-        headers,
       });
 
       if (res.ok) {
@@ -228,11 +200,7 @@ export const MediaView: React.FC = () => {
     if (!ok) return;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/media-lists/${id}`, { method: 'DELETE', headers });
+      const res = await apiFetch(`/api/v1/media-lists/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setSelectedList(null);
         showToast('List deleted', 'success');
@@ -252,11 +220,7 @@ export const MediaView: React.FC = () => {
     if (!ok) return;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/medias/${id}`, { method: 'DELETE', headers });
+      const res = await apiFetch(`/api/v1/medias/${id}`, { method: 'DELETE' });
       if (res.ok) {
         showToast('Item deleted', 'success');
         loadData();

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Clock, Moon, Sun, Monitor, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import type { components } from '../api/schema';
 import type { AppView } from '../hooks/useHashRoute';
-import { getStoredWorkspace, setStoredWorkspace, getStoredToken } from '../api/client';
+import { getStoredWorkspace, setStoredWorkspace, apiFetch } from '../api/client';
 import {
   ConnectionBadge,
   IconButton,
@@ -85,15 +85,29 @@ export const Header: React.FC<HeaderProps> = ({
 
   const loadWorkspaces = async () => {
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch('/api/v1/workspaces', { headers });
+      const res = await apiFetch('/api/v1/workspaces');
       if (res.ok) {
         const data: Workspace[] = await res.json();
         setWorkspaces(data);
-        if (!activeWorkspaceId && data.length > 0) {
-          setActiveWorkspaceId(data[0].id.toString());
+        const stored = getStoredWorkspace();
+        const validStored = stored && data.some((w) => w.id.toString() === stored);
+        if (validStored) {
+          if (activeWorkspaceId !== stored) {
+            setActiveWorkspaceId(stored);
+          }
+        } else {
+          let targetId = '';
+          const curRes = await apiFetch('/api/v1/workspaces/current').catch(() => null);
+          if (curRes && curRes.ok) {
+            const curWs: Workspace = await curRes.json();
+            targetId = curWs.id.toString();
+          } else if (data.length > 0) {
+            targetId = data[0].id.toString();
+          }
+          if (targetId) {
+            setActiveWorkspaceId(targetId);
+            setStoredWorkspace(targetId);
+          }
         }
       }
     } catch (e) {
@@ -115,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
     const handleWsChange = () => loadWorkspaces();
     window.addEventListener('let-timer-workspace-changed', handleWsChange);
     return () => window.removeEventListener('let-timer-workspace-changed', handleWsChange);
-  }, [activeWorkspaceId]);
+  }, []);
 
   const applyTheme = (t: 'light' | 'dark' | 'system') => {
     if (t === 'system') {
@@ -132,10 +146,19 @@ export const Header: React.FC<HeaderProps> = ({
     applyTheme(next);
   };
 
-  const handleWorkspaceSelect = (id: string) => {
+  const handleWorkspaceSelect = async (id: string) => {
     setActiveWorkspaceId(id);
     setStoredWorkspace(id);
     setWsPopoverOpen(false);
+    try {
+      await apiFetch('/api/v1/workspaces/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: Number(id) }),
+      });
+    } catch (e) {
+      console.error('Failed to sync switch with daemon', e);
+    }
     window.dispatchEvent(new CustomEvent('let-timer-workspace-changed'));
     showToast('Workspace switched', 'info');
   };
@@ -146,16 +169,11 @@ export const Header: React.FC<HeaderProps> = ({
 
     setIsCreatingWs(true);
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/workspaces', {
+      const res = await apiFetch('/api/v1/workspaces', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ name: newWsName.trim() }),
       });
 
@@ -164,7 +182,7 @@ export const Header: React.FC<HeaderProps> = ({
         setNewWsName('');
         showToast('Workspace created', 'success');
         await loadWorkspaces();
-        handleWorkspaceSelect(created.id.toString());
+        await handleWorkspaceSelect(created.id.toString());
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.message || 'Failed to create workspace', 'danger');
@@ -186,17 +204,13 @@ export const Header: React.FC<HeaderProps> = ({
     if (!ok) return;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/workspaces/${id}`, { method: 'DELETE', headers });
+      const res = await apiFetch(`/api/v1/workspaces/${id}`, { method: 'DELETE' });
       if (res.ok) {
         showToast(`Workspace "${name}" deleted`, 'info');
         const remaining = workspaces.filter((w) => w.id !== id);
         setWorkspaces(remaining);
         if (activeWorkspaceId === id.toString() && remaining.length > 0) {
-          handleWorkspaceSelect(remaining[0].id.toString());
+          await handleWorkspaceSelect(remaining[0].id.toString());
         }
         window.dispatchEvent(new CustomEvent('let-timer-workspace-changed'));
       }

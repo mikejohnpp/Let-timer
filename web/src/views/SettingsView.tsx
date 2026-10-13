@@ -8,7 +8,7 @@ import {
   X,
 } from 'lucide-react';
 import type { components } from '../api/schema';
-import { getStoredToken, setStoredToken } from '../api/client';
+import { setStoredToken, apiFetch } from '../api/client';
 import { useWallpaper } from '../hooks/useWallpaper';
 import {
   Button,
@@ -135,16 +135,11 @@ export const SettingsView: React.FC = () => {
       const dataUrl = reader.result as string;
       if (dataUrl) {
         try {
-          const token = getStoredToken();
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-            'X-Let-Timer-Protocol': '1',
-          };
-          if (token) headers['Authorization'] = `Bearer ${token}`;
-
-          fetch('/api/v1/medias', {
+          apiFetch('/api/v1/medias', {
             method: 'POST',
-            headers,
+            headers: {
+              'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
               name: file.name.replace(/\.[^/.]+$/, ''),
               media_type: 'image',
@@ -173,14 +168,10 @@ export const SettingsView: React.FC = () => {
 
   const loadSettingsAndTokens = async () => {
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const [resTz, resTok, resMedias] = await Promise.all([
-        fetch('/api/v1/settings/timezone', { headers }),
-        fetch('/api/v1/auth/tokens', { headers }),
-        fetch('/api/v1/medias', { headers }),
+        apiFetch('/api/v1/settings/timezone'),
+        apiFetch('/api/v1/auth/tokens'),
+        apiFetch('/api/v1/medias'),
       ]);
 
       if (resTz.ok) {
@@ -207,16 +198,11 @@ export const SettingsView: React.FC = () => {
   const handleSaveTimezone = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/settings/timezone', {
+      const res = await apiFetch('/api/v1/settings/timezone', {
         method: 'PUT',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ timezone: newTimezone.trim() }),
       });
 
@@ -245,16 +231,11 @@ export const SettingsView: React.FC = () => {
     if (!newTokenName.trim()) return;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/auth/tokens', {
+      const res = await apiFetch('/api/v1/auth/tokens', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ name: newTokenName.trim() }),
       });
 
@@ -283,16 +264,11 @@ export const SettingsView: React.FC = () => {
     if (!ok) return;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/auth/tokens/rotate', {
+      const res = await apiFetch('/api/v1/auth/tokens/rotate', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ name }),
       });
 
@@ -320,16 +296,11 @@ export const SettingsView: React.FC = () => {
     if (!ok) return;
 
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Let-Timer-Protocol': '1',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/auth/tokens/revoke', {
+      const res = await apiFetch('/api/v1/auth/tokens/revoke', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ name }),
       });
 

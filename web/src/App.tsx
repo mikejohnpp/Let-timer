@@ -13,7 +13,7 @@ import { useEventStream } from './hooks/useEventStream';
 import { useHashRoute } from './hooks/useHashRoute';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 import { useWallpaper } from './hooks/useWallpaper';
-import { getStoredToken } from './api/client';
+import { apiFetch } from './api/client';
 import { ToastProvider, ConfirmProvider, ErrorState } from './components/ui';
 
 type AuthStatus = 'checking' | 'login' | 'unreachable' | 'ok';
@@ -30,11 +30,7 @@ export const AppContent: React.FC = () => {
   const checkAuth = useCallback(async () => {
     setAuthStatus('checking');
     try {
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/auth/me', { headers });
+      const res = await apiFetch('/api/v1/auth/me');
       if (res.ok) {
         setAuthStatus('ok');
       } else if (res.status === 401) {
@@ -60,13 +56,8 @@ export const AppContent: React.FC = () => {
     onToggleTimer: () => {
       if (!snapshot || snapshot.state === 'idle') return;
       const action = snapshot.state === 'running' ? 'pause' : 'resume';
-      const token = getStoredToken();
-      const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      fetch(`/api/v1/tasks/${snapshot.task.id}/${action}`, {
+      apiFetch(`/api/v1/tasks/${snapshot.task.id}/${action}`, {
         method: 'POST',
-        headers,
       }).then(refetchSnapshot);
     },
     onOpenStartPicker: () => setIsStartPickerOpen(true),
