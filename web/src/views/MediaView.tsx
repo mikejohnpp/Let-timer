@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ListMusic,
   Plus,
   Trash2,
   Image as ImageIcon,
@@ -15,12 +14,10 @@ import {
   Button,
   IconButton,
   SegmentedControl,
-  Card,
   FormField,
   Input,
   Textarea,
   Select,
-  EmptyState,
   Skeleton,
   useToast,
   useConfirm,
@@ -29,6 +26,14 @@ import {
 type MediaList = components['schemas']['MediaListDto'];
 type MediaItem = components['schemas']['MediaDto'];
 type MediaListDetail = components['schemas']['MediaListDetailDto'];
+
+function getDisplayHost(url: string) {
+  try {
+    return new URL(url).hostname.replace('www.', '');
+  } catch {
+    return url.length > 25 ? url.substring(0, 22) + '…' : url;
+  }
+}
 
 export const MediaView: React.FC = () => {
   const [tab, setTab] = useState<'lists' | 'items'>('lists');
@@ -262,13 +267,13 @@ export const MediaView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-28">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-28 flex flex-col gap-6">
       {/* Header and tab switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-2">
         <div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text)] tracking-tight">Media</h1>
           <p className="text-xs text-[var(--muted)] mt-1">
-            Curated music, images, and poems shown in Focus mode.
+            Curated music, artwork, and poems for focus sessions
           </p>
         </div>
 
@@ -280,19 +285,29 @@ export const MediaView: React.FC = () => {
               setSelectedList(null);
             }}
             items={[
-              { value: 'lists', label: 'Lists' },
-              { value: 'items', label: `Items (${items.length})` },
+              { value: 'lists', label: 'Playlists' },
+              { value: 'items', label: `Library (${items.length})` },
             ]}
           />
 
           {tab === 'lists' ? (
-            <Button variant="primary" size="sm" onClick={() => setIsCreatingList(true)}>
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCreatingList(true)}
+              className="text-xs font-semibold text-[var(--accent-text)] h-8 px-2.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
               <span>New list</span>
             </Button>
           ) : (
-            <Button variant="primary" size="sm" onClick={() => setIsCreatingItem(true)}>
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCreatingItem(true)}
+              className="text-xs font-semibold text-[var(--accent-text)] h-8 px-2.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
               <span>New item</span>
             </Button>
           )}
@@ -301,8 +316,8 @@ export const MediaView: React.FC = () => {
 
       {/* New List Form */}
       {isCreatingList && (
-        <Card className="mb-6">
-          <h2 className="text-sm font-bold text-[var(--text)] mb-3">Add new media list</h2>
+        <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5 mb-2">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add new media list</h2>
           <form onSubmit={handleCreateList} className="flex flex-col gap-3">
             <div className="grid sm:grid-cols-2 gap-3">
               <FormField label="List name" required>
@@ -336,13 +351,13 @@ export const MediaView: React.FC = () => {
               </Button>
             </div>
           </form>
-        </Card>
+        </div>
       )}
 
       {/* New Item Form */}
       {isCreatingItem && (
-        <Card className="mb-6">
-          <h2 className="text-sm font-bold text-[var(--text)] mb-3">Add new media item</h2>
+        <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5 mb-2">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add new media item</h2>
           <form onSubmit={handleCreateItem} className="flex flex-col gap-3">
             <div className="grid sm:grid-cols-3 gap-3">
               <FormField label="Title" required>
@@ -419,7 +434,7 @@ export const MediaView: React.FC = () => {
               </Button>
             </div>
           </form>
-        </Card>
+        </div>
       )}
 
       {/* Content for Media Lists Tab */}
@@ -427,56 +442,64 @@ export const MediaView: React.FC = () => {
         <div className="grid md:grid-cols-3 gap-6">
           {/* Lists Column */}
           <div className="md:col-span-1 flex flex-col gap-2">
-            <h2 className="text-xs font-semibold text-[var(--muted)] mb-1">Playlists</h2>
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] mb-1 px-1">
+              Playlists
+            </div>
             {isLoading ? (
               <div className="flex flex-col gap-2">
-                <Skeleton height="48px" />
-                <Skeleton height="48px" />
+                <Skeleton height="40px" />
+                <Skeleton height="40px" />
               </div>
             ) : lists.length === 0 ? (
-              <div className="text-xs text-[var(--muted)] py-4">No media lists yet.</div>
+              <div className="text-xs text-[var(--muted)] py-4 px-1">No playlists yet.</div>
             ) : (
-              lists.map((l) => (
-                <div
-                  key={l.id}
-                  onClick={() => loadListDetail(l.id)}
-                  className={`p-3 rounded-[var(--radius-control)] border cursor-pointer transition flex items-center justify-between gap-2 select-none ${
-                    selectedList?.list.id === l.id
-                      ? 'border-[var(--accent-text)] bg-[var(--surface-hover)] shadow-xs'
-                      : 'border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-hover)]'
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="font-semibold text-xs sm:text-sm truncate text-[var(--text)]">
-                      {l.name}
+              <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
+                {lists.map((l) => {
+                  const isSelected = selectedList?.list.id === l.id;
+                  return (
+                    <div
+                      key={l.id}
+                      onClick={() => loadListDetail(l.id)}
+                      className={`p-2.5 rounded-lg cursor-pointer transition flex items-center justify-between gap-2 select-none group ${
+                        isSelected
+                          ? 'bg-[var(--accent)]/10 text-[var(--accent-text)] font-semibold'
+                          : 'hover:bg-[var(--surface-hover)]/50 text-[var(--text)]'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs sm:text-sm truncate">
+                          {l.name}
+                        </div>
+                        {l.description && (
+                          <div className="text-[11px] text-[var(--muted)] truncate mt-0.5">{l.description}</div>
+                        )}
+                      </div>
+                      <IconButton
+                        variant="ghost"
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--muted)] hover:text-[var(--danger-text)] h-6 w-6 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteList(l.id, l.name);
+                        }}
+                        aria-label={`Delete list ${l.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </IconButton>
                     </div>
-                    {l.description && (
-                      <div className="text-[11px] text-[var(--muted)] truncate">{l.description}</div>
-                    )}
-                  </div>
-                  <IconButton
-                    variant="danger"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteList(l.id, l.name);
-                    }}
-                    aria-label={`Delete list ${l.name}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </IconButton>
-                </div>
-              ))
+                  );
+                })}
+              </div>
             )}
           </div>
 
           {/* Selected List Detail Column */}
           <div className="md:col-span-2">
             {selectedList ? (
-              <Card>
-                <div className="flex items-center justify-between pb-3 border-b border-[var(--border)] mb-3">
+              <div className="backdrop-blur-md bg-[var(--surface)]/30 border border-[var(--border)]/30 rounded-xl p-4 sm:p-5">
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/30 mb-3">
                   <div>
-                    <h2 className="text-base font-bold text-[var(--text)]">{selectedList.list.name}</h2>
+                    <h2 className="text-sm font-semibold text-[var(--text)]">{selectedList.list.name}</h2>
                     {selectedList.list.description && (
                       <p className="text-xs text-[var(--muted)] mt-0.5">{selectedList.list.description}</p>
                     )}
@@ -485,33 +508,34 @@ export const MediaView: React.FC = () => {
                 </div>
 
                 {/* Items in this list */}
-                <div className="divide-y divide-[var(--border)] mb-4">
+                <div className="divide-y divide-[var(--border)]/20 mb-4">
                   {selectedList.items.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-[var(--muted)]">
+                    <div className="py-8 text-center text-xs text-[var(--muted)]">
                       No media items attached yet. Choose an item below to attach.
                     </div>
                   ) : (
                     selectedList.items.map((item) => (
-                      <div key={item.id} className="py-2 flex items-center justify-between gap-3 text-xs">
+                      <div key={item.id} className="py-2 px-1 flex items-center justify-between gap-3 text-xs group">
                         <div className="flex items-center gap-2.5 min-w-0">
                           {item.media_type === 'music' && (
-                            <Music className="w-4 h-4 text-[var(--accent-text)] shrink-0" />
+                            <Music className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
                           )}
                           {item.media_type === 'image' && (
-                            <ImageIcon className="w-4 h-4 text-[var(--muted)] shrink-0" />
+                            <ImageIcon className="w-3.5 h-3.5 text-[var(--muted)] shrink-0" />
                           )}
                           {item.media_type === 'poem' && (
-                            <BookOpen className="w-4 h-4 text-[var(--muted)] shrink-0" />
+                            <BookOpen className="w-3.5 h-3.5 text-[var(--muted)] shrink-0" />
                           )}
                           <span className="font-medium truncate text-[var(--text)]">{item.name}</span>
                         </div>
                         <IconButton
                           variant="ghost"
                           size="sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--muted)] hover:text-[var(--danger-text)] h-6 w-6 p-0"
                           onClick={() => handleRemoveItemFromList(selectedList.list.id, item.id)}
                           aria-label={`Detach ${item.name}`}
                         >
-                          <X className="w-3.5 h-3.5 text-[var(--muted)] hover:text-[var(--danger-text)]" />
+                          <X className="w-3.5 h-3.5" />
                         </IconButton>
                       </div>
                     ))
@@ -519,12 +543,12 @@ export const MediaView: React.FC = () => {
                 </div>
 
                 {/* Attach more items dropdown */}
-                <div className="pt-3 border-t border-[var(--border)]">
-                  <h3 className="text-xs font-semibold text-[var(--muted)] mb-2">Attach an item to this list</h3>
+                <div className="pt-3 border-t border-[var(--border)]/30">
+                  <div className="text-[11px] font-medium text-[var(--muted)] mb-2">Attach an item to this list</div>
                   <div className="flex items-center gap-2">
                     <select
                       id="attach-select"
-                      className="flex-1 px-3 py-1.5 rounded-[var(--radius-control)] bg-[var(--surface-hover)] border border-[var(--border-strong)] text-xs outline-none text-[var(--text)]"
+                      className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)]/70 border border-[var(--border)]/50 text-xs outline-none text-[var(--text)]"
                     >
                       {items
                         .filter((i) => !selectedList.items.some((si) => si.id === i.id))
@@ -535,8 +559,9 @@ export const MediaView: React.FC = () => {
                         ))}
                     </select>
                     <Button
-                      variant="primary"
+                      variant="ghost"
                       size="sm"
+                      className="text-xs font-semibold text-[var(--accent-text)] h-7 px-2.5"
                       onClick={() => {
                         const sel = document.getElementById('attach-select') as HTMLSelectElement;
                         if (sel && sel.value) handleAddItemToList(selectedList.list.id, parseInt(sel.value, 10));
@@ -546,13 +571,11 @@ export const MediaView: React.FC = () => {
                     </Button>
                   </div>
                 </div>
-              </Card>
+              </div>
             ) : (
-              <EmptyState
-                icon={<ListMusic className="w-8 h-8 text-[var(--muted)]" />}
-                title="Select a playlist"
-                description="Choose a media list on the left to view and curate its audio, artwork, and poems."
-              />
+              <div className="py-16 text-center text-xs text-[var(--muted)]">
+                Select a playlist on the left to view and curate its items.
+              </div>
             )}
           </div>
         </div>
@@ -562,67 +585,74 @@ export const MediaView: React.FC = () => {
       {tab === 'items' && (
         <div>
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <Skeleton height="90px" />
-              <Skeleton height="90px" />
-              <Skeleton height="90px" />
+            <div className="flex flex-col gap-2">
+              <Skeleton height="44px" />
+              <Skeleton height="44px" />
+              <Skeleton height="44px" />
             </div>
           ) : items.length === 0 ? (
-            <EmptyState
-              title="Add your first item"
-              description="Images become Focus backgrounds, audio plays during sessions, and poems appear in the reader."
-              action={{
-                label: 'New item',
-                onClick: () => setIsCreatingItem(true),
-              }}
-            />
+            <div className="py-16 text-center text-xs text-[var(--muted)] flex flex-col items-center gap-3">
+              <span>No media items in library yet.</span>
+              <button
+                onClick={() => setIsCreatingItem(true)}
+                className="text-xs text-[var(--accent-text)] hover:underline font-medium cursor-pointer"
+              >
+                + Add your first item
+              </button>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
               {items.map((item) => (
-                <Card key={item.id} className="p-3.5 flex flex-col justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className="p-2 rounded-[var(--radius-control)] bg-[var(--surface-hover)] text-[var(--muted)] shrink-0">
-                      {item.media_type === 'music' && <Music className="w-4 h-4 text-[var(--accent-text)]" />}
-                      {item.media_type === 'image' && <ImageIcon className="w-4 h-4" />}
-                      {item.media_type === 'poem' && <BookOpen className="w-4 h-4" />}
+                <div
+                  key={item.id}
+                  className="py-3 px-2 flex items-center justify-between gap-4 rounded-lg hover:bg-[var(--surface-hover)]/40 transition group select-none"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-7 h-7 rounded-md bg-[var(--surface-hover)]/70 flex items-center justify-center text-[var(--muted)] shrink-0">
+                      {item.media_type === 'music' && <Music className="w-3.5 h-3.5 text-[var(--accent-text)]" />}
+                      {item.media_type === 'image' && <ImageIcon className="w-3.5 h-3.5" />}
+                      {item.media_type === 'poem' && <BookOpen className="w-3.5 h-3.5" />}
                     </div>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-xs sm:text-sm truncate text-[var(--text)]">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-xs sm:text-sm text-[var(--text)] truncate">
                           {item.name}
                         </span>
+                        <span className="text-[10px] text-[var(--muted)] capitalize">
+                          {item.media_type}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-[var(--muted)] capitalize block mt-0.5">
-                        {item.media_type}
-                      </span>
-                      {item.description && (
-                        <p className="text-[11px] text-[var(--muted)] truncate mt-1">{item.description}</p>
-                      )}
+                      <div className="text-[11px] text-[var(--muted)] truncate mt-0.5 flex items-center gap-2">
+                        {item.description && <span>{item.description} •</span>}
+                        <span className="font-mono text-[10px] text-[var(--muted)] opacity-70">
+                          {getDisplayHost(item.url)}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-[var(--border)] text-[11px]">
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <a
                       href={item.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[var(--accent-text)] hover:underline inline-flex items-center gap-1 truncate max-w-[180px]"
+                      className="p-1.5 rounded hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--text)] transition"
+                      aria-label={`Open ${item.name}`}
+                      title="Open URL"
                     >
-                      <span className="truncate">{item.url}</span>
-                      <ExternalLink className="w-3 h-3 shrink-0" />
+                      <ExternalLink className="w-3.5 h-3.5" />
                     </a>
-
-                    <IconButton
-                      variant="danger"
-                      size="sm"
+                    <button
                       onClick={() => handleDeleteItem(item.id, item.name)}
+                      className="p-1.5 rounded hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--danger-text)] transition cursor-pointer"
                       aria-label={`Delete ${item.name}`}
+                      title="Delete item"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                    </IconButton>
+                    </button>
                   </div>
-                </Card>
+                </div>
               ))}
             </div>
           )}

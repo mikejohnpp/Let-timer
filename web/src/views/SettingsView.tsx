@@ -1,16 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Key,
   LogOut,
   Plus,
   Trash2,
   Copy,
   Check,
-  Palette,
-  Timer,
-  Image as ImageIcon,
-  Upload,
-  Sparkles,
   X,
 } from 'lucide-react';
 import type { components } from '../api/schema';
@@ -22,7 +16,6 @@ import {
   SegmentedControl,
   Checkbox,
   Input,
-  Badge,
   useToast,
   useConfirm,
 } from '../components/ui';
@@ -366,11 +359,11 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 pb-28 flex flex-col gap-8">
       {/* Header */}
-      <div className="flex items-baseline justify-between border-b border-[var(--border)] pb-4">
+      <div className="flex items-baseline justify-between border-b border-[var(--border)]/30 pb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text)] tracking-tight">Settings</h1>
           <p className="text-xs text-[var(--muted)] mt-1">
-            Configure appearance, preferences, and API credentials.
+            Configure appearance, preferences, and API credentials
           </p>
         </div>
 
@@ -384,14 +377,13 @@ export const SettingsView: React.FC = () => {
       </div>
 
       {/* Section: Appearance */}
-      <section className="flex flex-col gap-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-          <Palette className="w-3.5 h-3.5 text-[var(--accent-text)]" />
-          <span>Appearance</span>
+      <section className="flex flex-col gap-3">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] px-1">
+          Appearance
         </div>
 
-        <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+        <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Theme Mode</div>
               <div className="text-[11px] text-[var(--muted)]">Light, Dark or match system</div>
@@ -407,7 +399,7 @@ export const SettingsView: React.FC = () => {
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Color Palette</div>
               <div className="text-[11px] text-[var(--muted)]">Accent and focus tones</div>
@@ -417,140 +409,126 @@ export const SettingsView: React.FC = () => {
               onValueChange={handlePaletteChange}
               items={[
                 { value: 'default', label: 'Indigo' },
-                { value: 'forest', label: '🌲 Forest & Moss' },
+                { value: 'forest', label: 'Forest' },
               ]}
             />
           </div>
         </div>
       </section>
 
-      {/* Section: App Wallpaper & Dynamic Colors */}
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-            <ImageIcon className="w-3.5 h-3.5 text-[var(--accent-text)]" />
-            <span>Wallpaper & Dynamic Colors</span>
-          </div>
-
-          {wallpaperUrl && (
-            <button
-              onClick={clearWallpaper}
-              className="text-xs text-[var(--danger-text)] hover:underline transition cursor-pointer"
-            >
-              Remove wallpaper
-            </button>
-          )}
+      {/* Section: Wallpaper & Tone */}
+      <section className="flex flex-col gap-3">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] px-1">
+          Wallpaper & Tone
         </div>
 
-        {/* Dynamic color toggle */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-[var(--radius-control)] bg-[var(--surface-hover)]/60 border border-[var(--border)]">
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-[var(--accent-text)] shrink-0" />
+        <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
+          {/* Harmonize toggle */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
-              <div className="text-xs font-semibold text-[var(--text)]">Harmonize Theme with Wallpaper</div>
+              <div className="text-xs font-semibold text-[var(--text)]">Harmonize with Wallpaper</div>
               <div className="text-[11px] text-[var(--muted)]">
-                Extracts dominant color and calms background/surfaces
+                Extract dominant tones to calm backgrounds and surfaces
               </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {dynamicColor && extractedColor && (
+                <div className="flex items-center gap-1.5 text-xs text-[var(--text)]">
+                  <span
+                    className="w-3 h-3 rounded-full border border-[var(--border)]"
+                    style={{ backgroundColor: extractedColor }}
+                  />
+                  <span className="font-mono text-[10px] text-[var(--muted)]">{extractedColor}</span>
+                </div>
+              )}
+              <Checkbox
+                checked={dynamicColor}
+                onCheckedChange={(c) => setDynamicColor(!!c)}
+                label="Enable"
+              />
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {dynamicColor && extractedColor && (
-              <div className="flex items-center gap-1.5 text-xs text-[var(--text)]">
-                <span
-                  className="w-3.5 h-3.5 rounded-full border border-[var(--border)] shadow-xs"
-                  style={{ backgroundColor: extractedColor }}
-                />
-                <span className="font-mono text-[11px] text-[var(--muted)]">{extractedColor}</span>
-              </div>
-            )}
-            <Checkbox
-              checked={dynamicColor}
-              onCheckedChange={(c) => setDynamicColor(!!c)}
-              label="Enable"
-            />
-          </div>
-        </div>
-
-        {/* Wallpaper Picker */}
-        <div className="flex flex-col gap-2.5 pt-1">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[11px] text-[var(--muted)] font-medium">Choose an image</span>
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              className="hidden"
-              onChange={handleUploadWallpaper}
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              className="h-6 text-xs px-2"
-            >
-              <Upload className="w-3 h-3" />
-              <span>Upload Image...</span>
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            <button
-              type="button"
-              onClick={clearWallpaper}
-              className={`h-16 rounded-[var(--radius-control)] border flex flex-col items-center justify-center gap-1 text-xs transition cursor-pointer ${
-                !wallpaperUrl
-                  ? 'border-[var(--accent-text)] bg-[var(--accent-tint)] font-semibold text-[var(--accent-text)]'
-                  : 'border-[var(--border)] bg-[var(--surface-hover)]/40 text-[var(--muted)] hover:text-[var(--text)]'
-              }`}
-            >
-              <X className="w-3.5 h-3.5" />
-              <span className="text-[11px]">None</span>
-            </button>
-
-            {mediaImages.map((m) => {
-              const isSelected = wallpaperUrl === m.url;
-              return (
+          {/* Wallpaper Picker */}
+          <div className="py-3 px-1 flex flex-col gap-2.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-xs font-semibold text-[var(--text)]">Wallpaper</span>
+              <div className="flex items-center gap-3">
+                {wallpaperUrl && (
+                  <button
+                    onClick={clearWallpaper}
+                    className="text-xs text-[var(--danger-text)] hover:underline cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                )}
                 <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => m.url && setWallpaper(m.url)}
-                  className={`h-16 rounded-[var(--radius-control)] border relative overflow-hidden group cursor-pointer transition ${
-                    isSelected
-                      ? 'border-[var(--accent-text)] ring-2 ring-[var(--accent-text)]/40 shadow-xs'
-                      : 'border-[var(--border)] hover:opacity-90'
-                  }`}
-                  title={m.name}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs text-[var(--accent-text)] hover:underline font-medium cursor-pointer"
                 >
-                  <img
-                    src={m.url}
-                    alt={m.name}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                  {isSelected && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <div className="p-0.5 rounded-full bg-[var(--accent)] text-white">
-                        <Check className="w-3 h-3 stroke-[3]" />
-                      </div>
-                    </div>
-                  )}
+                  + Upload
                 </button>
-              );
-            })}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleUploadWallpaper}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={clearWallpaper}
+                className={`h-14 rounded-lg border flex flex-col items-center justify-center gap-1 text-xs transition cursor-pointer ${
+                  !wallpaperUrl
+                    ? 'border-[var(--accent-text)] bg-[var(--accent)]/10 font-medium text-[var(--accent-text)]'
+                    : 'border-[var(--border)]/40 hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--text)]'
+                }`}
+              >
+                <X className="w-3.5 h-3.5" />
+                <span className="text-[10px]">None</span>
+              </button>
+
+              {mediaImages.map((m) => {
+                const isSelected = wallpaperUrl === m.url;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => m.url && setWallpaper(m.url)}
+                    className={`h-14 rounded-lg border relative overflow-hidden group cursor-pointer transition ${
+                      isSelected
+                        ? 'border-[var(--accent-text)] ring-2 ring-[var(--accent-text)]/40'
+                        : 'border-[var(--border)]/40 hover:opacity-90'
+                    }`}
+                    title={m.name}
+                  >
+                    <img src={m.url} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Section: Timer & Defaults */}
-      <section className="flex flex-col gap-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-          <Timer className="w-3.5 h-3.5 text-[var(--accent-text)]" />
-          <span>Timer & Preferences</span>
+      {/* Section: Preferences */}
+      <section className="flex flex-col gap-3">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] px-1">
+          Preferences
         </div>
 
-        <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+        <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Default Task Estimate</div>
               <div className="text-[11px] text-[var(--muted)]">Pre-filled when creating new tasks</div>
@@ -564,7 +542,7 @@ export const SettingsView: React.FC = () => {
                   value={defaultEstimate}
                   onChange={(e) => handleEstimateChange(e.target.value)}
                   placeholder="25"
-                  className="w-16 h-7 text-center text-xs"
+                  className="w-16 h-7 text-center text-xs bg-[var(--surface-hover)]/40 border-[var(--border)]/40"
                 />
                 <span className="text-xs text-[var(--muted)]">min</span>
               </div>
@@ -576,7 +554,7 @@ export const SettingsView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Server Timezone</div>
               <div className="text-[11px] text-[var(--muted)]">Current: <strong>{timezone}</strong></div>
@@ -587,48 +565,47 @@ export const SettingsView: React.FC = () => {
                 value={newTimezone}
                 onChange={(e) => setNewTimezone(e.target.value)}
                 placeholder="e.g. UTC"
-                className="w-36 h-7 text-xs"
+                className="w-32 h-7 text-xs bg-[var(--surface-hover)]/40 border-[var(--border)]/40"
               />
-              <Button type="submit" variant="secondary" size="sm" className="h-7 text-xs px-2">
+              <Button type="submit" variant="ghost" size="sm" className="h-7 text-xs px-2 font-medium text-[var(--accent-text)]">
                 Save
               </Button>
             </form>
           </div>
 
-          <div className="flex items-center justify-between gap-3 py-3">
+          <div className="flex items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Browser Notifications</div>
               <div className="text-[11px] text-[var(--muted)]">Status: <strong className="capitalize">{notifPermission}</strong></div>
             </div>
             {notifPermission !== 'granted' ? (
-              <Button variant="secondary" size="sm" onClick={handleRequestNotifications} className="h-7 text-xs px-2.5">
+              <Button variant="ghost" size="sm" onClick={handleRequestNotifications} className="h-7 text-xs px-2.5 font-medium text-[var(--accent-text)]">
                 Enable
               </Button>
             ) : (
-              <Badge variant="success">Enabled</Badge>
+              <span className="text-[11px] text-[var(--success-text)] font-medium">Enabled</span>
             )}
           </div>
         </div>
       </section>
 
       {/* Section: API Tokens */}
-      <section className="flex flex-col gap-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-          <Key className="w-3.5 h-3.5 text-[var(--accent-text)]" />
-          <span>API Tokens</span>
+      <section className="flex flex-col gap-3">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] px-1">
+          API Tokens
         </div>
 
         {/* Created secret banner */}
         {createdSecret && (
-          <div className="p-3 bg-[var(--warning-bg)] border border-[var(--warning)]/30 rounded-[var(--radius-control)] text-xs">
-            <div className="font-bold text-[var(--text)] mb-1">
+          <div className="p-3 bg-[var(--warning-bg)]/80 border border-[var(--warning)]/30 rounded-lg text-xs backdrop-blur-sm">
+            <div className="font-semibold text-[var(--text)] mb-1">
               Copy this token now. It won't be shown again.
             </div>
             <div className="flex items-center gap-2 mt-1.5">
               <code className="flex-1 p-1.5 bg-[var(--surface)] border border-[var(--border)] rounded font-mono text-xs select-all break-all text-[var(--text)]">
                 {createdSecret}
               </code>
-              <Button variant="primary" size="sm" onClick={handleCopySecret} className="h-7 text-xs">
+              <Button variant="ghost" size="sm" onClick={handleCopySecret} className="h-7 text-xs font-semibold text-[var(--accent-text)]">
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copied ? 'Copied' : 'Copy'}</span>
               </Button>
@@ -636,48 +613,59 @@ export const SettingsView: React.FC = () => {
           </div>
         )}
 
+        {/* Existing tokens list */}
+        <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20 text-xs">
+          {tokens.map((t) => (
+            <div key={t.id} className="py-2.5 px-1 flex items-center justify-between gap-3 group">
+              <div>
+                <div className="font-medium text-[var(--text)]">{t.name}</div>
+                <div className="text-[11px] text-[var(--muted)]">
+                  Created {new Date(t.created_at).toLocaleDateString()}
+                  {t.last_used_at && ` • Last used ${new Date(t.last_used_at).toLocaleDateString()}`}
+                </div>
+              </div>
+
+              {!t.revoked_at ? (
+                <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleRotateToken(t.name)}
+                    className="text-[11px] px-2 py-0.5 rounded text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition cursor-pointer"
+                  >
+                    Rotate
+                  </button>
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-[var(--muted)] hover:text-[var(--danger-text)]"
+                    onClick={() => handleRevokeToken(t.name)}
+                    aria-label={`Revoke token ${t.name}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </IconButton>
+                </div>
+              ) : (
+                <span className="text-[10px] text-[var(--muted)] bg-[var(--surface-hover)] px-2 py-0.5 rounded">
+                  Revoked
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
         {/* Create new token form */}
-        <form onSubmit={handleCreateToken} className="flex gap-2 max-w-sm">
+        <form onSubmit={handleCreateToken} className="flex gap-2 max-w-sm pt-1 px-1">
           <Input
             required
             placeholder="Token name (e.g. laptop-cli)"
             value={newTokenName}
             onChange={(e) => setNewTokenName(e.target.value)}
-            className="flex-1 h-7 text-xs"
+            className="flex-1 h-7 text-xs bg-[var(--surface-hover)]/40 border-[var(--border)]/40"
           />
-          <Button type="submit" variant="primary" size="sm" className="h-7 text-xs px-2.5">
+          <Button type="submit" variant="ghost" size="sm" className="h-7 text-xs px-2.5 font-semibold text-[var(--accent-text)]">
             <Plus className="w-3 h-3 stroke-[3]" />
             <span>Create</span>
           </Button>
         </form>
-
-        {/* Existing tokens list */}
-        <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60 text-xs">
-          {tokens.map((t) => (
-            <div key={t.id} className="py-2.5 px-1 flex items-center justify-between gap-3">
-              <div>
-                <div className="font-semibold text-[var(--text)]">{t.name}</div>
-                <div className="text-[11px] text-[var(--muted)]">
-                  Created: {new Date(t.created_at).toLocaleDateString()}
-                  {t.last_used_at && ` • Last used: ${new Date(t.last_used_at).toLocaleDateString()}`}
-                </div>
-              </div>
-
-              {!t.revoked_at ? (
-                <div className="flex items-center gap-1.5">
-                  <Button variant="ghost" size="sm" onClick={() => handleRotateToken(t.name)} className="h-6 text-[11px] px-2 text-[var(--muted)] hover:text-[var(--text)]">
-                    Rotate
-                  </Button>
-                  <IconButton variant="ghost" size="sm" className="h-6 w-6 p-0 text-[var(--muted)] hover:text-[var(--danger-text)]" onClick={() => handleRevokeToken(t.name)} aria-label={`Revoke token ${t.name}`}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </IconButton>
-                </div>
-              ) : (
-                <Badge variant="muted">Revoked</Badge>
-              )}
-            </div>
-          ))}
-        </div>
       </section>
     </div>
   );

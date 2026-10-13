@@ -8,7 +8,6 @@ import {
   Pause,
   Check,
   Plus,
-  Compass,
   X,
   ChevronUp,
 } from 'lucide-react';
@@ -16,7 +15,7 @@ import type { TimerSnapshot } from '../hooks/useEventStream';
 import type { components } from '../api/schema';
 import { computeTimerDisplay, type FormattedTimer } from '../utils/timer';
 import { getStoredToken } from '../api/client';
-import { Button, useToast } from '../components/ui';
+import { useToast } from '../components/ui';
 
 type MediaListDetail = components['schemas']['MediaListDetailDto'];
 type MediaItem = components['schemas']['MediaDto'];
@@ -121,17 +120,69 @@ export const FocusView: React.FC<FocusViewProps> = ({
     return () => clearInterval(interval);
   }, [images.length]);
 
+  const appWallpaper = typeof window !== 'undefined' ? localStorage.getItem('let_timer_wallpaper') : null;
+  const hasImageBg = images.length > 0;
+  const effectiveBg = hasImageBg ? (images[currentImageIndex]?.url || null) : appWallpaper;
+  const hasAnyBg = Boolean(effectiveBg);
+
   if (!snapshot || snapshot.state === 'idle') {
+    const currentTimeStr = new Date(now).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+
     return (
-      <div className="min-h-[calc(100vh-var(--header-h))] flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto">
-        <Compass className="w-16 h-16 text-[var(--muted)] opacity-50 mb-4 animate-spin-slow" />
-        <h2 className="text-xl font-bold text-[var(--text)]">Focus mode is idle</h2>
-        <p className="text-xs text-[var(--muted)] mt-2 mb-6">
-          Start a task to enter full focus with music, artwork, and poetry.
-        </p>
-        <Button variant="primary" size="md" onClick={onOpenStartPicker}>
-          Choose a task to start
-        </Button>
+      <div className="relative min-h-screen w-full overflow-hidden flex flex-col justify-center items-center p-6 text-center select-none">
+        {/* Layer 0: Background Photo */}
+        {hasAnyBg && effectiveBg && (
+          <div
+            className="absolute inset-0 bg-cover bg-center transition-all duration-1000 z-0"
+            style={{ backgroundImage: `url(${effectiveBg})` }}
+          />
+        )}
+
+        {/* Layer 1: Overlay (when wallpaper is present) */}
+        {hasAnyBg && (
+          <div className="absolute inset-0 bg-[var(--imm-overlay)] z-1 pointer-events-none" />
+        )}
+
+        {/* Center: Quiet Zen Clock & Prompt */}
+        <div
+          className={`relative z-2 flex flex-col items-center gap-4 transition-all duration-300 ${
+            controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+          }`}
+        >
+          <div
+            className={`font-mono font-light text-6xl sm:text-7xl md:text-8xl tracking-tight tabular-nums ${
+              hasAnyBg ? 'text-[var(--imm-text)]/90' : 'text-[var(--text)]/80'
+            }`}
+          >
+            {currentTimeStr}
+          </div>
+
+          <div className="flex flex-col items-center gap-3">
+            <span
+              className={`text-xs sm:text-sm font-medium tracking-wide ${
+                hasAnyBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'
+              }`}
+            >
+              No task running right now
+            </span>
+
+            <button
+              onClick={onOpenStartPicker}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium transition cursor-pointer backdrop-blur-md shadow-xs ${
+                hasAnyBg
+                  ? 'bg-white/10 hover:bg-white/20 text-[var(--imm-text)] border border-white/15'
+                  : 'bg-[var(--surface-hover)] hover:bg-[var(--surface)] text-[var(--text)] border border-[var(--border)]'
+              }`}
+            >
+              <Play className="w-3 h-3 fill-current text-[var(--accent-text)]" />
+              <span>Start a task</span>
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -139,10 +190,6 @@ export const FocusView: React.FC<FocusViewProps> = ({
   const isRunning = snapshot.state === 'running';
   const isPaused = snapshot.state === 'paused';
   const isOvertime = timerInfo.mode === 'overtime';
-  const hasImageBg = images.length > 0;
-  const appWallpaper = localStorage.getItem('let_timer_wallpaper');
-  const effectiveBg = hasImageBg ? (images[currentImageIndex]?.url || null) : appWallpaper;
-  const hasAnyBg = Boolean(effectiveBg);
 
   const handleLifecycle = async (action: 'pause' | 'resume' | 'done') => {
     try {
