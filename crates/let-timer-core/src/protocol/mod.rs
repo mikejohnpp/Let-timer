@@ -25,6 +25,7 @@ pub struct ListQuery {
     pub sort_priority: Option<SortOrder>,
     pub priority: Option<Priority>,
     pub date: Option<NaiveDate>,
+    pub overdue: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -115,3 +115,12 @@ describe('computeTimerDisplay', () => {
     expect(res.display).toBe('01:30');
   });
 });
+
+describe('toLocalISODate', () => {
+  it('formats dates using local year, month, date components', async () => {
+    const d = new Date(2026, 9, 13, 0, 30); // Oct 13 2026 00:30 local
+    const { toLocalISODate } = await import('../utils/timer');
+    expect(toLocalISODate(d)).toBe('2026-10-13');
+  });
+});
+

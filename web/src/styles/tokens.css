@@ -1,67 +1,182 @@
+/*
+ * Let-timer design tokens (v2) — replaces web/src/styles/tokens.css.
+ * Every foreground/background pair below is verified by web/src/test/contrast.test.ts.
+ *
+ * Usage rules
+ *  - Small text and text-sized icons:   --text, --muted, or a *-text token, ONLY on --bg / --surface / --surface-hover.
+ *  - Dots, lines, borders, progress:    the base token (--danger, --warning, --success, --timer-over, --accent-text).
+ *  - Filled buttons/badges:             base token as background + matching --on-* token as label.
+ *  - Tinted banners:                    *-bg background, message in --text, icon in the base token.
+ *  - Never use --danger / --warning / --success / --timer-over as small text colour.
+ */
+
 :root {
-  /* Light Theme */
+  color-scheme: light;
   --bg: #f8fafc;
   --surface: #ffffff;
   --surface-hover: #f1f5f9;
   --border: #e2e8f0;
+  --border-strong: #7b8798;
   --text: #0f172a;
-  --muted: #64748b;
+  --muted: #5b6b82;
   --accent: #4f46e5;
   --accent-hover: #4338ca;
+  --on-accent: #ffffff;
+  --accent-text: #4f46e5;
+  --timer-over: #ea580c;
+  --on-over: #0f172a;
+  --over-text: #c2410c;
+  --danger: #dc2626;
+  --on-danger: #ffffff;
+  --danger-text: #b91c1c;
+  --warning: #cc6a06;
+  --warning-text: #92400e;
+  --success: #059669;
+  --success-text: #047857;
+  --danger-bg: #fef2f2;
+  --warning-bg: #fffbeb;
+  --success-bg: #ecfdf5;
+  --over-bg: #fff7ed;
+  --info-bg: #eef2ff;
 
-  /* Timer Semantic States */
-  --timer-run: #0284c7;     /* Sky/Blue: active running */
-  --timer-pause: #eab308;   /* Yellow/Amber: paused */
-  --timer-over: #f97316;    /* Amber/Orange: overtime (calm question, NOT error red) */
-  --timer-done: #10b981;    /* Emerald/Green */
+  /* Immersive scope (Focus view over a photo, 65% black overlay) */
+  --imm-text: #ffffff;
+  --imm-muted: #e5e7eb;
+  --imm-overlay: rgb(0 0 0 / 0.65);
 
-  /* Status Colors */
-  --danger: #ef4444;
-  --success: #10b981;
-  --warning: #f59e0b;
+  /* Legacy aliases (do not use in new code) */
+  --timer-run: var(--accent-text);
+  --timer-pause: var(--muted);
+  --timer-done: var(--success);
+
+  /* Shape, elevation, layout */
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-modal: 14px;
+  --shadow-popover: 0 8px 24px rgb(15 23 42 / 0.16);
+  --header-h: 3.5rem;
+  --tabbar-h: 3.5rem;
 }
 
-[data-theme="dark"],
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0b0f19;
-    --surface: #111827;
-    --surface-hover: #1f2937;
-    --border: #1f293d;
-    --text: #f9fafb;
-    --muted: #9ca3af;
-    --accent: #6366f1;
-    --accent-hover: #818cf8;
-
-    --timer-run: #38bdf8;
-    --timer-pause: #fde047;
-    --timer-over: #fb923c;
-    --timer-done: #34d399;
-
-    --danger: #f87171;
-    --success: #34d399;
-    --warning: #fbbf24;
-  }
+:root[data-palette="forest"] {
+  --bg: #f4f6f4;
+  --surface: #ffffff;
+  --surface-hover: #edf1ed;
+  --border: #dbe2db;
+  --border-strong: #6e8273;
+  --text: #112217;
+  --muted: #4d6052;
+  --accent: #1b633e;
+  --accent-hover: #144e31;
+  --on-accent: #ffffff;
+  --accent-text: #1b633e;
+  --danger-bg: #fdf2f2;
+  --warning-bg: #fefbee;
+  --success-bg: #edfbf3;
+  --over-bg: #fef6ee;
+  --info-bg: #edf6f0;
 }
 
-[data-theme="dark"] {
+:root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0b0f19;
   --surface: #111827;
   --surface-hover: #1f2937;
-  --border: #1f293d;
+  --border: #243044;
+  --border-strong: #6b7a90;
   --text: #f9fafb;
   --muted: #9ca3af;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-
-  --timer-run: #38bdf8;
-  --timer-pause: #fde047;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --on-accent: #ffffff;
+  --accent-text: #a5b4fc;
   --timer-over: #fb923c;
-  --timer-done: #34d399;
+  --on-over: #0f172a;
+  --over-text: #fb923c;
+  --danger: #dc2626;
+  --on-danger: #ffffff;
+  --danger-text: #f87171;
+  --warning: #f59e0b;
+  --warning-text: #fbbf24;
+  --success: #059669;
+  --success-text: #34d399;
+  --danger-bg: #2a1517;
+  --warning-bg: #2a2010;
+  --success-bg: #0f2a21;
+  --over-bg: #2b1a0e;
+  --info-bg: #1a1f3d;
+  --shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
+}
 
-  --danger: #f87171;
-  --success: #34d399;
-  --warning: #fbbf24;
+:root[data-theme="dark"][data-palette="forest"] {
+  --bg: #0b140e;
+  --surface: #122017;
+  --surface-hover: #1a2c20;
+  --border: #1d3325;
+  --border-strong: #64856e;
+  --text: #f0fdf4;
+  --muted: #94a899;
+  --accent: #2d7a50;
+  --accent-hover: #236340;
+  --on-accent: #ffffff;
+  --accent-text: #68d391;
+  --danger-bg: #291416;
+  --warning-bg: #281f0f;
+  --success-bg: #0e291c;
+  --over-bg: #29180c;
+  --info-bg: #14281e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b0f19;
+    --surface: #111827;
+    --surface-hover: #1f2937;
+    --border: #243044;
+    --border-strong: #6b7a90;
+    --text: #f9fafb;
+    --muted: #9ca3af;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --on-accent: #ffffff;
+    --accent-text: #a5b4fc;
+    --timer-over: #fb923c;
+    --on-over: #0f172a;
+    --over-text: #fb923c;
+    --danger: #dc2626;
+    --on-danger: #ffffff;
+    --danger-text: #f87171;
+    --warning: #f59e0b;
+    --warning-text: #fbbf24;
+    --success: #059669;
+    --success-text: #34d399;
+    --danger-bg: #2a1517;
+    --warning-bg: #2a2010;
+    --success-bg: #0f2a21;
+    --over-bg: #2b1a0e;
+    --info-bg: #1a1f3d;
+    --shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
+  }
+
+  :root:not([data-theme="light"])[data-palette="forest"] {
+    --bg: #0b140e;
+    --surface: #122017;
+    --surface-hover: #1a2c20;
+    --border: #1d3325;
+    --border-strong: #64856e;
+    --text: #f0fdf4;
+    --muted: #94a899;
+    --accent: #2d7a50;
+    --accent-hover: #236340;
+    --on-accent: #ffffff;
+    --accent-text: #68d391;
+    --danger-bg: #291416;
+    --warning-bg: #281f0f;
+    --success-bg: #0e291c;
+    --over-bg: #29180c;
+    --info-bg: #14281e;
+  }
 }
 
 /* Tabular digits for timers */
@@ -80,4 +195,19 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

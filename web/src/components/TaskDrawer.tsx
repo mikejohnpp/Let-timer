@@ -1,7 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Calendar, Clock, AlertCircle } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import type { components } from '../api/schema';
 import { getStoredToken } from '../api/client';
+import { toLocalISODate } from '../utils/timer';
+import {
+  Drawer,
+  Button,
+  FormField,
+  Input,
+  Textarea,
+  Select,
+  SegmentedControl,
+  Banner,
+  useToast,
+  useConfirm,
+} from './ui';
 
 type Task = components['schemas']['TaskDto'];
 type MediaList = components['schemas']['MediaListDto'];
@@ -31,6 +44,9 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { showToast } = useToast();
+  const confirm = useConfirm();
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -44,8 +60,10 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
     } else {
       setName('');
       setDescription('');
-      setEstimatedMins('25');
-      setScheduledOn(defaultDate || new Date().toISOString().slice(0, 10));
+      const defaultStored = localStorage.getItem('let_timer_default_estimate');
+      const defEst = defaultStored === 'none' ? '' : defaultStored && !isNaN(Number(defaultStored)) ? defaultStored : '25';
+      setEstimatedMins(defEst);
+      setScheduledOn(defaultDate || toLocalISODate());
       setPriority(0);
       setMediaListId('');
     }
@@ -69,8 +87,6 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
     loadMediaLists();
   }, [isOpen, taskToEdit, defaultDate]);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -93,7 +109,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      let res: Response;
+      let res: globalThis.Response;
       if (taskToEdit) {
         res = await fetch(`/api/v1/tasks/${taskToEdit.id}`, {
           method: 'PATCH',
@@ -126,11 +142,12 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
         const err = await res.json().catch(() => ({}));
         setError(err.message || 'Failed to save task');
       } else {
+        showToast(taskToEdit ? 'Task updated' : 'Task created', 'success');
         onSaved();
         onClose();
       }
-    } catch (e) {
-      setError('Network error while saving task');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Network error while saving task');
     } finally {
       setIsSubmitting(false);
     }
@@ -138,7 +155,13 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
 
   const handleDelete = async () => {
     if (!taskToEdit) return;
-    if (!confirm(`Delete task #${taskToEdit.id} "${taskToEdit.name}"?`)) return;
+    const ok = await confirm({
+      title: `Delete task #${taskToEdit.id} "${taskToEdit.name}"?`,
+      body: 'This task and its sessions will be deleted permanently.',
+      tone: 'danger',
+      confirmLabel: 'Delete task',
+    });
+    if (!ok) return;
 
     setIsSubmitting(true);
     try {
@@ -152,123 +175,87 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
       });
 
       if (res.ok) {
+        showToast('Task deleted', 'success');
         onSaved();
         onClose();
       } else {
         const err = await res.json().catch(() => ({}));
         setError(err.message || 'Failed to delete task');
       }
-    } catch (e) {
-      setError('Network error while deleting task');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Network error while deleting task');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-[var(--surface)] border-l border-[var(--border)] w-full max-w-md h-full shadow-2xl flex flex-col overflow-y-auto">
-        {/* Drawer Header */}
-        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
-          <h2 className="text-lg font-bold">
-            {taskToEdit ? `Edit Task #${taskToEdit.id}` : 'Create Task'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Drawer
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      title={taskToEdit ? `Edit task #${taskToEdit.id}` : 'Create task'}
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {error && <Banner tone="danger">{error}</Banner>}
 
-        {error && (
-          <div className="p-3 bg-red-500/10 text-red-500 text-xs border-b border-red-500/20 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 flex-1 flex flex-col gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-              Task Name *
-            </label>
-            <input
-              type="text"
+        <FormField label="Name" required>
+          {(id) => (
+            <Input
+              id={id}
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Read chapter 3"
-              className="w-full px-3 py-2 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)] outline-none transition"
             />
-          </div>
+          )}
+        </FormField>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                <span>Estimate (mins)</span>
-              </label>
-              <input
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField label="Estimate (min)" helperText="Leave empty for no estimate">
+            {(id) => (
+              <Input
+                id={id}
                 type="number"
                 min="1"
                 value={estimatedMins}
                 onChange={(e) => setEstimatedMins(e.target.value)}
-                placeholder="None"
-                className="w-full px-3 py-2 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)] outline-none transition"
+                placeholder="25"
               />
-              <span className="text-[10px] text-[var(--muted)]">Leave empty for no estimate</span>
-            </div>
+            )}
+          </FormField>
 
-            <div>
-              <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Scheduled Date</span>
-              </label>
-              <input
+          <FormField label="Scheduled date">
+            {(id) => (
+              <Input
+                id={id}
                 type="date"
                 value={scheduledOn}
                 onChange={(e) => setScheduledOn(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)] outline-none transition"
               />
-            </div>
-          </div>
+            )}
+          </FormField>
+        </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-              Priority
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { val: 0, label: 'Not-yet' },
-                { val: 1, label: 'Immediate' },
-                { val: 2, label: 'Urgent' },
-              ].map((p) => (
-                <button
-                  type="button"
-                  key={p.val}
-                  onClick={() => setPriority(p.val)}
-                  className={`py-2 text-xs font-medium rounded-xl border transition ${
-                    priority === p.val
-                      ? 'border-[var(--accent)] bg-[var(--accent)] text-white shadow-sm'
-                      : 'border-[var(--border)] bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--text)]'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        <FormField label="Priority">
+          {() => (
+            <SegmentedControl
+              value={priority.toString()}
+              onValueChange={(val) => setPriority(parseInt(val, 10))}
+              items={[
+                { value: '0', label: 'Not-yet' },
+                { value: '1', label: 'Immediate' },
+                { value: '2', label: 'Urgent' },
+              ]}
+            />
+          )}
+        </FormField>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-              Focus Media List
-            </label>
-            <select
+        <FormField label="Focus media list" helperText="Used as the background in Focus mode">
+          {(id) => (
+            <Select
+              id={id}
               value={mediaListId}
               onChange={(e) => setMediaListId(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)] outline-none transition"
             >
               <option value="">None</option>
               {mediaLists.map((ml) => (
@@ -276,55 +263,48 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
                   {ml.name}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          )}
+        </FormField>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-              Description / Notes
-            </label>
-            <textarea
+        <FormField label="Notes">
+          {(id) => (
+            <Textarea
+              id={id}
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add details, links, or notes…"
-              className="w-full px-3 py-2 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)] outline-none transition resize-none"
+              placeholder="Optional notes or subtasks..."
             />
-          </div>
+          )}
+        </FormField>
 
-          {/* Form Actions */}
-          <div className="mt-auto pt-4 border-t border-[var(--border)] flex items-center justify-between gap-3">
-            {taskToEdit ? (
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={isSubmitting}
-                className="flex items-center gap-1.5 text-red-500 hover:text-red-400 p-2 text-sm font-medium rounded-xl hover:bg-red-500/10 transition"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Delete</span>
-              </button>
-            ) : <div />}
+        <div className="pt-4 border-t border-[var(--border)] flex items-center justify-between gap-3">
+          {taskToEdit ? (
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              onClick={handleDelete}
+              disabled={isSubmitting}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete</span>
+            </Button>
+          ) : (
+            <div />
+          )}
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--text)] rounded-xl transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-5 py-2 text-sm font-semibold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl shadow-sm transition disabled:opacity-50"
-              >
-                {isSubmitting ? 'Saving…' : 'Save'}
-              </button>
-            </div>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" loading={isSubmitting}>
+              Save
+            </Button>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+      </form>
+    </Drawer>
   );
 };

@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Play, X, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Play, ArrowRight, AlertTriangle } from 'lucide-react';
 import type { components } from '../api/schema';
 import type { TimerSnapshot } from '../hooks/useEventStream';
 import { getStoredToken } from '../api/client';
+import {
+  Modal,
+  Checkbox,
+  Banner,
+  PriorityMarker,
+  Skeleton,
+} from './ui';
 
 type Task = components['schemas']['TaskDto'];
 
@@ -44,8 +51,8 @@ export const StartPickerModal: React.FC<StartPickerModalProps> = ({
         } else {
           setError('Failed to load candidate tasks');
         }
-      } catch (e) {
-        setError('Network error while loading candidates');
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Network error while loading candidates');
       } finally {
         setIsLoading(false);
       }
@@ -54,17 +61,16 @@ export const StartPickerModal: React.FC<StartPickerModalProps> = ({
     loadCandidates();
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const handleStartTask = async (taskId: number) => {
     try {
       const token = getStoredToken();
       const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const url = hasRunningTask && switchConfirmed
-        ? `/api/v1/tasks/${taskId}/start?switch=true`
-        : `/api/v1/tasks/${taskId}/start`;
+      const url =
+        hasRunningTask && switchConfirmed
+          ? `/api/v1/tasks/${taskId}/start?switch=true`
+          : `/api/v1/tasks/${taskId}/start`;
 
       const res = await fetch(url, {
         method: 'POST',
@@ -78,103 +84,76 @@ export const StartPickerModal: React.FC<StartPickerModalProps> = ({
         onStarted();
         onClose();
       }
-    } catch (e) {
-      setError('Network error while starting task');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Network error while starting task');
     }
   };
 
-  const priorityLabels = ['not-yet', 'immediate', 'urgent'];
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-        {/* Header */}
-        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Play className="w-5 h-5 text-[var(--accent)]" />
-            <h2 className="text-lg font-bold">Start which task?</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Conflict switch banner */}
-        {hasRunningTask && (
-          <div className="p-3 bg-amber-500/10 border-b border-amber-500/20 text-xs flex items-center justify-between gap-2 text-amber-500">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>
-                Task <strong>#{snapshot.task.id} {snapshot.task.name}</strong> is currently {snapshot.state}.
-              </span>
+    <Modal open={isOpen} onOpenChange={(open) => !open && onClose()} title="Start which task?">
+      {/* Running task conflict banner */}
+      {hasRunningTask && (
+        <Banner tone="warning">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 font-medium">
+              <AlertTriangle className="w-3.5 h-3.5 text-[var(--warning)]" />
+              <span>"{snapshot.task.name}" is currently {snapshot.state}.</span>
             </div>
-            <label className="flex items-center gap-1.5 cursor-pointer font-medium select-none shrink-0">
-              <input
-                type="checkbox"
-                checked={switchConfirmed}
-                onChange={(e) => setSwitchConfirmed(e.target.checked)}
-                className="rounded accent-[var(--accent)] cursor-pointer"
-              />
-              <span>Pause & switch</span>
-            </label>
+            <Checkbox
+              checked={switchConfirmed}
+              onCheckedChange={(c) => setSwitchConfirmed(!!c)}
+              label="Pause and switch to this new task"
+            />
           </div>
-        )}
+        </Banner>
+      )}
 
-        {error && (
-          <div className="p-3 bg-red-500/10 text-red-500 text-xs border-b border-red-500/20">
-            {error}
+      {error && <Banner tone="danger">{error}</Banner>}
+
+      {/* Candidates List */}
+      <div className="flex flex-col gap-2 -mx-1">
+        {isLoading ? (
+          <div className="flex flex-col gap-2">
+            <Skeleton height="52px" />
+            <Skeleton height="52px" />
+            <Skeleton height="52px" />
           </div>
-        )}
+        ) : candidates.length === 0 ? (
+          <div className="py-8 text-center text-xs text-[var(--muted)]">
+            No pending or paused tasks to start.
+          </div>
+        ) : (
+          candidates.map((t) => (
+            <div
+              key={t.id}
+              onClick={() => handleStartTask(t.id)}
+              className="p-3 rounded-[var(--radius-control)] border border-[var(--border)] hover:border-[var(--accent-text)] hover:bg-[var(--surface-hover)] transition flex items-center justify-between gap-3 cursor-pointer select-none group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="w-6 h-6 rounded-full bg-[var(--surface-hover)] group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)] text-[var(--muted)] flex items-center justify-center text-xs transition shrink-0">
+                  <Play className="w-3 h-3 fill-current ml-0.5" />
+                </span>
 
-        {/* Candidates list */}
-        <div className="p-3 overflow-y-auto divide-y divide-[var(--border)] flex-1">
-          {isLoading ? (
-            <div className="py-8 text-center text-sm text-[var(--muted)]">Loading candidates…</div>
-          ) : candidates.length === 0 ? (
-            <div className="py-8 text-center text-sm text-[var(--muted)]">
-              No pending or paused tasks found to start.
-            </div>
-          ) : (
-            candidates.map((t) => (
-              <div
-                key={t.id}
-                onClick={() => handleStartTask(t.id)}
-                className="p-3 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] rounded-xl cursor-pointer transition group"
-              >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm group-hover:text-[var(--accent)] transition truncate">
+                    <span className="font-semibold text-xs sm:text-sm text-[var(--text)] truncate">
                       {t.name}
                     </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                      t.priority === 2 ? 'bg-red-500/20 text-red-500' :
-                      t.priority === 1 ? 'bg-amber-500/20 text-amber-500' :
-                      'bg-[var(--surface-hover)] text-[var(--muted)]'
-                    }`}>
-                      {priorityLabels[t.priority] || 'normal'}
-                    </span>
+                    <PriorityMarker priority={t.priority} showLabel />
                   </div>
-                  <div className="text-xs text-[var(--muted)] flex items-center gap-2 mt-0.5">
-                    {t.scheduled_on && <span>Scheduled: {t.scheduled_on}</span>}
-                    {t.estimated_mins && <span>• {t.estimated_mins} mins</span>}
-                    {t.status === 'paused' && <span className="text-amber-500 font-medium">• Paused</span>}
+                  <div className="text-[11px] text-[var(--muted)] flex items-center gap-2 mt-0.5">
+                    {t.scheduled_on && <span>Scheduled {t.scheduled_on}</span>}
+                    {t.estimated_mins && <span>• {t.estimated_mins} min</span>}
+                    {t.status === 'paused' && <span className="text-[var(--warning-text)]">• Paused</span>}
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  className="p-2 rounded-lg bg-[var(--surface-hover)] group-hover:bg-[var(--accent)] group-hover:text-white transition shrink-0"
-                >
-                  <ArrowRight className="w-4 h-4" />
-                </button>
               </div>
-            ))
-          )}
-        </div>
+
+              <ArrowRight className="w-4 h-4 text-[var(--muted)] group-hover:text-[var(--accent-text)] group-hover:translate-x-0.5 transition shrink-0" />
+            </div>
+          ))
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };

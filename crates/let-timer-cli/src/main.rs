@@ -596,6 +596,7 @@ async fn build_command(
                     None => None,
                 },
                 date,
+                overdue: None,
             }))
         }
 

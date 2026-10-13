@@ -2,6 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Folder, Plus, Trash2, Check } from 'lucide-react';
 import type { components } from '../api/schema';
 import { getStoredToken, getStoredWorkspace, setStoredWorkspace } from '../api/client';
+import {
+  Button,
+  IconButton,
+  Badge,
+  Banner,
+  Card,
+  FormField,
+  Input,
+  Skeleton,
+  EmptyState,
+  useToast,
+  useConfirm,
+} from '../components/ui';
 
 type Workspace = components['schemas']['WorkspaceDto'];
 
@@ -11,9 +24,14 @@ export const WorkspacesView: React.FC = () => {
   const [newWsName, setNewWsName] = useState('');
   const [newWsDesc, setNewWsDesc] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { showToast } = useToast();
+  const confirm = useConfirm();
+
   const loadWorkspaces = async () => {
+    setIsLoading(true);
     try {
       const token = getStoredToken();
       const headers: Record<string, string> = { 'X-Let-Timer-Protocol': '1' };
@@ -26,6 +44,9 @@ export const WorkspacesView: React.FC = () => {
       }
     } catch (e) {
       console.error('Failed to load workspaces', e);
+      showToast('Failed to load workspaces', 'danger');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -38,6 +59,7 @@ export const WorkspacesView: React.FC = () => {
     setActiveWsId(idStr);
     setStoredWorkspace(idStr);
     window.dispatchEvent(new CustomEvent('let-timer-workspace-changed'));
+    showToast('Workspace switched', 'info');
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -66,19 +88,26 @@ export const WorkspacesView: React.FC = () => {
         setNewWsName('');
         setNewWsDesc('');
         setIsCreating(false);
+        showToast('Workspace created', 'success');
         loadWorkspaces();
         window.dispatchEvent(new CustomEvent('let-timer-workspace-changed'));
       } else {
         const err = await res.json().catch(() => ({}));
         setError(err.message || 'Failed to create workspace');
       }
-    } catch (e) {
-      setError('Network error creating workspace');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Network error creating workspace');
     }
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Delete workspace "${name}" and all its tasks?`)) return;
+    const ok = await confirm({
+      title: `Delete workspace "${name}"?`,
+      body: 'All tasks within this workspace will be deleted permanently. You cannot delete the active workspace.',
+      tone: 'danger',
+      confirmLabel: 'Delete workspace',
+    });
+    if (!ok) return;
 
     try {
       const token = getStoredToken();
@@ -91,130 +120,162 @@ export const WorkspacesView: React.FC = () => {
       });
 
       if (res.ok) {
+        showToast('Workspace deleted', 'success');
         loadWorkspaces();
         window.dispatchEvent(new CustomEvent('let-timer-workspace-changed'));
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.message || 'Failed to delete workspace');
+        showToast(err.message || 'Failed to delete workspace', 'danger');
       }
-    } catch (e) {
-      console.error('Delete workspace failed', e);
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to delete workspace', 'danger');
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 pb-24">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text)]">Workspaces</h1>
+          <h1 className="text-2xl font-bold text-[var(--text)] tracking-tight">Workspaces</h1>
           <p className="text-xs text-[var(--muted)] mt-1">
-            Group your tasks into dedicated contexts (e.g. Study, Work, Home).
+            Active workspace scopes your tasks and timer.
           </p>
         </div>
 
-        <button
-          onClick={() => setIsCreating(true)}
-          className="flex items-center gap-1.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-3.5 py-2 rounded-xl text-sm font-semibold shadow-sm transition"
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => setIsCreating(!isCreating)}
         >
-          <Plus className="w-4 h-4" />
-          <span>New Workspace</span>
-        </button>
+          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+          <span>New workspace</span>
+        </Button>
       </div>
 
+      {/* Inline Create Form */}
       {isCreating && (
-        <form onSubmit={handleCreate} className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 mb-6 shadow-sm">
-          <h2 className="text-sm font-bold mb-3">Add New Workspace</h2>
-          {error && <div className="text-xs text-red-500 mb-3">{error}</div>}
+        <Card className="mb-6">
+          <h2 className="text-sm font-bold text-[var(--text)] mb-3">Add workspace</h2>
+          {error && <Banner tone="danger" className="mb-3">{error}</Banner>}
 
-          <div className="grid sm:grid-cols-2 gap-3 mb-4">
-            <input
-              type="text"
-              required
-              placeholder="Workspace name (e.g. Study)"
-              value={newWsName}
-              onChange={(e) => setNewWsName(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] text-sm outline-none focus:border-[var(--accent)]"
-            />
-            <input
-              type="text"
-              placeholder="Description (optional)"
-              value={newWsDesc}
-              onChange={(e) => setNewWsDesc(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] text-sm outline-none focus:border-[var(--accent)]"
-            />
-          </div>
+          <form onSubmit={handleCreate} className="flex flex-col gap-3">
+            <FormField label="Workspace name" required>
+              {(id) => (
+                <Input
+                  id={id}
+                  required
+                  value={newWsName}
+                  onChange={(e) => setNewWsName(e.target.value)}
+                  placeholder="e.g. Study, Work, Personal"
+                />
+              )}
+            </FormField>
 
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setIsCreating(false)}
-              className="px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--text)] rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-1.5 text-xs font-semibold bg-[var(--accent)] text-white rounded-lg shadow-sm"
-            >
-              Create
-            </button>
-          </div>
-        </form>
+            <FormField label="Description (optional)">
+              {(id) => (
+                <Input
+                  id={id}
+                  value={newWsDesc}
+                  onChange={(e) => setNewWsDesc(e.target.value)}
+                  placeholder="e.g. University exam prep"
+                />
+              )}
+            </FormField>
+
+            <div className="flex justify-end gap-2 mt-2">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreating(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="sm">
+                Create
+              </Button>
+            </div>
+          </form>
+        </Card>
       )}
 
-      {/* Workspaces list */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm divide-y divide-[var(--border)] overflow-hidden">
-        {workspaces.map((w) => {
-          const isActive = activeWsId === w.id.toString();
+      {/* Workspaces List */}
+      {isLoading ? (
+        <div className="flex flex-col gap-2">
+          <Skeleton height="56px" />
+          <Skeleton height="56px" />
+        </div>
+      ) : workspaces.length === 0 ? (
+        <EmptyState
+          title="Create your first workspace"
+          description="Workspaces help you group and scope tasks into projects."
+          action={{
+            label: 'New workspace',
+            onClick: () => setIsCreating(true),
+          }}
+        />
+      ) : (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card)] divide-y divide-[var(--border)] overflow-hidden shadow-xs">
+          {workspaces.map((w) => {
+            const isActive = activeWsId === w.id.toString();
 
-          return (
-            <div
-              key={w.id}
-              className="p-4 flex items-center justify-between gap-4 hover:bg-[var(--surface-hover)] transition"
-            >
+            return (
               <div
-                onClick={() => handleSelectWorkspace(w.id)}
-                className="flex items-center gap-3.5 flex-1 cursor-pointer min-w-0"
+                key={w.id}
+                className="p-3.5 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition group cursor-pointer"
+                onClick={() => !isActive && handleSelectWorkspace(w.id)}
               >
-                <div className={`p-2.5 rounded-xl ${isActive ? 'bg-[var(--accent)] text-white' : 'bg-[var(--surface-hover)] text-[var(--muted)]'}`}>
-                  <Folder className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm truncate text-[var(--text)]">{w.name}</span>
-                    {isActive && (
-                      <span className="text-[10px] bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 px-1.5 py-0.5 rounded font-medium">
-                        Active
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-9 h-9 rounded-[var(--radius-control)] flex items-center justify-center shrink-0 transition ${
+                      isActive
+                        ? 'bg-[var(--accent)] text-[var(--on-accent)]'
+                        : 'bg-[var(--surface-hover)] text-[var(--muted)] group-hover:text-[var(--text)]'
+                    }`}
+                  >
+                    <Folder className="w-4 h-4" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-xs sm:text-sm text-[var(--text)] truncate">
+                        {w.name}
                       </span>
+                      {isActive && <Badge variant="accent">Active</Badge>}
+                    </div>
+                    {w.description && (
+                      <p className="text-[11px] text-[var(--muted)] mt-0.5 truncate max-w-md">
+                        {w.description}
+                      </p>
                     )}
                   </div>
-                  {w.description && <p className="text-xs text-[var(--muted)] mt-0.5">{w.description}</p>}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {!isActive && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleSelectWorkspace(w.id)}
+                      className="text-xs h-7"
+                    >
+                      <Check className="w-3 h-3" />
+                      <span className="hidden sm:inline">Switch</span>
+                    </Button>
+                  )}
+
+                  {!isActive && (
+                    <IconButton
+                      variant="danger"
+                      size="sm"
+                      onClick={() => handleDelete(w.id, w.name)}
+                      aria-label={`Delete workspace ${w.name}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </IconButton>
+                  )}
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                {!isActive && (
-                  <button
-                    onClick={() => handleSelectWorkspace(w.id)}
-                    className="p-2 rounded-xl bg-[var(--surface-hover)] hover:bg-[var(--border)] text-xs font-medium text-[var(--text)] transition flex items-center gap-1"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Switch</span>
-                  </button>
-                )}
-
-                <button
-                  onClick={() => handleDelete(w.id, w.name)}
-                  className="p-2 text-[var(--muted)] hover:text-red-500 rounded-xl hover:bg-red-500/10 transition"
-                  title="Delete workspace"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

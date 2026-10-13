@@ -14,6 +14,7 @@ pub struct TasksQuery {
     pub sort: Option<String>,
     pub date: Option<String>,
     pub q: Option<String>,
+    pub overdue: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize, IntoParams)]

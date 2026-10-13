@@ -8,11 +8,25 @@ import {
   XCircle,
   Plus,
   MoreHorizontal,
-  Compass,
+  Target,
+  Timer as TimerIcon,
+  AlertTriangle,
 } from 'lucide-react';
 import type { TimerSnapshot } from '../hooks/useEventStream';
 import { computeTimerDisplay, type FormattedTimer } from '../utils/timer';
 import { getStoredToken } from '../api/client';
+import {
+  Button,
+  IconButton,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  LiveRegion,
+  useToast,
+  useConfirm,
+} from './ui';
 
 interface TimerBarProps {
   snapshot: TimerSnapshot | null;
@@ -30,9 +44,14 @@ export const TimerBar: React.FC<TimerBarProps> = ({
   onActionComplete,
 }) => {
   const [now, setNow] = useState<number>(Date.now());
-  const [showMenu, setShowMenu] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [lastAnnouncedMinute, setLastAnnouncedMinute] = useState<number | null>(null);
+  const [liveAnnouncement, setLiveAnnouncement] = useState<string>('');
+  const [liveRole, setLiveRole] = useState<'status' | 'alert'>('status');
+
+  const { showToast } = useToast();
+  const confirm = useConfirm();
+  const prevModeRef = useRef<string>('idle');
 
   // Live 1-second ticking
   useEffect(() => {
@@ -42,23 +61,47 @@ export const TimerBar: React.FC<TimerBarProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Close more menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    }
-    if (showMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showMenu]);
-
   const timerInfo: FormattedTimer = computeTimerDisplay(snapshot, receivedAt, now);
+
+  // Announce minute change or state change in LiveRegion
+  useEffect(() => {
+    if (!snapshot || snapshot.state === 'idle') return;
+
+    const currentMinute = Math.floor(timerInfo.totalElapsedSecs / 60);
+    const modeChanged = prevModeRef.current !== timerInfo.mode;
+    prevModeRef.current = timerInfo.mode;
+
+    if (timerInfo.mode === 'overtime' && modeChanged) {
+      setLiveRole('alert');
+      setLiveAnnouncement(`Time's up: ${snapshot.task.name}`);
+      setLastAnnouncedMinute(currentMinute);
+    } else if (modeChanged || (currentMinute !== lastAnnouncedMinute && timerInfo.totalElapsedSecs > 0)) {
+      setLiveRole('status');
+      setLiveAnnouncement(`${timerInfo.display} - ${snapshot.task.name}`);
+      setLastAnnouncedMinute(currentMinute);
+    }
+  }, [snapshot, timerInfo.display, timerInfo.mode, timerInfo.totalElapsedSecs, lastAnnouncedMinute]);
 
   const performTransition = async (action: 'pause' | 'resume' | 'stop' | 'done' | 'cancel' | 'restart') => {
     if (!snapshot || snapshot.state === 'idle') return;
+
+    if (action === 'cancel') {
+      const ok = await confirm({
+        title: `Cancel task "${snapshot.task.name}"?`,
+        body: 'The task status will be set to cancelled and the timer will stop.',
+        confirmLabel: 'Cancel task',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    } else if (action === 'restart') {
+      const ok = await confirm({
+        title: `Restart timer for "${snapshot.task.name}"?`,
+        body: 'Restart starts a new run and resets elapsed time.',
+        confirmLabel: 'Restart',
+      });
+      if (!ok) return;
+    }
+
     setIsSubmitting(true);
     try {
       const token = getStoredToken();
@@ -72,15 +115,15 @@ export const TimerBar: React.FC<TimerBarProps> = ({
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.message || `Action failed with status ${res.status}`);
+        showToast(err.message || `Action failed with status ${res.status}`, 'danger');
       } else {
         onActionComplete();
       }
-    } catch (e) {
-      console.error(`Failed to perform ${action}`, e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Action failed';
+      showToast(msg, 'danger');
     } finally {
       setIsSubmitting(false);
-      setShowMenu(false);
     }
   };
 
@@ -106,12 +149,14 @@ export const TimerBar: React.FC<TimerBarProps> = ({
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.message || `Failed to extend estimate`);
+        showToast(err.message || 'Failed to extend estimate', 'danger');
       } else {
+        showToast(`Extended estimate to ${newEst}m`, 'success');
         onActionComplete();
       }
-    } catch (e) {
-      console.error('Failed to extend estimate', e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to extend estimate';
+      showToast(msg, 'danger');
     } finally {
       setIsSubmitting(false);
     }
@@ -119,19 +164,16 @@ export const TimerBar: React.FC<TimerBarProps> = ({
 
   if (!snapshot || snapshot.state === 'idle') {
     return (
-      <div className="bg-[var(--surface)] border-b border-[var(--border)] px-4 py-3 shadow-sm">
+      <div className="bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2.5 shadow-xs sticky top-0 lg:top-[var(--header-h)] z-30 transition-colors pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3 text-[var(--muted)]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[var(--muted)]/50" />
-            <span className="text-sm font-medium">Nothing running</span>
+          <div className="flex items-center gap-2.5 text-[var(--muted)]">
+            <span className="w-2 h-2 rounded-full bg-[var(--muted)]/50" />
+            <span className="text-xs font-medium">Nothing running</span>
           </div>
-          <button
-            onClick={onOpenStartPicker}
-            className="flex items-center gap-1.5 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-[var(--text)] px-3 py-1.5 rounded-lg text-sm font-medium transition"
-          >
+          <Button variant="secondary" size="sm" onClick={onOpenStartPicker}>
             <Play className="w-3.5 h-3.5 fill-current" />
             <span>Start a task…</span>
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -141,157 +183,147 @@ export const TimerBar: React.FC<TimerBarProps> = ({
   const isPaused = snapshot.state === 'paused';
   const isOvertime = timerInfo.mode === 'overtime';
 
-  // Color tokens per state
-  let stateColor = 'var(--timer-run)';
-  let stateBadgeBg = 'rgba(2, 132, 199, 0.1)';
-  let stateBorder = 'rgba(2, 132, 199, 0.2)';
-  if (isOvertime) {
-    stateColor = 'var(--timer-over)';
-    stateBadgeBg = 'rgba(249, 115, 22, 0.1)';
-    stateBorder = 'rgba(249, 115, 22, 0.3)';
-  } else if (isPaused) {
-    stateColor = 'var(--timer-pause)';
-    stateBadgeBg = 'rgba(234, 179, 8, 0.1)';
-    stateBorder = 'rgba(234, 179, 8, 0.2)';
-  }
-
   return (
     <div
-      className="bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2.5 shadow-sm sticky top-16 z-30 transition-colors"
-      style={{ borderBottomColor: stateBorder }}
+      className={`border-b px-4 py-2 shadow-xs sticky top-0 lg:top-[var(--header-h)] z-30 transition-colors pt-[env(safe-area-inset-top)] ${
+        isOvertime
+          ? 'bg-[var(--over-bg)] border-[var(--timer-over)]'
+          : isPaused
+          ? 'bg-[var(--surface)] border-[var(--border)]'
+          : 'bg-[var(--surface)] border-[var(--accent)]/30'
+      }`}
     >
-      {/* Hidden live region for accessibility announcements */}
-      <div aria-live="polite" className="sr-only">
-        {timerInfo.display} - {snapshot.task.name}
-      </div>
+      <LiveRegion message={liveAnnouncement} role={liveRole} />
 
-      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
         {/* Left: Timer digits + Task info */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          {/* Status icon & digits */}
           <div
-            className="flex items-center gap-2 px-3 py-1 rounded-lg font-bold text-xl tabular-nums tracking-tight border transition-colors shadow-inner"
-            style={{
-              color: stateColor,
-              backgroundColor: stateBadgeBg,
-              borderColor: stateBorder,
-            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] font-mono font-bold text-sm sm:text-base tabular-nums border select-none ${
+              isOvertime
+                ? 'text-[var(--over-text)] bg-[var(--timer-over)]/10 border-[var(--timer-over)]/30'
+                : isPaused
+                ? 'text-[var(--muted)] bg-[var(--surface-hover)] border-[var(--border)]'
+                : 'text-[var(--accent-text)] bg-[var(--accent)]/10 border-[var(--accent)]/20'
+            }`}
           >
-            {isPaused ? '⏸' : isOvertime ? '⚠' : '⏳'}
+            {isOvertime ? (
+              <AlertTriangle className="w-3.5 h-3.5 text-[var(--timer-over)]" />
+            ) : isPaused ? (
+              <Pause className="w-3.5 h-3.5 text-[var(--muted)]" />
+            ) : (
+              <TimerIcon className="w-3.5 h-3.5 text-[var(--accent-text)] animate-pulse" />
+            )}
             <span>{timerInfo.display}</span>
           </div>
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm truncate text-[var(--text)]">
+          <div className="min-w-0 flex flex-col justify-center">
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-xs sm:text-sm truncate text-[var(--text)]">
                 {snapshot.task.name}
               </span>
-              <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--muted)] border border-[var(--border)]">
+              <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded bg-[var(--surface-hover)] text-[var(--muted)] border border-[var(--border)] font-medium">
                 {snapshot.workspace_name}
               </span>
             </div>
-            <div className="text-xs text-[var(--muted)] flex items-center gap-1.5">
-              <span>{isOvertime ? "Time's up" : isPaused ? 'Paused' : 'In progress'}</span>
+            <div className="text-[11px] text-[var(--muted)] flex items-center gap-1.5">
+              <span className="capitalize font-medium">
+                {isOvertime ? "Time's up" : isPaused ? 'Paused' : 'In progress'}
+              </span>
               {snapshot.task.estimated_mins && (
                 <>
                   <span>•</span>
-                  <span>{snapshot.task.estimated_mins}m estimate</span>
+                  <span>{snapshot.task.estimated_mins}m est</span>
                 </>
               )}
             </div>
           </div>
         </div>
 
-        {/* Right: Actions */}
-        <div className="flex items-center gap-2 ml-auto">
-          {/* Focus mode link */}
-          <button
+        {/* Right: Controls */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Focus button */}
+          <IconButton
+            variant="ghost"
+            size="sm"
             onClick={onOpenFocus}
-            className="p-1.5 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] rounded-lg transition"
-            title="Open Focus mode"
             aria-label="Open Focus mode"
+            title="Open Focus mode"
           >
-            <Compass className="w-4 h-4" />
-          </button>
+            <Target className="w-4 h-4" />
+          </IconButton>
 
-          {/* Overtime "+5 min" button */}
+          {/* Overtime +5 min button */}
           {isOvertime && (
             <button
               onClick={handleAddFiveMinutes}
               disabled={isSubmitting}
-              className="flex items-center gap-1 bg-[var(--timer-over)] hover:opacity-90 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition disabled:opacity-50"
+              className="flex items-center gap-1 bg-[var(--timer-over)] text-[var(--on-over)] hover:opacity-90 px-2.5 py-1 rounded-[var(--radius-control)] text-xs font-bold transition disabled:opacity-50 cursor-pointer shadow-xs"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+5 min</span>
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <span className="hidden sm:inline">+5 min</span>
             </button>
           )}
 
-          {/* Primary Lifecycle Controls */}
+          {/* Pause / Resume */}
           {isRunning ? (
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => performTransition('pause')}
               disabled={isSubmitting}
-              className="flex items-center gap-1.5 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-[var(--text)] px-3 py-1.5 rounded-lg text-sm font-medium border border-[var(--border)] transition disabled:opacity-50"
             >
               <Pause className="w-3.5 h-3.5 fill-current" />
-              <span>Pause</span>
-            </button>
+              <span className="hidden sm:inline">Pause</span>
+            </Button>
           ) : (
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => performTransition('resume')}
               disabled={isSubmitting}
-              className="flex items-center gap-1.5 bg-[var(--timer-run)] hover:opacity-90 text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Resume</span>
-            </button>
+              <span className="hidden sm:inline">Resume</span>
+            </Button>
           )}
 
-          <button
+          {/* Done */}
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => performTransition('done')}
             disabled={isSubmitting}
-            className="flex items-center gap-1.5 bg-[var(--success)] hover:opacity-90 text-white px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm transition disabled:opacity-50"
+            className="border-[var(--success)]/40 hover:bg-[var(--success-bg)] text-[var(--success-text)]"
           >
-            <Check className="w-4 h-4 stroke-[3]" />
-            <span>Done</span>
-          </button>
+            <Check className="w-3.5 h-3.5 stroke-[3]" />
+            <span className="hidden sm:inline">Done</span>
+          </Button>
 
-          {/* More menu (Stop, Restart, Cancel) */}
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="p-1.5 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] rounded-lg border border-[var(--border)] transition"
-              aria-label="More actions"
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-
-            {showMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl py-1 z-50 text-sm">
-                <button
-                  onClick={() => performTransition('stop')}
-                  className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-[var(--text)] hover:bg-[var(--surface-hover)] transition"
-                >
-                  <Square className="w-4 h-4 text-[var(--muted)]" />
-                  <span>Stop (keep elapsed)</span>
-                </button>
-                <button
-                  onClick={() => performTransition('restart')}
-                  className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-[var(--text)] hover:bg-[var(--surface-hover)] transition"
-                >
-                  <RotateCcw className="w-4 h-4 text-[var(--muted)]" />
-                  <span>Restart (new run)</span>
-                </button>
-                <div className="my-1 border-t border-[var(--border)]" />
-                <button
-                  onClick={() => performTransition('cancel')}
-                  className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-[var(--danger)] hover:bg-[var(--surface-hover)] transition"
-                >
-                  <XCircle className="w-4 h-4" />
-                  <span>Cancel task</span>
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Radix Dropdown Menu for Stop / Restart / Cancel */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <IconButton variant="ghost" size="sm" aria-label="More timer actions">
+                <MoreHorizontal className="w-4 h-4" />
+              </IconButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => performTransition('stop')}>
+                <Square className="w-3.5 h-3.5 text-[var(--muted)]" />
+                <span>Stop (keep elapsed)</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => performTransition('restart')}>
+                <RotateCcw className="w-3.5 h-3.5 text-[var(--muted)]" />
+                <span>Restart (new run)</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem destructive onClick={() => performTransition('cancel')}>
+                <XCircle className="w-3.5 h-3.5" />
+                <span>Cancel task</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </div>

@@ -238,6 +238,7 @@ pub async fn list_tasks(
             sort_priority,
             priority,
             date,
+            overdue: query.overdue,
         };
 
         match execute_command(&state, &headers, Command::List(list_query)).await {

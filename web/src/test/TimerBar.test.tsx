@@ -1,7 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render as rtlRender, screen } from '@testing-library/react';
 import { TimerBar } from '../components/TimerBar';
+import { ToastProvider, ConfirmProvider } from '../components/ui';
 import type { TimerSnapshot } from '../hooks/useEventStream';
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <ToastProvider>
+      <ConfirmProvider>{ui}</ConfirmProvider>
+    </ToastProvider>
+  );
+}
 
 describe('TimerBar component', () => {
   const dummyProps = {

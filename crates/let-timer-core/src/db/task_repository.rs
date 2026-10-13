@@ -209,6 +209,7 @@ impl<'a> TaskRepository<'a> {
     // ─── Query ───────────────────────────────────────────────────────
 
     /// Query tasks with combined filters and configurable ordering.
+    #[allow(clippy::too_many_arguments)]
     pub fn query(
         &self,
         workspace_id: Option<i64>,
@@ -217,6 +218,7 @@ impl<'a> TaskRepository<'a> {
         scheduled_on: Option<NaiveDate>,
         search_query: Option<&str>,
         sort_priority: Option<SortOrder>,
+        overdue: Option<bool>,
     ) -> Result<Vec<Task>, DbError> {
         let mut sql = String::from("SELECT * FROM tasks WHERE 1=1");
         let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
@@ -236,7 +238,12 @@ impl<'a> TaskRepository<'a> {
             values.push(Box::new(pr.to_i64()));
         }
 
-        if let Some(date) = scheduled_on {
+        if overdue == Some(true) {
+            if let Some(date) = scheduled_on {
+                sql.push_str(" AND scheduled_on IS NOT NULL AND scheduled_on < ? AND status NOT IN ('completed', 'cancelled')");
+                values.push(Box::new(date.to_string()));
+            }
+        } else if let Some(date) = scheduled_on {
             sql.push_str(" AND scheduled_on = ?");
             values.push(Box::new(date.to_string()));
         }

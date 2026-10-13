@@ -111,7 +111,7 @@ pub fn find_tasks(
     };
 
     let repo = TaskRepository::new(conn);
-    match repo.query(ws_id, None, None, None, Some(query), None) {
+    match repo.query(ws_id, None, None, None, Some(query), None, None) {
         Ok(tasks) => Response::OkList(tasks),
         Err(e) => Response::Error {
             message: e.to_string(),
@@ -137,6 +137,7 @@ pub fn list_tasks(
         query.date,
         None,
         query.sort_priority,
+        query.overdue,
     ) {
         Ok(tasks) => Response::OkList(tasks),
         Err(e) => Response::Error {
@@ -165,7 +166,7 @@ pub fn get_start_candidates(
     let today = ctx.today;
     let repo = TaskRepository::new(conn);
     let candidates = repo
-        .query(ws_id, None, None, None, None, None)
+        .query(ws_id, None, None, None, None, None, None)
         .map_err(|e| e.to_string())?;
 
     let mut eligible: Vec<Task> = candidates
@@ -870,6 +871,7 @@ mod tests {
                 sort_priority: Some(SortOrder::Descending),
                 priority: None,
                 date: None,
+                overdue: None,
             }))
             .await
             .unwrap();
