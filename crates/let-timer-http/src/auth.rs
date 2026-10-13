@@ -64,7 +64,11 @@ where
             let path = req.uri().path();
 
             // 1. Unauthenticated endpoints
-            if path == "/api/v1/health" || path == "/api/v1/auth/login" {
+            if path == "/api/v1/health"
+                || path == "/api/v1/auth/login"
+                || path == "/api/v1/openapi.json"
+                || path.starts_with("/swagger-ui")
+            {
                 return inner.call(req).await;
             }
 

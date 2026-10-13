@@ -953,7 +953,7 @@ mod tests {
             }))
             .await
             .unwrap();
-        let task_default = match res {
+        let _task_default = match res {
             Response::Ok(Some(t)) => {
                 assert_eq!(t.workspace_id, default_ws.id);
                 t

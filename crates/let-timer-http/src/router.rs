@@ -1,12 +1,16 @@
 use axum::Router;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use let_timer_core::{Command, Database, EventBus, RequestContext, Response};
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
 use tower_http::cors::{Any, CorsLayer};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::auth::AuthLayer;
 use crate::handlers::{create_token, health, list_tokens, me_handler, revoke_token, rpc_handler};
+use crate::openapi::ApiDoc;
+use crate::rest::*;
 
 pub type CommandHandler = Arc<
     dyn Fn(
@@ -35,12 +39,71 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    let openapi = ApiDoc::openapi();
+
     Router::new()
+        // Unauthenticated / Doc endpoints
         .route("/api/v1/health", get(health))
+        .merge(SwaggerUi::new("/swagger-ui").url("/api/v1/openapi.json", openapi))
+        // RPC parity endpoint
         .route("/api/v1/rpc", post(rpc_handler))
+        // Auth management
         .route("/api/v1/auth/tokens", post(create_token).get(list_tokens))
         .route("/api/v1/auth/tokens/revoke", post(revoke_token))
         .route("/api/v1/auth/me", get(me_handler))
+        // REST: Tasks
+        .route("/api/v1/tasks", get(list_tasks).post(create_task))
+        .route("/api/v1/tasks/current", get(current_task))
+        .route("/api/v1/tasks/start-candidates", get(start_candidates))
+        .route(
+            "/api/v1/tasks/{id}",
+            get(get_task).patch(update_task).delete(delete_task),
+        )
+        .route("/api/v1/tasks/{id}/start", post(start_task))
+        .route("/api/v1/tasks/{id}/pause", post(pause_task))
+        .route("/api/v1/tasks/{id}/resume", post(resume_task))
+        .route("/api/v1/tasks/{id}/stop", post(stop_task))
+        .route("/api/v1/tasks/{id}/restart", post(restart_task))
+        .route("/api/v1/tasks/{id}/done", post(done_task))
+        .route("/api/v1/tasks/{id}/cancel", post(cancel_task))
+        .route("/api/v1/tasks/{id}/reopen", post(reopen_task))
+        // REST: Timer
+        .route("/api/v1/timer", get(get_timer))
+        .route("/api/v1/timer/pause", post(timer_pause))
+        .route("/api/v1/timer/resume", post(timer_resume))
+        .route("/api/v1/timer/stop", post(timer_stop))
+        .route("/api/v1/timer/done", post(timer_done))
+        // REST: Workspaces
+        .route(
+            "/api/v1/workspaces",
+            get(list_workspaces).post(create_workspace),
+        )
+        .route("/api/v1/workspaces/current", get(current_workspace))
+        .route("/api/v1/workspaces/switch", post(switch_workspace))
+        .route("/api/v1/workspaces/{id}", delete(delete_workspace))
+        // REST: Medias
+        .route("/api/v1/medias", get(list_medias).post(create_media))
+        .route("/api/v1/medias/{id}", delete(delete_media))
+        // REST: Media Lists
+        .route(
+            "/api/v1/media-lists",
+            get(list_media_lists).post(create_media_list),
+        )
+        .route(
+            "/api/v1/media-lists/{id}",
+            get(get_media_list).delete(delete_media_list),
+        )
+        .route("/api/v1/media-lists/{id}/medias", post(add_media_to_list))
+        .route(
+            "/api/v1/media-lists/{id}/medias/{media_id}",
+            delete(remove_media_from_list),
+        )
+        // REST: Settings
+        .route(
+            "/api/v1/settings/timezone",
+            get(get_timezone).put(set_timezone),
+        )
+        // Middlewares
         .layer(AuthLayer::new(Arc::clone(&state)))
         .layer(cors)
         .with_state(state)
@@ -52,6 +115,7 @@ mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use http_body_util::BodyExt;
+    use let_timer_core::ListQuery;
     use serde_json::Value;
     use tower::ServiceExt;
 
@@ -189,5 +253,170 @@ mod tests {
             .unwrap();
         let res2 = app.oneshot(req2).await.unwrap();
         assert_eq!(res2.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn rest_task_lifecycle_parity_test() {
+        let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+        let state = Arc::new(AppState {
+            db: Arc::clone(&db),
+            is_loopback: true,
+            command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+                let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+            }),
+            timer_notify: None,
+            events: None,
+        });
+
+        let app = build_router(state);
+
+        // 1. Create a task via REST POST /api/v1/tasks
+        let create_body = serde_json::json!({
+            "name": "Test REST task",
+            "priority": 2,
+            "estimated_mins": 30
+        });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/tasks")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_string(&create_body).unwrap()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let task_json: Value = serde_json::from_slice(&body).unwrap();
+        let task_id = task_json["id"].as_i64().unwrap();
+        assert_eq!(task_json["name"], "Test REST task");
+        assert_eq!(task_json["status"], "pending");
+
+        // 2. Start the task via REST POST /api/v1/tasks/{id}/start
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/api/v1/tasks/{task_id}/start"))
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let start_json: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(start_json["state"], "running");
+        assert_eq!(start_json["task"]["id"], task_id);
+
+        // 3. Pause via REST POST /api/v1/timer/pause
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/timer/pause")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let pause_json: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(pause_json["state"], "paused");
+
+        // 4. Resume via REST POST /api/v1/timer/resume
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/timer/resume")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let resume_json: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(resume_json["state"], "running");
+
+        // 5. Complete via REST POST /api/v1/tasks/{id}/done
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/api/v1/tasks/{task_id}/done"))
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let done_json: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(done_json["task"]["status"], "completed");
+        assert_eq!(done_json["state"], "idle");
+
+        // 6. Verify via REST GET /api/v1/tasks
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/v1/tasks")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let list_json: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(list_json.as_array().unwrap().len(), 1);
+        assert_eq!(list_json[0]["id"], task_id);
+        assert_eq!(list_json[0]["status"], "completed");
+
+        // 7. Verify parity with /rpc
+        let rpc_req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/rpc")
+            .header("content-type", "application/json")
+            .header("x-let-timer-protocol", "1")
+            .body(Body::from(
+                serde_json::to_string(&Command::List(ListQuery::default())).unwrap(),
+            ))
+            .unwrap();
+        let rpc_res = app.oneshot(rpc_req).await.unwrap();
+        assert_eq!(rpc_res.status(), StatusCode::OK);
+        let rpc_body = rpc_res.into_body().collect().await.unwrap().to_bytes();
+        let rpc_json: Value = serde_json::from_slice(&rpc_body).unwrap();
+        assert_eq!(rpc_json["OkList"][0]["id"], task_id);
+    }
+
+    #[tokio::test]
+    async fn rest_error_mapping_test() {
+        let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+        let state = Arc::new(AppState {
+            db: Arc::clone(&db),
+            is_loopback: true,
+            command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+                let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+            }),
+            timer_notify: None,
+            events: None,
+        });
+
+        let app = build_router(state);
+
+        // Delete non-existent task -> 404 Not Found
+        let req = Request::builder()
+            .method("DELETE")
+            .uri("/api/v1/tasks/999999")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let err_json: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(err_json["error"]["code"], "not_found");
+    }
+
+    #[test]
+    fn openapi_spec_snapshot_matches_committed_file() {
+        let generated = ApiDoc::openapi();
+        let generated_json = serde_json::to_string_pretty(&generated).unwrap();
+
+        let committed_path = std::path::Path::new("../../web/openapi.json");
+        let path_to_read = if committed_path.exists() {
+            committed_path
+        } else {
+            std::path::Path::new("web/openapi.json")
+        };
+
+        let committed_content = std::fs::read_to_string(path_to_read)
+            .expect("web/openapi.json must exist and be readable");
+        assert_eq!(
+            generated_json.trim(),
+            committed_content.trim(),
+            "web/openapi.json differs from generated OpenAPI schema! Run `cargo run -p let-timer-http --bin gen-openapi` to update."
+        );
     }
 }
