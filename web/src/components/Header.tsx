@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Play, Moon, Sun, Monitor, Folder } from 'lucide-react';
+import { Clock, Moon, Sun, Monitor, Folder } from 'lucide-react';
 import type { TimerSnapshot } from '../hooks/useEventStream';
 import type { components } from '../api/schema';
 import type { AppView } from '../hooks/useHashRoute';
 import { getStoredWorkspace, setStoredWorkspace } from '../api/client';
-import { ConnectionBadge, IconButton, Button } from './ui';
+import { ConnectionBadge, IconButton } from './ui';
+import { TimerBar } from './TimerBar';
 
 type Workspace = components['schemas']['WorkspaceDto'];
 
@@ -12,6 +13,9 @@ interface HeaderProps {
   currentView: AppView;
   onNavigate: (view: AppView) => void;
   snapshot: TimerSnapshot | null;
+  receivedAt?: number;
+  onOpenFocus?: () => void;
+  onActionComplete?: () => void;
   connectionStatus: 'connected' | 'connecting' | 'disconnected';
   onOpenStartPicker: () => void;
   className?: string;
@@ -21,6 +25,9 @@ export const Header: React.FC<HeaderProps> = ({
   currentView,
   onNavigate,
   snapshot,
+  receivedAt,
+  onOpenFocus,
+  onActionComplete,
   connectionStatus,
   onOpenStartPicker,
   className,
@@ -100,28 +107,30 @@ export const Header: React.FC<HeaderProps> = ({
         className || ''
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between gap-4">
-        {/* Brand & Workspace */}
-        <div className="flex items-center gap-3 sm:gap-4">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-full flex items-center justify-between gap-2 sm:gap-4">
+        {/* Left: Brand & Workspace */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             onClick={() => onNavigate('today')}
-            className="flex items-center gap-2 font-bold text-base sm:text-lg tracking-tight hover:opacity-80 transition cursor-pointer select-none"
+            className="flex items-center gap-1.5 font-bold text-sm sm:text-base tracking-tight hover:opacity-80 transition cursor-pointer select-none"
           >
             <Clock
-              className={`w-5 h-5 sm:w-6 sm:h-6 ${
+              className={`w-4 h-4 sm:w-5 sm:h-5 ${
                 isRunning ? 'text-[var(--accent-text)] animate-pulse' : 'text-[var(--accent-text)]'
               }`}
             />
-            <span className="text-[var(--text)]">Let-timer</span>
+            <span className="text-[var(--text)] hidden sm:inline">Let-timer</span>
           </button>
 
-          {/* Workspace dropdown */}
-          <div className="flex items-center gap-1.5 bg-[var(--surface-hover)] border border-[var(--border-strong)] px-2 py-1 rounded-[var(--radius-control)] text-xs">
+          <span className="text-[var(--border-strong)]/40 hidden sm:inline text-xs">/</span>
+
+          {/* Minimal Workspace dropdown */}
+          <div className="flex items-center gap-1 text-xs">
             <Folder className="w-3.5 h-3.5 text-[var(--muted)]" />
             <select
               value={activeWorkspaceId}
               onChange={(e) => handleWorkspaceSelect(e.target.value)}
-              className="bg-transparent text-[var(--text)] font-medium outline-none cursor-pointer"
+              className="bg-transparent text-[var(--muted)] hover:text-[var(--text)] font-medium outline-none cursor-pointer max-w-[90px] sm:max-w-[140px] truncate transition"
               aria-label="Active workspace"
             >
               {workspaces.map((w) => (
@@ -133,43 +142,39 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Navigation Tabs (Only desktop >= 1024px lg) */}
-        <nav className="hidden lg:flex items-center gap-1 text-xs font-medium">
-          {navTabs.map((t) => {
-            const isActive = currentView === t.view;
-            return (
-              <button
-                key={t.view}
-                onClick={() => onNavigate(t.view)}
-                aria-current={isActive ? 'page' : undefined}
-                className={`px-3 py-1.5 rounded-[var(--radius-control)] transition relative cursor-pointer ${
-                  isActive
-                    ? 'text-[var(--accent-text)] font-semibold'
-                    : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]'
-                }`}
-              >
-                <span>{t.label}</span>
-                {isActive && (
-                  <span className="absolute bottom-0 inset-x-2 h-[2px] bg-[var(--accent-text)] rounded-full" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
+        {/* Center: Sleek Timer Dock */}
+        <div className="flex items-center justify-center min-w-0">
+          <TimerBar
+            snapshot={snapshot}
+            receivedAt={receivedAt || Date.now()}
+            onOpenFocus={onOpenFocus || (() => onNavigate('focus'))}
+            onOpenStartPicker={onOpenStartPicker}
+            onActionComplete={onActionComplete || (() => {})}
+          />
+        </div>
 
-        {/* Right Actions */}
-        <div className="flex items-center gap-2">
-          {(!snapshot || snapshot.state === 'idle') && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onOpenStartPicker}
-              className="hidden lg:inline-flex"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Start...</span>
-            </Button>
-          )}
+        {/* Right: Nav Tabs & Controls */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Navigation Tabs (Only desktop >= 1024px lg) */}
+          <nav className="hidden lg:flex items-center gap-0.5 text-xs font-medium mr-1">
+            {navTabs.map((t) => {
+              const isActive = currentView === t.view;
+              return (
+                <button
+                  key={t.view}
+                  onClick={() => onNavigate(t.view)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`px-2.5 py-1 rounded-[var(--radius-control)] transition relative cursor-pointer ${
+                    isActive
+                      ? 'text-[var(--accent-text)] font-semibold'
+                      : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]'
+                  }`}
+                >
+                  <span>{t.label}</span>
+                </button>
+              );
+            })}
+          </nav>
 
           <ConnectionBadge
             status={

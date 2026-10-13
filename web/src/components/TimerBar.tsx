@@ -16,7 +16,6 @@ import type { TimerSnapshot } from '../hooks/useEventStream';
 import { computeTimerDisplay, type FormattedTimer } from '../utils/timer';
 import { getStoredToken } from '../api/client';
 import {
-  Button,
   IconButton,
   DropdownMenu,
   DropdownMenuTrigger,
@@ -164,17 +163,15 @@ export const TimerBar: React.FC<TimerBarProps> = ({
 
   if (!snapshot || snapshot.state === 'idle') {
     return (
-      <div className="bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2.5 shadow-xs sticky top-0 lg:top-[var(--header-h)] z-30 transition-colors pt-[env(safe-area-inset-top)]">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5 text-[var(--muted)]">
-            <span className="w-2 h-2 rounded-full bg-[var(--muted)]/50" />
-            <span className="text-xs font-medium">Nothing running</span>
-          </div>
-          <Button variant="secondary" size="sm" onClick={onOpenStartPicker}>
-            <Play className="w-3.5 h-3.5 fill-current" />
-            <span>Start a task…</span>
-          </Button>
-        </div>
+      <div className="flex items-center gap-2 text-[var(--muted)] text-xs select-none">
+        <span className="text-[11px] opacity-75">Nothing running</span>
+        <button
+          onClick={onOpenStartPicker}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] transition cursor-pointer font-medium text-xs border border-[var(--border)] hover:border-[var(--border-strong)]"
+        >
+          <Play className="w-3 h-3 fill-current text-[var(--accent-text)]" />
+          <span>Start a task…</span>
+        </button>
       </div>
     );
   }
@@ -185,146 +182,140 @@ export const TimerBar: React.FC<TimerBarProps> = ({
 
   return (
     <div
-      className={`border-b px-4 py-2 shadow-xs sticky top-0 lg:top-[var(--header-h)] z-30 transition-colors pt-[env(safe-area-inset-top)] ${
+      className={`flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-1 rounded-full border transition-all duration-200 select-none shadow-xs ${
         isOvertime
           ? 'bg-[var(--over-bg)] border-[var(--timer-over)]'
           : isPaused
-          ? 'bg-[var(--surface)] border-[var(--border)]'
-          : 'bg-[var(--surface)] border-[var(--accent)]/30'
+          ? 'bg-[var(--surface-hover)] border-[var(--border)]'
+          : 'bg-[var(--surface)] border-[var(--border-strong)]/30'
       }`}
     >
       <LiveRegion message={liveAnnouncement} role={liveRole} />
 
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-        {/* Left: Timer digits + Task info */}
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-          {/* Status icon & digits */}
-          <div
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] font-mono font-bold text-sm sm:text-base tabular-nums border select-none ${
-              isOvertime
-                ? 'text-[var(--over-text)] bg-[var(--timer-over)]/10 border-[var(--timer-over)]/30'
-                : isPaused
-                ? 'text-[var(--muted)] bg-[var(--surface-hover)] border-[var(--border)]'
-                : 'text-[var(--accent-text)] bg-[var(--accent)]/10 border-[var(--accent)]/20'
-            }`}
+      {/* Timer digits + status icon */}
+      <div className="flex items-center gap-1.5 font-mono font-bold text-xs sm:text-sm tabular-nums">
+        {isOvertime ? (
+          <AlertTriangle className="w-3.5 h-3.5 text-[var(--timer-over)]" />
+        ) : isPaused ? (
+          <Pause className="w-3.5 h-3.5 text-[var(--muted)]" />
+        ) : (
+          <TimerIcon className="w-3.5 h-3.5 text-[var(--accent-text)] animate-pulse" />
+        )}
+        <span
+          className={
+            isOvertime
+              ? 'text-[var(--over-text)]'
+              : isPaused
+              ? 'text-[var(--muted)]'
+              : 'text-[var(--accent-text)]'
+          }
+        >
+          {timerInfo.display}
+        </span>
+      </div>
+
+      {/* Task name & status metadata */}
+      <div className="flex items-center gap-1.5 min-w-0 max-w-[110px] sm:max-w-[200px]">
+        <span className="text-xs font-semibold truncate text-[var(--text)]">
+          {snapshot.task.name}
+        </span>
+        <span className="sr-only">{snapshot.workspace_name}</span>
+        <span className="sr-only">
+          {isOvertime ? "Time's up" : isPaused ? 'Paused' : 'In progress'}
+        </span>
+      </div>
+
+      {/* Control buttons */}
+      <div className="flex items-center gap-1">
+        {isOvertime && (
+          <button
+            onClick={handleAddFiveMinutes}
+            disabled={isSubmitting}
+            className="flex items-center gap-1 bg-[var(--timer-over)] text-[var(--on-over)] px-2 py-0.5 rounded-full text-[11px] font-bold hover:opacity-90 transition cursor-pointer"
           >
-            {isOvertime ? (
-              <AlertTriangle className="w-3.5 h-3.5 text-[var(--timer-over)]" />
-            ) : isPaused ? (
-              <Pause className="w-3.5 h-3.5 text-[var(--muted)]" />
-            ) : (
-              <TimerIcon className="w-3.5 h-3.5 text-[var(--accent-text)] animate-pulse" />
-            )}
-            <span>{timerInfo.display}</span>
-          </div>
+            <Plus className="w-3 h-3 stroke-[3]" />
+            <span>+5 min</span>
+          </button>
+        )}
 
-          <div className="min-w-0 flex flex-col justify-center">
-            <div className="flex items-center gap-1.5">
-              <span className="font-semibold text-xs sm:text-sm truncate text-[var(--text)]">
-                {snapshot.task.name}
-              </span>
-              <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded bg-[var(--surface-hover)] text-[var(--muted)] border border-[var(--border)] font-medium">
-                {snapshot.workspace_name}
-              </span>
-            </div>
-            <div className="text-[11px] text-[var(--muted)] flex items-center gap-1.5">
-              <span className="capitalize font-medium">
-                {isOvertime ? "Time's up" : isPaused ? 'Paused' : 'In progress'}
-              </span>
-              {snapshot.task.estimated_mins && (
-                <>
-                  <span>•</span>
-                  <span>{snapshot.task.estimated_mins}m est</span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* Focus Mode button */}
+        <IconButton
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0"
+          onClick={onOpenFocus}
+          aria-label="Open Focus mode"
+          title="Open Focus mode"
+        >
+          <Target className="w-3.5 h-3.5 text-[var(--muted)] hover:text-[var(--text)]" />
+        </IconButton>
 
-        {/* Right: Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Focus button */}
+        {/* Pause / Resume */}
+        {isRunning ? (
           <IconButton
             variant="ghost"
             size="sm"
-            onClick={onOpenFocus}
-            aria-label="Open Focus mode"
-            title="Open Focus mode"
-          >
-            <Target className="w-4 h-4" />
-          </IconButton>
-
-          {/* Overtime +5 min button */}
-          {isOvertime && (
-            <button
-              onClick={handleAddFiveMinutes}
-              disabled={isSubmitting}
-              className="flex items-center gap-1 bg-[var(--timer-over)] text-[var(--on-over)] hover:opacity-90 px-2.5 py-1 rounded-[var(--radius-control)] text-xs font-bold transition disabled:opacity-50 cursor-pointer shadow-xs"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span className="hidden sm:inline">+5 min</span>
-            </button>
-          )}
-
-          {/* Pause / Resume */}
-          {isRunning ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => performTransition('pause')}
-              disabled={isSubmitting}
-            >
-              <Pause className="w-3.5 h-3.5 fill-current" />
-              <span className="hidden sm:inline">Pause</span>
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => performTransition('resume')}
-              disabled={isSubmitting}
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span className="hidden sm:inline">Resume</span>
-            </Button>
-          )}
-
-          {/* Done */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => performTransition('done')}
+            className="h-6 w-6 p-0"
+            onClick={() => performTransition('pause')}
             disabled={isSubmitting}
-            className="border-[var(--success)]/40 hover:bg-[var(--success-bg)] text-[var(--success-text)]"
+            aria-label="Pause"
+            title="Pause"
           >
-            <Check className="w-3.5 h-3.5 stroke-[3]" />
-            <span className="hidden sm:inline">Done</span>
-          </Button>
+            <Pause className="w-3.5 h-3.5 fill-current text-[var(--text)]" />
+            <span className="sr-only">Pause</span>
+          </IconButton>
+        ) : (
+          <IconButton
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={() => performTransition('resume')}
+            disabled={isSubmitting}
+            aria-label="Resume"
+            title="Resume"
+          >
+            <Play className="w-3.5 h-3.5 fill-current text-[var(--accent-text)]" />
+            <span className="sr-only">Resume</span>
+          </IconButton>
+        )}
 
-          {/* Radix Dropdown Menu for Stop / Restart / Cancel */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <IconButton variant="ghost" size="sm" aria-label="More timer actions">
-                <MoreHorizontal className="w-4 h-4" />
-              </IconButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => performTransition('stop')}>
-                <Square className="w-3.5 h-3.5 text-[var(--muted)]" />
-                <span>Stop (keep elapsed)</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => performTransition('restart')}>
-                <RotateCcw className="w-3.5 h-3.5 text-[var(--muted)]" />
-                <span>Restart (new run)</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem destructive onClick={() => performTransition('cancel')}>
-                <XCircle className="w-3.5 h-3.5" />
-                <span>Cancel task</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {/* Done */}
+        <IconButton
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 hover:bg-[var(--success-bg)]"
+          onClick={() => performTransition('done')}
+          disabled={isSubmitting}
+          aria-label="Done"
+          title="Done"
+        >
+          <Check className="w-3.5 h-3.5 stroke-[3] text-[var(--success-text)]" />
+          <span className="sr-only">Done</span>
+        </IconButton>
+
+        {/* Dropdown Menu for Stop / Restart / Cancel */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <IconButton variant="ghost" size="sm" className="h-6 w-6 p-0" aria-label="More timer actions">
+              <MoreHorizontal className="w-3.5 h-3.5 text-[var(--muted)]" />
+            </IconButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => performTransition('stop')}>
+              <Square className="w-3.5 h-3.5 text-[var(--muted)]" />
+              <span>Stop (keep elapsed)</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => performTransition('restart')}>
+              <RotateCcw className="w-3.5 h-3.5 text-[var(--muted)]" />
+              <span>Restart (new run)</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem destructive onClick={() => performTransition('cancel')}>
+              <XCircle className="w-3.5 h-3.5" />
+              <span>Cancel task</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

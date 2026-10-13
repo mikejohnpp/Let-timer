@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Globe,
-  Bell,
   Key,
   LogOut,
   Plus,
@@ -23,7 +21,6 @@ import {
   IconButton,
   SegmentedControl,
   Checkbox,
-  Card,
   Input,
   Badge,
   useToast,
@@ -367,96 +364,92 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 pb-24 flex flex-col gap-6">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 pb-28 flex flex-col gap-8">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+      <div className="flex items-baseline justify-between border-b border-[var(--border)] pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text)] tracking-tight">Settings</h1>
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text)] tracking-tight">Settings</h1>
           <p className="text-xs text-[var(--muted)] mt-1">
-            Configure appearance, time zone, notifications, and API credentials.
+            Configure appearance, preferences, and API credentials.
           </p>
         </div>
 
-        <Button variant="danger" size="sm" onClick={handleLogout}>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-1.5 text-xs text-[var(--danger-text)] hover:underline transition font-medium cursor-pointer"
+        >
           <LogOut className="w-3.5 h-3.5" />
           <span>Log out</span>
-        </Button>
+        </button>
       </div>
 
-      {/* Appearance Setting */}
-      <Card>
-        <div className="flex items-center gap-2 mb-1.5 font-bold text-sm text-[var(--text)]">
-          <Palette className="w-4 h-4 text-[var(--accent-text)]" />
+      {/* Section: Appearance */}
+      <section className="flex flex-col gap-4">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
+          <Palette className="w-3.5 h-3.5 text-[var(--accent-text)]" />
           <span>Appearance</span>
         </div>
-        <p className="text-xs text-[var(--muted)] mb-4">
-          Customize your theme and color palette.
-        </p>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-b border-[var(--border)] pb-3">
-          <div>
-            <div className="text-xs font-semibold text-[var(--text)]">Theme Mode</div>
-            <div className="text-[11px] text-[var(--muted)]">Light, Dark or match system</div>
+        <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+            <div>
+              <div className="text-xs font-semibold text-[var(--text)]">Theme Mode</div>
+              <div className="text-[11px] text-[var(--muted)]">Light, Dark or match system</div>
+            </div>
+            <SegmentedControl
+              value={theme}
+              onValueChange={handleThemeChange}
+              items={[
+                { value: 'light', label: 'Light' },
+                { value: 'dark', label: 'Dark' },
+                { value: 'system', label: 'System' },
+              ]}
+            />
           </div>
-          <SegmentedControl
-            value={theme}
-            onValueChange={handleThemeChange}
-            items={[
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
-              { value: 'system', label: 'System' },
-            ]}
-          />
-        </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3">
-          <div>
-            <div className="text-xs font-semibold text-[var(--text)]">Color Palette</div>
-            <div className="text-[11px] text-[var(--muted)]">Accent and focus tones</div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+            <div>
+              <div className="text-xs font-semibold text-[var(--text)]">Color Palette</div>
+              <div className="text-[11px] text-[var(--muted)]">Accent and focus tones</div>
+            </div>
+            <SegmentedControl
+              value={palette}
+              onValueChange={handlePaletteChange}
+              items={[
+                { value: 'default', label: 'Indigo' },
+                { value: 'forest', label: '🌲 Forest & Moss' },
+              ]}
+            />
           </div>
-          <SegmentedControl
-            value={palette}
-            onValueChange={handlePaletteChange}
-            items={[
-              { value: 'default', label: 'Indigo' },
-              { value: 'forest', label: '🌲 Forest & Moss' },
-            ]}
-          />
         </div>
-      </Card>
+      </section>
 
-      {/* App Wallpaper & Dynamic Palette Setting */}
-      <Card>
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
-            <ImageIcon className="w-4 h-4 text-[var(--accent-text)]" />
-            <span>App Wallpaper & Dynamic Colors</span>
+      {/* Section: App Wallpaper & Dynamic Colors */}
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
+            <ImageIcon className="w-3.5 h-3.5 text-[var(--accent-text)]" />
+            <span>Wallpaper & Dynamic Colors</span>
           </div>
 
           {wallpaperUrl && (
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={clearWallpaper}
-              className="text-xs text-[var(--danger-text)]"
+              className="text-xs text-[var(--danger-text)] hover:underline transition cursor-pointer"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Remove</span>
-            </Button>
+              Remove wallpaper
+            </button>
           )}
         </div>
-        <p className="text-xs text-[var(--muted)] mb-4">
-          Set an image background for the app and automatically extract its dominant colors as the theme accent.
-        </p>
 
         {/* Dynamic color toggle */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-[var(--radius-control)] bg-[var(--surface-hover)] border border-[var(--border)] mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-[var(--radius-control)] bg-[var(--surface-hover)]/60 border border-[var(--border)]">
           <div className="flex items-center gap-2.5">
             <Sparkles className="w-4 h-4 text-[var(--accent-text)] shrink-0" />
             <div>
-              <div className="text-xs font-semibold text-[var(--text)]">Extract Accent from Wallpaper</div>
+              <div className="text-xs font-semibold text-[var(--text)]">Harmonize Theme with Wallpaper</div>
               <div className="text-[11px] text-[var(--muted)]">
-                Calibrates accent colors to WCAG AA contrast standards
+                Extracts dominant color and calms background/surfaces
               </div>
             </div>
           </div>
@@ -465,7 +458,7 @@ export const SettingsView: React.FC = () => {
             {dynamicColor && extractedColor && (
               <div className="flex items-center gap-1.5 text-xs text-[var(--text)]">
                 <span
-                  className="w-4 h-4 rounded-full border border-[var(--border)] shadow-xs"
+                  className="w-3.5 h-3.5 rounded-full border border-[var(--border)] shadow-xs"
                   style={{ backgroundColor: extractedColor }}
                 />
                 <span className="font-mono text-[11px] text-[var(--muted)]">{extractedColor}</span>
@@ -479,10 +472,10 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Wallpaper Picker / Upload */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[var(--muted)]">Choose Background</span>
+        {/* Wallpaper Picker */}
+        <div className="flex flex-col gap-2.5 pt-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[11px] text-[var(--muted)] font-medium">Choose an image</span>
             <input
               type="file"
               ref={fileInputRef}
@@ -491,32 +484,30 @@ export const SettingsView: React.FC = () => {
               onChange={handleUploadWallpaper}
             />
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
               onClick={() => fileInputRef.current?.click()}
+              className="h-6 text-xs px-2"
             >
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-3 h-3" />
               <span>Upload Image...</span>
             </Button>
           </div>
 
-          {/* Thumbnails grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 pt-1">
-            {/* None option */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             <button
               type="button"
               onClick={clearWallpaper}
-              className={`h-20 rounded-[var(--radius-control)] border flex flex-col items-center justify-center gap-1 text-xs transition cursor-pointer ${
+              className={`h-16 rounded-[var(--radius-control)] border flex flex-col items-center justify-center gap-1 text-xs transition cursor-pointer ${
                 !wallpaperUrl
                   ? 'border-[var(--accent-text)] bg-[var(--accent-tint)] font-semibold text-[var(--accent-text)]'
-                  : 'border-[var(--border)] bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--text)]'
+                  : 'border-[var(--border)] bg-[var(--surface-hover)]/40 text-[var(--muted)] hover:text-[var(--text)]'
               }`}
             >
-              <X className="w-4 h-4" />
-              <span>None</span>
+              <X className="w-3.5 h-3.5" />
+              <span className="text-[11px]">None</span>
             </button>
 
-            {/* Media images */}
             {mediaImages.map((m) => {
               const isSelected = wallpaperUrl === m.url;
               return (
@@ -524,9 +515,9 @@ export const SettingsView: React.FC = () => {
                   key={m.id}
                   type="button"
                   onClick={() => m.url && setWallpaper(m.url)}
-                  className={`h-20 rounded-[var(--radius-control)] border relative overflow-hidden group cursor-pointer transition ${
+                  className={`h-16 rounded-[var(--radius-control)] border relative overflow-hidden group cursor-pointer transition ${
                     isSelected
-                      ? 'border-[var(--accent-text)] ring-2 ring-[var(--accent-text)]/40 shadow-sm'
+                      ? 'border-[var(--accent-text)] ring-2 ring-[var(--accent-text)]/40 shadow-xs'
                       : 'border-[var(--border)] hover:opacity-90'
                   }`}
                   title={m.name}
@@ -539,120 +530,105 @@ export const SettingsView: React.FC = () => {
                   />
                   {isSelected && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <div className="p-1 rounded-full bg-[var(--accent)] text-white">
+                      <div className="p-0.5 rounded-full bg-[var(--accent)] text-white">
                         <Check className="w-3 h-3 stroke-[3]" />
                       </div>
                     </div>
                   )}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1">
-                    <p className="text-[10px] text-white truncate text-center">{m.name}</p>
-                  </div>
                 </button>
               );
             })}
           </div>
         </div>
-      </Card>
+      </section>
 
-      {/* New Tasks Default Estimate Setting */}
-      <Card>
-        <div className="flex items-center gap-2 mb-1.5 font-bold text-sm text-[var(--text)]">
-          <Timer className="w-4 h-4 text-[var(--accent-text)]" />
-          <span>New Tasks</span>
+      {/* Section: Timer & Defaults */}
+      <section className="flex flex-col gap-4">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
+          <Timer className="w-3.5 h-3.5 text-[var(--accent-text)]" />
+          <span>Timer & Preferences</span>
         </div>
-        <p className="text-xs text-[var(--muted)] mb-4">
-          Used by quick add and the task drawer. Saved on this device only.
-        </p>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--muted)]">Default estimate:</span>
-            <Input
-              type="number"
-              min="1"
-              disabled={noDefaultEstimate}
-              value={defaultEstimate}
-              onChange={(e) => handleEstimateChange(e.target.value)}
-              placeholder="25"
-              className="w-20 h-8 text-center"
-            />
-            <span className="text-xs text-[var(--muted)]">min</span>
+        <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+            <div>
+              <div className="text-xs font-semibold text-[var(--text)]">Default Task Estimate</div>
+              <div className="text-[11px] text-[var(--muted)]">Pre-filled when creating new tasks</div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="number"
+                  min="1"
+                  disabled={noDefaultEstimate}
+                  value={defaultEstimate}
+                  onChange={(e) => handleEstimateChange(e.target.value)}
+                  placeholder="25"
+                  className="w-16 h-7 text-center text-xs"
+                />
+                <span className="text-xs text-[var(--muted)]">min</span>
+              </div>
+              <Checkbox
+                checked={noDefaultEstimate}
+                onCheckedChange={(c) => handleNoEstimateToggle(!!c)}
+                label="No estimate"
+              />
+            </div>
           </div>
 
-          <Checkbox
-            checked={noDefaultEstimate}
-            onCheckedChange={(c) => handleNoEstimateToggle(!!c)}
-            label="No estimate by default"
-          />
-        </div>
-      </Card>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+            <div>
+              <div className="text-xs font-semibold text-[var(--text)]">Server Timezone</div>
+              <div className="text-[11px] text-[var(--muted)]">Current: <strong>{timezone}</strong></div>
+            </div>
+            <form onSubmit={handleSaveTimezone} className="flex gap-1.5">
+              <Input
+                required
+                value={newTimezone}
+                onChange={(e) => setNewTimezone(e.target.value)}
+                placeholder="e.g. UTC"
+                className="w-36 h-7 text-xs"
+              />
+              <Button type="submit" variant="secondary" size="sm" className="h-7 text-xs px-2">
+                Save
+              </Button>
+            </form>
+          </div>
 
-      {/* Timezone Setting */}
-      <Card>
-        <div className="flex items-center gap-2 mb-1.5 font-bold text-sm text-[var(--text)]">
-          <Globe className="w-4 h-4 text-[var(--accent-text)]" />
-          <span>Server Timezone</span>
-        </div>
-        <p className="text-xs text-[var(--muted)] mb-4">
-          All calendar dates ("today", "tomorrow", filters) are evaluated using this timezone. Current: <strong>{timezone}</strong>.
-        </p>
-
-        <form onSubmit={handleSaveTimezone} className="flex gap-2 max-w-sm">
-          <Input
-            required
-            value={newTimezone}
-            onChange={(e) => setNewTimezone(e.target.value)}
-            placeholder="e.g. Asia/Ho_Chi_Minh or UTC"
-            className="flex-1"
-          />
-          <Button type="submit" variant="primary" size="sm">
-            Save
-          </Button>
-        </form>
-      </Card>
-
-      {/* Notifications Setting */}
-      <Card>
-        <div className="flex items-center gap-2 mb-1.5 font-bold text-sm text-[var(--text)]">
-          <Bell className="w-4 h-4 text-[var(--accent-text)]" />
-          <span>Browser Notifications</span>
-        </div>
-        <p className="text-xs text-[var(--muted)] mb-4">
-          Receive background alerts when task estimates expire. Status: <strong className="capitalize">{notifPermission}</strong>.
-        </p>
-
-        {notifPermission !== 'granted' ? (
-          <Button variant="secondary" size="sm" onClick={handleRequestNotifications}>
-            Enable notifications
-          </Button>
-        ) : (
-          <Badge variant="success">Enabled</Badge>
-        )}
-      </Card>
-
-      {/* API Tokens Manager */}
-      <Card>
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
-            <Key className="w-4 h-4 text-[var(--accent-text)]" />
-            <span>API Tokens</span>
+          <div className="flex items-center justify-between gap-3 py-3">
+            <div>
+              <div className="text-xs font-semibold text-[var(--text)]">Browser Notifications</div>
+              <div className="text-[11px] text-[var(--muted)]">Status: <strong className="capitalize">{notifPermission}</strong></div>
+            </div>
+            {notifPermission !== 'granted' ? (
+              <Button variant="secondary" size="sm" onClick={handleRequestNotifications} className="h-7 text-xs px-2.5">
+                Enable
+              </Button>
+            ) : (
+              <Badge variant="success">Enabled</Badge>
+            )}
           </div>
         </div>
-        <p className="text-xs text-[var(--muted)] mb-4">
-          Authenticate CLI profiles and third-party integrations. Tokens are displayed only once upon creation.
-        </p>
+      </section>
+
+      {/* Section: API Tokens */}
+      <section className="flex flex-col gap-4">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
+          <Key className="w-3.5 h-3.5 text-[var(--accent-text)]" />
+          <span>API Tokens</span>
+        </div>
 
         {/* Created secret banner */}
         {createdSecret && (
-          <div className="p-3.5 mb-4 bg-[var(--warning-bg)] border border-[var(--warning)]/30 rounded-[var(--radius-control)] text-xs">
+          <div className="p-3 bg-[var(--warning-bg)] border border-[var(--warning)]/30 rounded-[var(--radius-control)] text-xs">
             <div className="font-bold text-[var(--text)] mb-1">
               Copy this token now. It won't be shown again.
             </div>
-            <div className="flex items-center gap-2 mt-2">
-              <code className="flex-1 p-2 bg-[var(--surface)] border border-[var(--border)] rounded font-mono text-xs select-all break-all text-[var(--text)]">
+            <div className="flex items-center gap-2 mt-1.5">
+              <code className="flex-1 p-1.5 bg-[var(--surface)] border border-[var(--border)] rounded font-mono text-xs select-all break-all text-[var(--text)]">
                 {createdSecret}
               </code>
-              <Button variant="primary" size="sm" onClick={handleCopySecret}>
+              <Button variant="primary" size="sm" onClick={handleCopySecret} className="h-7 text-xs">
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copied ? 'Copied' : 'Copy'}</span>
               </Button>
@@ -661,24 +637,24 @@ export const SettingsView: React.FC = () => {
         )}
 
         {/* Create new token form */}
-        <form onSubmit={handleCreateToken} className="flex gap-2 max-w-sm mb-4">
+        <form onSubmit={handleCreateToken} className="flex gap-2 max-w-sm">
           <Input
             required
             placeholder="Token name (e.g. laptop-cli)"
             value={newTokenName}
             onChange={(e) => setNewTokenName(e.target.value)}
-            className="flex-1"
+            className="flex-1 h-7 text-xs"
           />
-          <Button type="submit" variant="primary" size="sm">
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+          <Button type="submit" variant="primary" size="sm" className="h-7 text-xs px-2.5">
+            <Plus className="w-3 h-3 stroke-[3]" />
             <span>Create</span>
           </Button>
         </form>
 
         {/* Existing tokens list */}
-        <div className="divide-y divide-[var(--border)] text-xs">
+        <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60 text-xs">
           {tokens.map((t) => (
-            <div key={t.id} className="py-2.5 flex items-center justify-between gap-3">
+            <div key={t.id} className="py-2.5 px-1 flex items-center justify-between gap-3">
               <div>
                 <div className="font-semibold text-[var(--text)]">{t.name}</div>
                 <div className="text-[11px] text-[var(--muted)]">
@@ -689,10 +665,10 @@ export const SettingsView: React.FC = () => {
 
               {!t.revoked_at ? (
                 <div className="flex items-center gap-1.5">
-                  <Button variant="secondary" size="sm" onClick={() => handleRotateToken(t.name)} className="h-7 text-[11px] px-2.5">
+                  <Button variant="ghost" size="sm" onClick={() => handleRotateToken(t.name)} className="h-6 text-[11px] px-2 text-[var(--muted)] hover:text-[var(--text)]">
                     Rotate
                   </Button>
-                  <IconButton variant="danger" size="sm" onClick={() => handleRevokeToken(t.name)} aria-label={`Revoke token ${t.name}`}>
+                  <IconButton variant="ghost" size="sm" className="h-6 w-6 p-0 text-[var(--muted)] hover:text-[var(--danger-text)]" onClick={() => handleRevokeToken(t.name)} aria-label={`Revoke token ${t.name}`}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </IconButton>
                 </div>
@@ -702,7 +678,7 @@ export const SettingsView: React.FC = () => {
             </div>
           ))}
         </div>
-      </Card>
+      </section>
     </div>
   );
 };

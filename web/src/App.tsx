@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
-import { TimerBar } from './components/TimerBar';
 import { BottomTabBar } from './components/BottomTabBar';
 import { StartPickerModal } from './components/StartPickerModal';
 import { TodayView } from './views/TodayView';
@@ -120,21 +119,12 @@ export const AppContent: React.FC = () => {
         currentView={currentView}
         onNavigate={navigate}
         snapshot={snapshot}
-        connectionStatus={connectionStatus}
+        receivedAt={receivedAt}
+        onOpenFocus={() => navigate('focus')}
         onOpenStartPicker={() => setIsStartPickerOpen(true)}
+        onActionComplete={refetchSnapshot}
+        connectionStatus={connectionStatus}
       />
-
-      {!isFocusView && (
-        <div className="relative z-10">
-          <TimerBar
-            snapshot={snapshot}
-            receivedAt={receivedAt}
-            onOpenFocus={() => navigate('focus')}
-            onOpenStartPicker={() => setIsStartPickerOpen(true)}
-            onActionComplete={refetchSnapshot}
-          />
-        </div>
-      )}
 
       <main className={`relative z-10 flex-1 ${!isFocusView ? 'pb-20 lg:pb-12' : ''}`}>
         {currentView === 'today' && (

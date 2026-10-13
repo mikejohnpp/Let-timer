@@ -33,7 +33,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  ProgressLine,
   EmptyState,
   Skeleton,
   useToast,
@@ -349,8 +348,12 @@ export const TodayView: React.FC<TodayViewProps> = ({
           </div>
         </div>
 
-        {/* Right: Actions */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Right: Actions (Progressive disclosure: visible on hover or when running/paused) */}
+        <div
+          className={`flex items-center gap-1 shrink-0 ${
+            isRunning || isPaused ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity'
+          }`}
+        >
           {/* Status specific actions */}
           {isPending && (
             <IconButton
@@ -472,9 +475,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 pb-28">
       {/* Title & Date Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+      <div className="flex items-baseline justify-between gap-4 mb-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text)] tracking-tight">
             {isToday
@@ -488,145 +491,150 @@ export const TodayView: React.FC<TodayViewProps> = ({
           <p className="text-xs text-[var(--muted)] mt-1">
             {completedCount} of {nonCancelled.length} done • {plannedFormatted} planned
           </p>
-          <div className="mt-2 w-48 max-w-full">
-            <ProgressLine value={progressPercent} />
-          </div>
         </div>
 
-        {/* Date Pager */}
-        <div className="flex items-center gap-1.5 self-start sm:self-center bg-[var(--surface)] border border-[var(--border)] p-1 rounded-[var(--radius-control)] shadow-xs">
-          <IconButton variant="ghost" size="sm" onClick={() => handleDateShift(-1)} aria-label="Previous day">
-            <ChevronLeft className="w-4 h-4" />
+        {/* Minimal Date Navigator */}
+        <div className="flex items-center gap-1 text-xs">
+          <IconButton variant="ghost" size="sm" onClick={() => handleDateShift(-1)} aria-label="Previous day" className="h-7 w-7 p-0">
+            <ChevronLeft className="w-4 h-4 text-[var(--muted)]" />
           </IconButton>
-          <span className="font-mono text-xs font-semibold px-2 tabular-nums">
+          <button
+            onClick={handleToday}
+            className="font-mono text-xs font-medium px-2 py-0.5 rounded text-[var(--muted)] hover:text-[var(--text)] transition tabular-nums"
+            title="Click to jump to today"
+          >
             {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, {
-              weekday: 'short',
               day: 'numeric',
               month: 'short',
-              year: 'numeric',
             })}
-          </span>
-          <IconButton variant="ghost" size="sm" onClick={() => handleDateShift(1)} aria-label="Next day">
-            <ChevronRight className="w-4 h-4" />
+          </button>
+          <IconButton variant="ghost" size="sm" onClick={() => handleDateShift(1)} aria-label="Next day" className="h-7 w-7 p-0">
+            <ChevronRight className="w-4 h-4 text-[var(--muted)]" />
           </IconButton>
-          <Button variant="secondary" size="sm" onClick={handleToday} className="ml-1 h-7 text-[11px] px-2">
-            Today
-          </Button>
         </div>
       </div>
 
-      {/* Quick Add Row */}
-      <form onSubmit={handleQuickAdd} className="mb-5">
-        <div className="flex flex-col gap-1.5 bg-[var(--surface)] border border-[var(--border-strong)] rounded-[var(--radius-card)] p-2 shadow-xs transition focus-within:border-[var(--accent-text)] focus-within:ring-2 focus-within:ring-[var(--accent-text)]/20">
-          <div className="flex items-center gap-2">
-            <Plus className="w-4 h-4 text-[var(--muted)] ml-1" />
-            <input
-              type="text"
-              value={quickAddText}
-              onChange={(e) => setQuickAddText(e.target.value)}
-              placeholder='Quick add: "Write essay 45m" (0m = no estimate, press Enter)'
-              className="flex-1 bg-transparent text-xs sm:text-sm text-[var(--text)] outline-none placeholder-[var(--muted)]"
-            />
-            <Button type="submit" variant="ghost" size="sm" disabled={!quickAddText.trim()}>
+      {/* Hairline Progress Line */}
+      <div className="mb-6 h-1 w-full bg-[var(--border)] rounded-full overflow-hidden">
+        <div
+          className="h-full bg-[var(--accent-text)] transition-all duration-300 rounded-full"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+
+      {/* Zen Quick Add Row */}
+      <form onSubmit={handleQuickAdd} className="mb-6">
+        <div className="relative border-b border-[var(--border)] focus-within:border-[var(--accent-text)] transition-colors pb-1.5 flex items-center gap-2">
+          <Plus className="w-4 h-4 text-[var(--muted)] shrink-0" />
+          <input
+            type="text"
+            value={quickAddText}
+            onChange={(e) => setQuickAddText(e.target.value)}
+            placeholder='Add a task... (e.g. "Write essay 45m", press Enter)'
+            className="flex-1 bg-transparent text-sm text-[var(--text)] outline-none placeholder-[var(--muted)]"
+          />
+          {quickAddText.trim() && (
+            <Button type="submit" variant="ghost" size="sm" className="h-6 text-xs px-2 text-[var(--accent-text)]">
               Add
             </Button>
-          </div>
-          {quickAddParsed && quickAddParsed.name && (
-            <div className="text-[11px] text-[var(--muted)] pl-6 pb-0.5">
-              Will add: <strong className="text-[var(--text)]">{quickAddParsed.name}</strong> •{' '}
-              {quickAddParsed.estMins ? `${quickAddParsed.estMins} min` : 'no estimate'} • {selectedDate}
-            </div>
           )}
         </div>
+        {quickAddParsed && quickAddParsed.name && (
+          <div className="text-[11px] text-[var(--muted)] pt-1 pl-6">
+            Will add: <strong className="text-[var(--text)]">{quickAddParsed.name}</strong> •{' '}
+            {quickAddParsed.estMins ? `${quickAddParsed.estMins} min` : 'no estimate'}
+          </div>
+        )}
       </form>
 
-      {/* Toolbar: Filter popover & New task button */}
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="secondary" size="sm" className="relative">
-                <Filter className="w-3.5 h-3.5 text-[var(--muted)]" />
-                <span>Filter</span>
-                {(filterStatus !== 'all' || filterPriority !== 'all') && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)]" />
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-64 flex flex-col gap-3">
-              <div>
-                <label className="text-xs font-semibold text-[var(--text)] mb-1.5 block">Status</label>
-                <div className="grid grid-cols-2 gap-1 text-xs">
-                  {['all', 'pending', 'in-progress', 'paused', 'completed', 'cancelled'].map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => setFilterStatus(st)}
-                      className={`px-2 py-1 rounded text-left capitalize cursor-pointer ${
-                        filterStatus === st ? 'bg-[var(--accent)] text-[var(--on-accent)] font-medium' : 'text-[var(--muted)] hover:bg-[var(--surface-hover)]'
-                      }`}
-                    >
-                      {st === 'in-progress' ? 'Running' : st}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="border-t border-[var(--border)] pt-2">
-                <label className="text-xs font-semibold text-[var(--text)] mb-1.5 block">Priority</label>
-                <div className="grid grid-cols-2 gap-1 text-xs">
-                  {[
-                    { id: 'all', label: 'All' },
-                    { id: '2', label: 'Urgent' },
-                    { id: '1', label: 'Immediate' },
-                    { id: '0', label: 'Not-yet' },
-                  ].map((pr) => (
-                    <button
-                      key={pr.id}
-                      onClick={() => setFilterPriority(pr.id)}
-                      className={`px-2 py-1 rounded text-left cursor-pointer ${
-                        filterPriority === pr.id ? 'bg-[var(--accent)] text-[var(--on-accent)] font-medium' : 'text-[var(--muted)] hover:bg-[var(--surface-hover)]'
-                      }`}
-                    >
-                      {pr.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+      {/* Minimal Toolbar */}
+      <div className="flex items-center justify-between gap-2 mb-4 text-xs">
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="flex items-center gap-1.5 text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer font-medium py-1">
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filter</span>
               {(filterStatus !== 'all' || filterPriority !== 'all') && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setFilterStatus('all');
-                    setFilterPriority('all');
-                  }}
-                  className="mt-1"
-                >
-                  Reset filters
-                </Button>
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)]" />
               )}
-            </PopoverContent>
-          </Popover>
-        </div>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-64 flex flex-col gap-3">
+            <div>
+              <label className="text-xs font-semibold text-[var(--text)] mb-1.5 block">Status</label>
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                {['all', 'pending', 'in-progress', 'paused', 'completed', 'cancelled'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setFilterStatus(st)}
+                    className={`px-2 py-1 rounded text-left capitalize cursor-pointer ${
+                      filterStatus === st
+                        ? 'bg-[var(--accent)] text-[var(--on-accent)] font-medium'
+                        : 'text-[var(--muted)] hover:bg-[var(--surface-hover)]'
+                    }`}
+                  >
+                    {st === 'in-progress' ? 'Running' : st}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="border-t border-[var(--border)] pt-2">
+              <label className="text-xs font-semibold text-[var(--text)] mb-1.5 block">Priority</label>
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: '2', label: 'Urgent' },
+                  { id: '1', label: 'Immediate' },
+                  { id: '0', label: 'Not-yet' },
+                ].map((pr) => (
+                  <button
+                    key={pr.id}
+                    onClick={() => setFilterPriority(pr.id)}
+                    className={`px-2 py-1 rounded text-left cursor-pointer ${
+                      filterPriority === pr.id
+                        ? 'bg-[var(--accent)] text-[var(--on-accent)] font-medium'
+                        : 'text-[var(--muted)] hover:bg-[var(--surface-hover)]'
+                    }`}
+                  >
+                    {pr.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {(filterStatus !== 'all' || filterPriority !== 'all') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setFilterStatus('all');
+                  setFilterPriority('all');
+                }}
+                className="mt-1"
+              >
+                Reset filters
+              </Button>
+            )}
+          </PopoverContent>
+        </Popover>
 
-        <Button
-          variant="primary"
-          size="sm"
+        <button
           onClick={() => {
             setTaskToEdit(null);
             setDrawerOpen(true);
           }}
+          className="flex items-center gap-1 text-[var(--muted)] hover:text-[var(--accent-text)] transition cursor-pointer font-medium"
         >
-          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+          <Plus className="w-3.5 h-3.5" />
           <span>New task</span>
-        </Button>
+        </button>
       </div>
 
-      {/* Groups List */}
+      {/* Zen Tasks Stream */}
       {isLoading ? (
         <div className="flex flex-col gap-2">
-          <Skeleton height="44px" />
-          <Skeleton height="44px" />
-          <Skeleton height="44px" />
+          <Skeleton height="40px" />
+          <Skeleton height="40px" />
+          <Skeleton height="40px" />
         </div>
       ) : allVisible.length === 0 && visibleOverdue.length === 0 ? (
         <EmptyState
@@ -645,23 +653,23 @@ export const TodayView: React.FC<TodayViewProps> = ({
           {/* Running Group */}
           {runningTasks.length > 0 && (
             <div>
-              <h2 className="text-xs font-semibold text-[var(--accent-text)] mb-1.5 flex items-center gap-1.5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--accent-text)] mb-2 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] animate-ping" />
-                <span>Running</span>
-              </h2>
-              <div className="bg-[var(--surface)] border border-[var(--accent)]/30 rounded-[var(--radius-card)] divide-y divide-[var(--border)] overflow-hidden shadow-xs">
+                <span>Now Running</span>
+              </div>
+              <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--accent)]/30 bg-[var(--accent)]/5 rounded-[var(--radius-control)]">
                 {runningTasks.map((t) => renderTaskRow(t))}
               </div>
             </div>
           )}
 
-          {/* Overdue Group (only shown when viewing today and overdue tasks exist) */}
+          {/* Overdue Group */}
           {isToday && visibleOverdue.length > 0 && (
             <div>
-              <h2 className="text-xs font-semibold text-[var(--warning-text)] mb-1.5 flex items-center gap-1">
-                <span>Overdue ({visibleOverdue.length})</span>
-              </h2>
-              <div className="bg-[var(--surface)] border border-[var(--warning)]/30 rounded-[var(--radius-card)] divide-y divide-[var(--border)] overflow-hidden shadow-xs">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--warning-text)] mb-2">
+                Overdue ({visibleOverdue.length})
+              </div>
+              <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--warning)]/30">
                 {visibleOverdue.map((t) => renderTaskRow(t, true))}
               </div>
             </div>
@@ -670,8 +678,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
           {/* Up Next Group */}
           {upNextTasks.length > 0 && (
             <div>
-              <h2 className="text-xs font-semibold text-[var(--muted)] mb-1.5">Up next ({upNextTasks.length})</h2>
-              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card)] divide-y divide-[var(--border)] overflow-hidden shadow-xs">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
+                Tasks ({upNextTasks.length})
+              </div>
+              <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
                 {upNextTasks.map((t) => renderTaskRow(t))}
               </div>
             </div>
@@ -679,16 +689,16 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
           {/* Done Group (collapsible) */}
           {doneTasks.length > 0 && (
-            <div>
+            <div className="pt-2">
               <button
                 onClick={() => setDoneCollapsed(!doneCollapsed)}
-                className="text-xs font-semibold text-[var(--muted)] mb-1.5 flex items-center gap-1 cursor-pointer select-none hover:text-[var(--text)] transition"
+                className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2 flex items-center gap-1.5 cursor-pointer select-none hover:text-[var(--text)] transition"
               >
-                <span>Done ({doneTasks.length})</span>
-                <span className="text-[10px]">{doneCollapsed ? '▼' : '▲'}</span>
+                <span>Completed ({doneTasks.length})</span>
+                <span className="text-[10px] opacity-75">{doneCollapsed ? '▼' : '▲'}</span>
               </button>
               {!doneCollapsed && (
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card)] divide-y divide-[var(--border)] overflow-hidden opacity-75 shadow-xs">
+                <div className="flex flex-col divide-y divide-[var(--border)]/30 border-y border-[var(--border)]/40 opacity-70">
                   {doneTasks.map((t) => renderTaskRow(t))}
                 </div>
               )}

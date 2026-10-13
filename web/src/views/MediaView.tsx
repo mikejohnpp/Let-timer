@@ -262,11 +262,11 @@ export const MediaView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-24">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-28">
       {/* Header and tab switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text)] tracking-tight">Media library</h1>
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text)] tracking-tight">Media</h1>
           <p className="text-xs text-[var(--muted)] mt-1">
             Curated music, images, and poems shown in Focus mode.
           </p>
