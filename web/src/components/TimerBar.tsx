@@ -11,10 +11,14 @@ import {
   Target,
   Timer as TimerIcon,
   AlertTriangle,
+  Music,
+  SkipForward,
 } from 'lucide-react';
 import type { TimerSnapshot } from '../hooks/useEventStream';
 import { computeTimerDisplay, type FormattedTimer } from '../utils/timer';
 import { apiFetch } from '../api/client';
+import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { SoundWave } from './SoundWave';
 import {
   IconButton,
   DropdownMenu,
@@ -51,6 +55,7 @@ export const TimerBar: React.FC<TimerBarProps> = ({
   const { showToast } = useToast();
   const confirm = useConfirm();
   const prevModeRef = useRef<string>('idle');
+  const { currentTrack, isPlaying: isAudioPlaying, togglePlay: toggleAudio, nextTrack } = useAudioPlayer();
 
   // Live 1-second ticking
   useEffect(() => {
@@ -199,7 +204,7 @@ export const TimerBar: React.FC<TimerBarProps> = ({
       </div>
 
       {/* Task name & status metadata */}
-      <div className="flex items-center gap-1.5 min-w-0 max-w-[110px] sm:max-w-[200px]">
+      <div className="flex items-center gap-1.5 min-w-0 max-w-[100px] sm:max-w-[180px]">
         <span className="text-xs font-semibold truncate text-[var(--text)]">
           {snapshot.task.name}
         </span>
@@ -208,6 +213,51 @@ export const TimerBar: React.FC<TimerBarProps> = ({
           {isOvertime ? "Time's up" : isPaused ? 'Paused' : 'In progress'}
         </span>
       </div>
+
+      {/* Music Section in Status Island (if track is active) */}
+      {currentTrack && (
+        <div className="flex items-center gap-1.5 pl-2 border-l border-[var(--border)]/40 min-w-0">
+          <div
+            onClick={toggleAudio}
+            className="flex items-center gap-1.5 cursor-pointer group min-w-0"
+            title={`${isAudioPlaying ? 'Pause' : 'Play'}: ${currentTrack.name}`}
+          >
+            {isAudioPlaying ? (
+              <SoundWave isPlaying={true} className="shrink-0" />
+            ) : (
+              <Music className="w-3.5 h-3.5 text-[var(--muted)] group-hover:text-[var(--text)] shrink-0 transition" />
+            )}
+            <span className="text-[11px] font-medium text-[var(--muted)] group-hover:text-[var(--text)] truncate max-w-[75px] sm:max-w-[120px] transition">
+              {currentTrack.name}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              type="button"
+              onClick={toggleAudio}
+              className="h-5 w-5 rounded-full flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition cursor-pointer"
+              aria-label={isAudioPlaying ? 'Pause music' : 'Play music'}
+              title={isAudioPlaying ? 'Pause music' : 'Play music'}
+            >
+              {isAudioPlaying ? (
+                <Pause className="w-2.5 h-2.5 fill-current" />
+              ) : (
+                <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={nextTrack}
+              className="h-5 w-5 rounded-full flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition cursor-pointer"
+              aria-label="Next track"
+              title="Next track"
+            >
+              <SkipForward className="w-2.5 h-2.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Control buttons */}
       <div className="flex items-center gap-1">

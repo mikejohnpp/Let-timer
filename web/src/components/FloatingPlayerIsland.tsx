@@ -1,0 +1,472 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Music,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  ChevronUp,
+  ChevronDown,
+  BookOpen,
+  ExternalLink,
+} from 'lucide-react';
+import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { SoundWave } from './SoundWave';
+
+function formatTime(secs: number): string {
+  if (isNaN(secs) || secs < 0) return '0:00';
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+interface FloatingPlayerIslandProps {
+  className?: string;
+  hasBackgroundPhoto?: boolean;
+}
+
+export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
+  className = '',
+  hasBackgroundPhoto = false,
+}) => {
+  const {
+    currentTrack,
+    playlist,
+    isPlaying,
+    currentTime,
+    duration,
+    volume,
+    isMuted,
+    mediaListDetail,
+    playTrack,
+    togglePlay,
+    seek,
+    nextTrack,
+    prevTrack,
+    setVolume,
+    toggleMute,
+  } = useAudioPlayer();
+
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<'music' | 'poetry'>('music');
+  const islandRef = useRef<HTMLDivElement | null>(null);
+  const hoverCloseTimerRef = useRef<number | null>(null);
+  const mobileInactivityTimerRef = useRef<number | null>(null);
+
+  const poems = mediaListDetail?.items.filter((i) => i.media_type === 'poem') || [];
+  const tracks = playlist.length > 0 ? playlist : mediaListDetail?.items.filter((i) => i.media_type === 'music') || [];
+
+  // Desktop hover detection helper
+  const canHover = () => {
+    return typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  };
+
+  const handleMouseEnter = () => {
+    if (hoverCloseTimerRef.current) {
+      window.clearTimeout(hoverCloseTimerRef.current);
+      hoverCloseTimerRef.current = null;
+    }
+    if (canHover()) {
+      setIsExpanded(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (canHover()) {
+      if (hoverCloseTimerRef.current) window.clearTimeout(hoverCloseTimerRef.current);
+      hoverCloseTimerRef.current = window.setTimeout(() => {
+        setIsExpanded(false);
+      }, 250);
+    }
+  };
+
+  // Mobile / touch inactivity auto-close timer (after 4s of no interaction)
+  const resetMobileInactivityTimer = () => {
+    if (mobileInactivityTimerRef.current) {
+      window.clearTimeout(mobileInactivityTimerRef.current);
+      mobileInactivityTimerRef.current = null;
+    }
+    if (!canHover() && isExpanded) {
+      mobileInactivityTimerRef.current = window.setTimeout(() => {
+        setIsExpanded(false);
+      }, 4000);
+    }
+  };
+
+  useEffect(() => {
+    if (!isExpanded) {
+      if (mobileInactivityTimerRef.current) {
+        window.clearTimeout(mobileInactivityTimerRef.current);
+        mobileInactivityTimerRef.current = null;
+      }
+      return;
+    }
+
+    resetMobileInactivityTimer();
+
+    const handleInteraction = () => {
+      resetMobileInactivityTimer();
+    };
+
+    const islandEl = islandRef.current;
+    if (islandEl) {
+      islandEl.addEventListener('touchstart', handleInteraction, { passive: true });
+      islandEl.addEventListener('touchmove', handleInteraction, { passive: true });
+      islandEl.addEventListener('click', handleInteraction);
+    }
+
+    return () => {
+      if (islandEl) {
+        islandEl.removeEventListener('touchstart', handleInteraction);
+        islandEl.removeEventListener('touchmove', handleInteraction);
+        islandEl.removeEventListener('click', handleInteraction);
+      }
+      if (mobileInactivityTimerRef.current) {
+        window.clearTimeout(mobileInactivityTimerRef.current);
+        mobileInactivityTimerRef.current = null;
+      }
+    };
+  }, [isExpanded]);
+
+  // Close expanded card on click/tap outside
+  useEffect(() => {
+    if (!isExpanded) return;
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (islandRef.current && !islandRef.current.contains(e.target as Node)) {
+        setIsExpanded(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isExpanded]);
+
+  // If there's no track and no poems, nothing to show
+  if (!currentTrack && tracks.length === 0 && poems.length === 0) {
+    return null;
+  }
+
+  const progressPercent = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
+
+  return (
+    <div
+      ref={islandRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      className={`z-40 select-none ${className}`}
+    >
+      {/* ─── EXPANDED FLOATING ISLAND CARD ─────────────────────────────────── */}
+      {isExpanded ? (
+        <div
+          className={`w-[92vw] max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl border flex flex-col gap-4 ${
+            hasBackgroundPhoto
+              ? 'bg-[var(--surface)]/95 backdrop-blur-2xl border-[var(--border-strong)]/40 text-[var(--text)]'
+              : 'bg-[var(--surface)]/95 backdrop-blur-2xl border-[var(--border)] shadow-xl text-[var(--text)]'
+          }`}
+        >
+          {/* Header Bar */}
+          <div className="flex items-center justify-between pb-2 border-b border-[var(--border)]/40">
+            <div className="flex items-center gap-1.5">
+              {tracks.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('music')}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
+                    activeTab === 'music'
+                      ? 'bg-[var(--accent)] text-[var(--on-accent)] shadow-xs'
+                      : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Music className="w-3 h-3" />
+                    <span>Music ({tracks.length})</span>
+                  </span>
+                </button>
+              )}
+
+              {poems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('poetry')}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
+                    activeTab === 'poetry'
+                      ? 'bg-[var(--accent)] text-[var(--on-accent)] shadow-xs'
+                      : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <BookOpen className="w-3 h-3" />
+                    <span>Poetry ({poems.length})</span>
+                  </span>
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsExpanded(false)}
+              className="p-1 rounded-full hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer"
+              aria-label="Collapse player"
+              title="Collapse"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Tab 1: Music Player */}
+          {activeTab === 'music' && (
+            <div className="flex flex-col gap-3.5">
+              {/* Now Playing Header */}
+              {currentTrack ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)]/50 flex items-center justify-center shrink-0 text-[var(--accent-text)]">
+                    <SoundWave isPlaying={isPlaying} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-[var(--text)] truncate">
+                      {currentTrack.name}
+                    </div>
+                    <div className="text-xs text-[var(--muted)] truncate mt-0.5">
+                      {currentTrack.description || mediaListDetail?.list.name || 'Focus Audio'}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-[var(--muted)] text-center py-2">
+                  Select a track from the playlist below
+                </div>
+              )}
+
+              {/* Interactive Scrub Bar */}
+              <div className="flex flex-col gap-1">
+                <div className="relative flex items-center group">
+                  <input
+                    type="range"
+                    min={0}
+                    max={duration || 100}
+                    step={0.5}
+                    value={currentTime}
+                    disabled={!currentTrack || duration <= 0}
+                    onChange={(e) => seek(parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-[var(--border)]/60 rounded-full appearance-none cursor-pointer outline-none accent-[var(--accent)]"
+                    style={{
+                      background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${progressPercent}%, var(--border) ${progressPercent}%, var(--border) 100%)`,
+                    }}
+                    aria-label="Seek track"
+                  />
+                </div>
+                <div className="flex justify-between items-center text-[10px] font-mono text-[var(--muted)] tabular-nums px-0.5">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+              </div>
+
+              {/* Main Playback Controls */}
+              <div className="flex items-center justify-between pt-1">
+                {/* Volume cluster */}
+                <div className="flex items-center gap-1.5 w-24">
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    className="p-1 rounded text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer"
+                    aria-label={isMuted ? 'Unmute' : 'Mute'}
+                  >
+                    {isMuted || volume === 0 ? (
+                      <VolumeX className="w-3.5 h-3.5" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={isMuted ? 0 : volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    className="w-16 h-1 bg-[var(--border)] rounded-full appearance-none cursor-pointer outline-none accent-[var(--accent)]"
+                    aria-label="Volume"
+                  />
+                </div>
+
+                {/* Center play buttons */}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={prevTrack}
+                    disabled={tracks.length <= 1}
+                    className="p-1.5 rounded-full text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition disabled:opacity-40 cursor-pointer"
+                    aria-label="Previous track"
+                  >
+                    <SkipBack className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={togglePlay}
+                    className="w-10 h-10 rounded-full bg-[var(--accent)] text-[var(--on-accent)] flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition cursor-pointer"
+                    aria-label={isPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isPlaying ? (
+                      <Pause className="w-4 h-4 fill-current" />
+                    ) : (
+                      <Play className="w-4 h-4 fill-current ml-0.5" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={nextTrack}
+                    disabled={tracks.length <= 1}
+                    className="p-1.5 rounded-full text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition disabled:opacity-40 cursor-pointer"
+                    aria-label="Next track"
+                  >
+                    <SkipForward className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Spacer for symmetrical balance */}
+                <div className="w-24 flex justify-end text-[10px] text-[var(--muted)] font-mono">
+                  {tracks.length > 0 && currentTrack
+                    ? `${tracks.findIndex((t) => t.id === currentTrack.id) + 1}/${tracks.length}`
+                    : ''}
+                </div>
+              </div>
+
+              {/* Playlist queue list */}
+              {tracks.length > 0 && (
+                <div className="mt-1 pt-2 border-t border-[var(--border)]/30 max-h-36 overflow-y-auto divide-y divide-[var(--border)]/20 text-xs">
+                  {tracks.map((t) => {
+                    const isSelected = currentTrack?.id === t.id;
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => playTrack(t, tracks)}
+                        className={`py-2 px-2.5 rounded-lg flex items-center justify-between gap-2 cursor-pointer transition ${
+                          isSelected
+                            ? 'bg-[var(--surface-hover)] font-semibold text-[var(--accent-text)]'
+                            : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isSelected && isPlaying ? (
+                            <SoundWave isPlaying={true} className="shrink-0" />
+                          ) : (
+                            <Music className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                          )}
+                          <span className="truncate">{t.name}</span>
+                        </div>
+                        {t.description && (
+                          <span className="text-[10px] text-[var(--muted)] truncate max-w-[100px]">
+                            {t.description}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab 2: Poetry Reader */}
+          {activeTab === 'poetry' && poems.length > 0 && (
+            <div className="flex flex-col gap-4 max-h-64 overflow-y-auto py-1 px-1 text-center">
+              {poems.map((poem) => (
+                <article key={poem.id} className="border-b border-[var(--border)]/20 pb-3 last:border-b-0">
+                  <h4 className="font-serif text-sm font-bold text-[var(--text)]">{poem.name}</h4>
+                  {poem.description && (
+                    <p className="text-[11px] text-[var(--muted)] italic mb-2">{poem.description}</p>
+                  )}
+                  {poem.content ? (
+                    <div className="font-serif text-xs leading-relaxed whitespace-pre-line text-[var(--text)]/90 tracking-wide px-2">
+                      {poem.content}
+                    </div>
+                  ) : (
+                    <a
+                      href={poem.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-[var(--accent-text)] hover:underline mt-1"
+                    >
+                      <span>Read original poem</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ─── COLLAPSED FLOATING ISLAND PILL ─────────────────────────────────── */
+        <div
+          className={`flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border select-none shadow-xl backdrop-blur-xl ${
+            hasBackgroundPhoto
+              ? 'bg-[var(--surface)]/90 border-[var(--border-strong)]/40 text-[var(--text)] shadow-black/40'
+              : 'bg-[var(--surface)]/90 border-[var(--border-strong)]/30 text-[var(--text)]'
+          }`}
+        >
+          {/* Sound wave / Music indicator */}
+          <div
+            onClick={() => setIsExpanded(true)}
+            className="flex items-center gap-2 cursor-pointer min-w-0"
+            title="Expand player"
+          >
+            {isPlaying ? (
+              <SoundWave isPlaying={true} />
+            ) : (
+              <Music className="w-3.5 h-3.5 text-[var(--muted)]" />
+            )}
+
+            {/* Track Name */}
+            <span className="text-xs font-semibold truncate max-w-[120px] sm:max-w-[200px] text-[var(--text)]">
+              {currentTrack ? currentTrack.name : 'Focus media'}
+            </span>
+
+            {/* Time */}
+            {duration > 0 && (
+              <span className="text-[10px] font-mono text-[var(--muted)] tabular-nums hidden sm:inline">
+                {formatTime(currentTime)}
+              </span>
+            )}
+          </div>
+
+          {/* Quick Play/Pause Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              togglePlay();
+            }}
+            className="w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--on-accent)] flex items-center justify-center hover:scale-105 active:scale-95 transition cursor-pointer shrink-0"
+            aria-label={isPlaying ? 'Pause music' : 'Play music'}
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? (
+              <Pause className="w-2.5 h-2.5 fill-current" />
+            ) : (
+              <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+            )}
+          </button>
+
+          {/* Expand Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsExpanded(true)}
+            className="p-0.5 text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer shrink-0"
+            aria-label="Expand player"
+            title="Expand player"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};

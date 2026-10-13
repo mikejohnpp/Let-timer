@@ -241,7 +241,7 @@ export const Header: React.FC<HeaderProps> = ({
           : 'sticky top-0 z-40 bg-[var(--bg)]/80 backdrop-blur-md opacity-100 translate-y-0 pointer-events-auto'
       } ${className || ''}`}
     >
-      <div className="w-full px-4 sm:px-8 h-full flex items-center justify-between gap-4">
+      <div className="relative w-full px-4 sm:px-8 h-full flex items-center justify-between gap-4">
         {/* Left: Brand & Custom Workspace Popover */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
@@ -339,7 +339,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Center: Navigation Tabs (Desktop only; on mobile bottom tab bar is used) */}
-        <div className="hidden lg:flex items-center justify-center flex-1">
+        <div className="hidden lg:flex items-center justify-center absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto">
           <nav className="flex items-center gap-1 text-xs font-medium">
             {navTabs.map((t) => {
               const isActive = currentView === t.view;

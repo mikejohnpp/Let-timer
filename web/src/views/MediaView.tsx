@@ -3,14 +3,16 @@ import {
   Plus,
   Trash2,
   Image as ImageIcon,
-  Music,
   BookOpen,
   X,
   ExternalLink,
   Upload,
+  Play,
+  Pause,
 } from 'lucide-react';
 import type { components } from '../api/schema';
 import { apiFetch } from '../api/client';
+import { useAudioPlayer } from '../context/AudioPlayerContext';
 import {
   Button,
   IconButton,
@@ -41,6 +43,7 @@ function getDisplayHost(url: string) {
 }
 
 export const MediaView: React.FC = () => {
+  const { currentTrack, isPlaying, playTrack, togglePlay } = useAudioPlayer();
   const [tab, setTab] = useState<'lists' | 'items'>('lists');
   const [lists, setLists] = useState<MediaList[]>([]);
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -648,7 +651,27 @@ export const MediaView: React.FC = () => {
                       <div key={item.id} className="py-2 px-1 flex items-center justify-between gap-3 text-xs group">
                         <div className="flex items-center gap-2.5 min-w-0">
                           {item.media_type === 'music' && (
-                            <Music className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (currentTrack?.id === item.id) {
+                                  togglePlay();
+                                } else {
+                                  playTrack(
+                                    item,
+                                    selectedList.items.filter((i) => i.media_type === 'music')
+                                  );
+                                }
+                              }}
+                              className="w-5 h-5 rounded-full flex items-center justify-center bg-[var(--surface-hover)] hover:bg-[var(--accent)] hover:text-white text-[var(--accent-text)] transition cursor-pointer shrink-0"
+                              title={currentTrack?.id === item.id && isPlaying ? 'Pause' : 'Play'}
+                            >
+                              {currentTrack?.id === item.id && isPlaying ? (
+                                <Pause className="w-2.5 h-2.5" />
+                              ) : (
+                                <Play className="w-2.5 h-2.5 ml-0.5" />
+                              )}
+                            </button>
                           )}
                           {item.media_type === 'image' && (
                             <ImageIcon className="w-3.5 h-3.5 text-[var(--muted)] shrink-0" />
@@ -739,9 +762,33 @@ export const MediaView: React.FC = () => {
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-7 h-7 rounded-md bg-[var(--surface-hover)]/70 flex items-center justify-center text-[var(--muted)] shrink-0">
-                      {item.media_type === 'music' && <Music className="w-3.5 h-3.5 text-[var(--accent-text)]" />}
-                      {item.media_type === 'image' && <ImageIcon className="w-3.5 h-3.5" />}
-                      {item.media_type === 'poem' && <BookOpen className="w-3.5 h-3.5" />}
+                      {item.media_type === 'music' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (currentTrack?.id === item.id) {
+                              togglePlay();
+                            } else {
+                              playTrack(
+                                item,
+                                items.filter((i) => i.media_type === 'music')
+                              );
+                            }
+                          }}
+                          className="w-full h-full rounded-md flex items-center justify-center text-[var(--accent-text)] hover:bg-[var(--accent)] hover:text-white transition cursor-pointer"
+                          title={currentTrack?.id === item.id && isPlaying ? 'Pause' : 'Play'}
+                        >
+                          {currentTrack?.id === item.id && isPlaying ? (
+                            <Pause className="w-3.5 h-3.5" />
+                          ) : (
+                            <Play className="w-3.5 h-3.5 ml-0.5" />
+                          )}
+                        </button>
+                      ) : item.media_type === 'image' ? (
+                        <ImageIcon className="w-3.5 h-3.5" />
+                      ) : (
+                        <BookOpen className="w-3.5 h-3.5" />
+                      )}
                     </div>
 
                     <div className="min-w-0">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { TimerBar } from './components/TimerBar';
 import { BottomTabBar } from './components/BottomTabBar';
@@ -13,8 +13,11 @@ import { useEventStream } from './hooks/useEventStream';
 import { useHashRoute } from './hooks/useHashRoute';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 import { useWallpaper } from './hooks/useWallpaper';
+import { useIdleTimer } from './hooks/useIdleTimer';
 import { apiFetch } from './api/client';
 import { ToastProvider, ConfirmProvider, ErrorState } from './components/ui';
+import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
+import { FloatingPlayerIsland } from './components/FloatingPlayerIsland';
 
 type AuthStatus = 'checking' | 'login' | 'unreachable' | 'ok';
 
@@ -22,10 +25,33 @@ export const AppContent: React.FC = () => {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('checking');
   const [route, navigate] = useHashRoute();
   const currentView = route.view;
+  const isFocusView = currentView === 'focus';
+  const focusControlsVisible = useIdleTimer(3000, isFocusView);
   const [isStartPickerOpen, setIsStartPickerOpen] = useState(false);
   const { wallpaperUrl } = useWallpaper();
 
   const { connectionStatus, snapshot, receivedAt, refetchSnapshot } = useEventStream();
+  const { currentTrack, pause, clearPlayer, loadMediaListForTask } = useAudioPlayer();
+  const prevSnapshotStateRef = useRef<string>(snapshot?.state || 'idle');
+
+  useEffect(() => {
+    const prevState = prevSnapshotStateRef.current;
+    const currentState = snapshot?.state || 'idle';
+
+    if ((prevState === 'idle' || !prevState) && currentState === 'running') {
+      // Dừng lại việc chơi nhạc khi task bắt đầu
+      pause();
+      if (snapshot?.task?.media_list_id) {
+        loadMediaListForTask(snapshot.task.media_list_id);
+      } else {
+        clearPlayer();
+      }
+    } else if (currentState !== 'idle' && snapshot?.task?.media_list_id) {
+      loadMediaListForTask(snapshot.task.media_list_id);
+    }
+
+    prevSnapshotStateRef.current = currentState;
+  }, [snapshot?.state, snapshot?.task?.media_list_id, pause, clearPlayer, loadMediaListForTask]);
 
   const checkAuth = useCallback(async () => {
     setAuthStatus('checking');
@@ -93,8 +119,6 @@ export const AppContent: React.FC = () => {
     return <LoginView onLoggedIn={() => setAuthStatus('ok')} />;
   }
 
-  const isFocusView = currentView === 'focus';
-
   return (
     <div className="relative min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] transition-colors">
       {wallpaperUrl && (
@@ -133,25 +157,40 @@ export const AppContent: React.FC = () => {
         {currentView === 'settings' && <SettingsView />}
       </main>
 
-      {/* Floating Bottom Timer Island (Visible when running/paused, hidden when idle or in Focus) */}
-      {snapshot && snapshot.state !== 'idle' && !isFocusView && (
-        <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <TimerBar
-            snapshot={snapshot}
-            receivedAt={receivedAt}
-            onOpenFocus={() => navigate('focus')}
-            onOpenStartPicker={() => setIsStartPickerOpen(true)}
-            onActionComplete={refetchSnapshot}
-          />
-        </div>
+      {/* Floating Bottom Island (TimerBar if task active, or FloatingPlayerIsland if idle & music playing) */}
+      {!isFocusView && (
+        <>
+          {snapshot && snapshot.state !== 'idle' ? (
+            <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <TimerBar
+                snapshot={snapshot}
+                receivedAt={receivedAt}
+                onOpenFocus={() => navigate('focus')}
+                onOpenStartPicker={() => setIsStartPickerOpen(true)}
+                onActionComplete={refetchSnapshot}
+              />
+            </div>
+          ) : currentTrack ? (
+            <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <FloatingPlayerIsland />
+            </div>
+          ) : null}
+        </>
       )}
 
-      {!isFocusView && (
-        <BottomTabBar
-          currentView={currentView}
-          onNavigate={navigate}
-        />
-      )}
+      <BottomTabBar
+        currentView={currentView}
+        onNavigate={navigate}
+        className={
+          isFocusView
+            ? `transition-all duration-300 ${
+                focusControlsVisible
+                  ? 'opacity-100 translate-y-0 pointer-events-auto'
+                  : 'opacity-0 translate-y-2 pointer-events-none'
+              }`
+            : ''
+        }
+      />
 
       <StartPickerModal
         isOpen={isStartPickerOpen}
@@ -167,7 +206,9 @@ export const App: React.FC = () => {
   return (
     <ToastProvider>
       <ConfirmProvider>
-        <AppContent />
+        <AudioPlayerProvider>
+          <AppContent />
+        </AudioPlayerProvider>
       </ConfirmProvider>
     </ToastProvider>
   );
