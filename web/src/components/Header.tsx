@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Clock, Moon, Sun, Monitor, ChevronDown, Plus, Trash2, Target } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Clock, Moon, Sun, Monitor, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import type { components } from '../api/schema';
 import type { AppView } from '../hooks/useHashRoute';
 import { getStoredWorkspace, setStoredWorkspace, getStoredToken } from '../api/client';
@@ -35,9 +35,53 @@ export const Header: React.FC<HeaderProps> = ({
   const [wsPopoverOpen, setWsPopoverOpen] = useState(false);
   const [newWsName, setNewWsName] = useState('');
   const [isCreatingWs, setIsCreatingWs] = useState(false);
+  const [focusVisible, setFocusVisible] = useState(true);
+  const hideTimerRef = useRef<number | null>(null);
 
   const { showToast } = useToast();
   const confirm = useConfirm();
+
+  const isFocusView = currentView === 'focus';
+
+  const resetHideTimer = useCallback(() => {
+    setFocusVisible(true);
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => {
+      if (!wsPopoverOpen) {
+        setFocusVisible(false);
+      }
+    }, 3000);
+  }, [wsPopoverOpen]);
+
+  useEffect(() => {
+    if (!isFocusView) {
+      setFocusVisible(true);
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+      return;
+    }
+
+    const handleActivity = () => resetHideTimer();
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
+    resetHideTimer();
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    };
+  }, [isFocusView, resetHideTimer]);
+
+  useEffect(() => {
+    if (wsPopoverOpen) {
+      setFocusVisible(true);
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    } else if (isFocusView) {
+      resetHideTimer();
+    }
+  }, [wsPopoverOpen, isFocusView, resetHideTimer]);
 
   const loadWorkspaces = async () => {
     try {
@@ -171,13 +215,17 @@ export const Header: React.FC<HeaderProps> = ({
     { view: 'settings', label: 'Settings' },
   ];
 
-  const isFocusView = currentView === 'focus';
-
   return (
     <header
-      className={`w-full bg-transparent border-none lg:sticky top-0 z-40 transition-colors h-[var(--header-h)] ${
-        className || ''
-      }`}
+      className={`w-full bg-transparent border-none transition-all duration-300 h-[var(--header-h)] ${
+        isFocusView
+          ? `fixed top-0 inset-x-0 z-50 ${
+              focusVisible
+                ? 'opacity-100 translate-y-0 pointer-events-auto'
+                : 'opacity-0 -translate-y-2 pointer-events-none'
+            }`
+          : 'relative lg:sticky top-0 z-40 opacity-100 translate-y-0 pointer-events-auto'
+      } ${className || ''}`}
     >
       <div className="w-full px-4 sm:px-8 h-full flex items-center justify-between gap-4">
         {/* Left: Brand & Custom Workspace Popover */}
@@ -276,34 +324,27 @@ export const Header: React.FC<HeaderProps> = ({
           </Popover>
         </div>
 
-        {/* Center: Navigation Tabs (Or Focus Indicator) */}
+        {/* Center: Navigation Tabs */}
         <div className="flex items-center justify-center flex-1">
-          {isFocusView ? (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--accent)]/10 text-[var(--accent-text)] font-semibold text-xs border border-[var(--accent)]/20 shadow-xs select-none">
-              <Target className="w-3.5 h-3.5 animate-pulse" />
-              <span>Focus</span>
-            </div>
-          ) : (
-            <nav className="hidden sm:flex items-center gap-1 text-xs font-medium">
-              {navTabs.map((t) => {
-                const isActive = currentView === t.view;
-                return (
-                  <button
-                    key={t.view}
-                    onClick={() => onNavigate(t.view)}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={`px-3 py-1 rounded-full transition relative cursor-pointer ${
-                      isActive
-                        ? 'text-[var(--accent-text)] font-semibold bg-[var(--accent)]/10'
-                        : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]'
-                    }`}
-                  >
-                    <span>{t.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          )}
+          <nav className="flex items-center gap-1 text-xs font-medium">
+            {navTabs.map((t) => {
+              const isActive = currentView === t.view;
+              return (
+                <button
+                  key={t.view}
+                  onClick={() => onNavigate(t.view)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`px-3 py-1 rounded-full transition relative cursor-pointer ${
+                    isActive
+                      ? 'text-[var(--accent-text)] font-semibold bg-[var(--accent)]/10'
+                      : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]'
+                  }`}
+                >
+                  <span>{t.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
 
         {/* Right: Borderless Connection & Theme Toggle */}

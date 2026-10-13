@@ -221,20 +221,10 @@
   --bg-glass-overlay: rgba(248, 250, 252, 0.7);
 }
 
-:root[data-has-wallpaper="true"] header,
-:root[data-has-wallpaper="true"] nav,
 :root[data-has-wallpaper="true"] .glass-panel,
 :root[data-has-wallpaper="true"] div[class*="rounded-[var(--radius-card)]"] {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-}
-
-:root[data-has-wallpaper="true"] header {
-  background-color: color-mix(in srgb, var(--surface) 82%, transparent) !important;
-}
-
-:root[data-has-wallpaper="true"] nav {
-  background-color: color-mix(in srgb, var(--surface) 85%, transparent) !important;
 }
 
 :root[data-has-wallpaper="true"] div[class*="bg-[var(--surface)]"] {

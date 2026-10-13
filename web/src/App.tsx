@@ -116,7 +116,6 @@ export const AppContent: React.FC = () => {
       )}
 
       <Header
-        className="relative z-10"
         currentView={currentView}
         onNavigate={navigate}
         connectionStatus={connectionStatus}

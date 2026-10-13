@@ -192,7 +192,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-var(--header-h))] w-full overflow-hidden flex flex-col justify-between p-6 sm:p-12 select-none">
+    <div className="relative min-h-screen w-full overflow-hidden flex flex-col justify-between p-6 sm:p-12 pt-14 sm:pt-16 select-none">
       {/* Layer 0: Background Photo */}
       {hasAnyBg && effectiveBg && (
         <div
