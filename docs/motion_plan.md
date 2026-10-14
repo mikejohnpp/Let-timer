@@ -37,7 +37,7 @@ The component names below (`TimerBar`, `FocusView`, `TodayView`, `TaskDrawer`) c
 
 1. **Motion explains, it never decorates.** If removing an animation loses no information, prefer removing it.
 2. **Fast for input, slow only for ambience.** Direct responses to a tap or click finish within 150ms of perceived feedback; only state changes and scenery may take 300ms or more.
-3. **Only `transform` and `opacity`** (plus `background-color`/`color` for state tint). No animation of `width`, `height`, `top/left`, `blur` radius, or box-shadow. One allowed exception: the delete-row collapse (see A21).
+3. **Only `transform` and `opacity`** (plus `background-color`/`color` for state tint). No animation of `width`, `height`, `top/left`, `blur` radius, or box-shadow. Allowed exceptions: the delete-row collapse (A21) and the completed disclosure (A33).
 4. **No bounce, overshoot, shake, or flashing.** Pulses are at most two, then still.
 5. **At most one ambient loop visible at a time**, small in amplitude, and it stops by itself.
 6. **Interruptible.** Every animation can be cancelled or reversed; no control is ever disabled "while animating".
@@ -123,14 +123,14 @@ Legend: **P** = properties animated, **Red.** = behaviour under reduced motion.
 | A14 | **Time's up** | L2 | Tint to orange (A13) plus two ring pulses (scale 1 to 1.16, opacity 0.7 to 0), then still | transform, opacity | each pulse about 1.1s, second delayed 1.5s | tint only | Plus toast (A07) and one `role="alert"` announcement |
 | A15 | Daily progress bar | L1 | Fill grows from the left | transform (`scaleX`) | 300ms, `--ease-out` | instant | Never animate `width` |
 | A16 | Row state glyph | L1 | Ring to filled dot (running), dashed ring (paused) | opacity, stroke | `--dur-fast` | same | States must look different first (prereq 0.5) |
-| A17 | **Complete task** | L1 then L3 | Tick draws (stroke), then row travels to Completed while others close the gap | stroke-dashoffset, transform | tick `--dur-base`; move `--dur-slow` with `--ease-emph` | tick appears; row jumps with a 100ms opacity highlight | The signature moment of the app |
-| A18 | **Start / pause a task (group change)** | L3 | Row travels between Now running and Tasks (FLIP) | transform | `--dur-slow`, `--ease-emph` | instant | Same FLIP helper as A17 |
+| A17 | **Complete task** | L1 then L3 | Tick draws (stroke), then row travels to Completed while others close the gap | stroke-dashoffset, transform | tick `--dur-base`; move `--dur-slow` with `--ease-emph` | tick appears; row jumps with a 100ms opacity highlight | Signature moment; implemented with Motion `LayoutGroup` + `layoutId` |
+| A18 | **Start / pause a task (group change)** | L3 | Row travels between Now running and Tasks | transform | `--dur-slow`, `--ease-emph` | instant | Implemented with Motion `LayoutGroup` + `layoutId` |
 | A19 | Add task | L1 | Row fades and rises; background highlight fades out | opacity, transform, background-color | `--dur-base`; highlight 600ms | fade only | |
 | A20 | Quick-add parsing preview | L1 | Preview chip crossfades | opacity | `--dur-fast` | same | |
-| A21 | Delete task | L1 | Row fades; height collapses so siblings follow | opacity, height | `--dur-base` | fade then remove | **Only allowed height animation.** Alternative: `grid-template-rows: 1fr to 0fr` |
+| A21 | Delete task | L1 | Row fades; height collapses so siblings follow | opacity, height | `--dur-base` | fade then remove | Allowed height animation exception (Motion exit) |
 | A22 | Date pager | L3 | Content slides 12px in the direction of travel with a crossfade | transform, opacity | `--dur-base` | fade only | |
 | A23 | Workspace switch | L1 | List crossfade, no stagger | opacity | 160ms | same | |
-| A24 | Tab/view change | L1 | Outgoing fades (90ms), incoming fades (180ms); wallpaper never changes | opacity | as stated | same | View Transitions API is an optional enhancement (M5) |
+| A24 | Tab/view change | L1 | ViewHost `mode="wait"` crossfade; wallpaper never changes | opacity | enter `--dur-base`, exit ×`--exit-ratio` | same | Single engine ViewHost; wallpaper isolated |
 | A25 | Focus: idle fade | L1 | Header, controls and hints fade out after 3s without input; any mouse, key, touch or focus brings them back | opacity | `--dur-fast` (150ms) | same | **Hidden via opacity only**: stays focusable; never hides while a menu, drawer or sheet is open |
 | A26 | Focus: music sheet | L1 | Bottom sheet slides up | transform, opacity | 280ms, `--ease-emph`; close ×`--exit-ratio` | fade only | The clock must not move |
 | A27 | Wallpaper change | L2 | Two stacked layers crossfade | opacity | `--dur-scenic` | 100ms fade | Image decoded before the fade |
@@ -139,6 +139,7 @@ Legend: **P** = properties animated, **Red.** = behaviour under reduced motion.
 | A30 | Connection badge | – | `Live` is static; `Syncing` spinner rotates | transform | 1s linear | static icon | No pulsing Live dot |
 | A31 | Skeleton | L2 | Slow shimmer | opacity | 1.6s | static | Shown only when loading exceeds 300ms |
 | A32 | Focus wake-up / ken-burns | – | Not implemented | – | – | – | Optional later (DM5) |
+| A33 | Completed disclosure | L1 | Height expands/collapses | height, opacity | `--dur-base` | instant | Allowed height animation exception |
 
 Example timelines:
 
@@ -163,25 +164,34 @@ Time's up       0ms tint to orange (400ms) ───> ring pulse 1 (0–1.1s) �
 
 ```
 web/src/
-  styles/motion.css          tokens + shared keyframes (section 5, appendix A)
+  styles/motion.css          tokens + shared keyframes (section 5)
   motion/
-    tokens.ts                readMotionTokens(): reads CSS variables, caches, refreshes on mode change
-    useMotionMode.ts         system | reduced | full, persists to localStorage 'let_timer_motion'
-    animate.ts               animate(el, keyframes, opts) wrapper: strips transforms when reduced
-    useFlip.ts               FLIP hook for keyed lists (appendix B)
-    Presence.tsx             enter/exit helper for non-Radix elements (toast, pill)
-  test/motion.test.ts        token and block-equality tests
-  views/DevMotion.tsx        /dev/motion gallery (port of the preview prototype)
+    tokens.ts                MotionTokens interface, readMotionTokens(), invalidateCache(), parseBezier()
+    MotionProvider.tsx       MotionProvider context + useMotionTokens()
+    useMotionMode.ts         system | reduced | full | off, persists to localStorage 'let_timer_motion'
+    useMotionTransition.ts   useMotionTransition('instant'|'fast'|'base'|'slow'|'ambient') helper
+    animate.ts               Web Animations API wrapper for imperative one-offs
+  components/ViewHost.tsx    ViewHost tab transition container (AnimatePresence mode="wait")
+  scripts/check-motion-tokens.mjs  Strict token linter (enforces no raw durations/easings in TSX)
+  test/                      behavioral component tests
+  e2e/                       Playwright E2E suite
 ```
 
-Rules:
+### Single Engine Ownership Policy
 
-1. **Overlays use Radix `data-state` plus CSS keyframes** (appendix C). Radix keeps the element mounted until the exit animation ends. Do not add a JS animation library for overlays.
-2. **JS animation = Web Animations API** through `animate()`. It must return a handle that can be cancelled.
-3. **FLIP = our own `useFlip` hook** (about 30 lines). Add a library (e.g. Motion) only if more than three distinct list animations need it; record the decision in this document.
-4. **Mode** is `data-motion` on `<html>`, set by an inline script in `index.html` before first paint, plus `useMotionMode` for runtime changes. The OS media query is read once and on `change`.
-5. **No raw durations or easings outside `motion.css` and `tokens.ts`.** A grep check in CI fails on `transition-duration: [0-9]`, `animation: .* [0-9]+ms` and `cubic-bezier(` outside those files.
-6. Exit animations never delay focus return or screen-reader announcements (mark exiting nodes `inert`).
+1. **One engine per element.** An element may be animated by exactly one of: Motion props (`initial/animate/exit/layout/layoutId`), a CSS animation/transition class, or the WAAPI `animate()` wrapper. Never combine them on the same element or on the same CSS property of one element.
+2. **Ownership table**:
+
+| Concern | Engine |
+|---|---|
+| Mount/unmount of views, list rows, toasts, island, workspace/media lists, shared thumb | Motion (`AnimatePresence`, `layout`, `layoutId`) |
+| Radix overlays (drawer, modal, popover, menu, tooltip) | CSS keyframes on `data-state` |
+| State tints, hover, press, progress bar, date slide, tick draw, running dot, ring pulses, equalizer | CSS transitions/keyframes |
+| Imperative one-offs (wallpaper crossfade) | `animate()` wrapper |
+
+3. **No raw timings or easings in TSX** (`duration: 0.x`, `ease: [...]`, `cubic-bezier(` outside `styles/motion.css` and `motion/tokens.ts`). Use `useMotionTransition()`. Enforced by `npm run lint`.
+4. **Mode** is `data-motion` on `<html>`, set by an inline script in `index.html` before first paint, mapped by `MotionProvider` (`reduced/off` -> `always`, `full` -> `never`, `system` -> `user`), and controlled by `useMotionMode`.
+5. Exit animations never delay focus return or screen-reader announcements (mark exiting nodes `inert`).
 
 ## 9. Accessibility
 
@@ -341,7 +351,7 @@ Every item is complete only when `npm run lint && npm test && npm run build` pas
 | DM3 | Breathing dot | 28s then still | Never, or always while running |
 | DM4 | `Live` badge | Static | Slow pulse |
 | DM5 | Ken Burns / parallax in Focus | Not implemented; optional later behind a setting, default off | Ship now |
-| DM6 | List & overall animation library | Adopted Motion library (`motion` v14) with `MotionConfig`, `AnimatePresence`, and layout animations | Manual CSS keyframes / custom `useFlip` hook (caused flickering / duplicate animations) |
+| DM6 | List & overall animation library | Adopted Motion library (`motion` v14) with `MotionConfig`, `AnimatePresence`, and layout animations (own `useFlip` removed in favour of Motion layout) | Manual CSS keyframes / custom `useFlip` hook (caused flickering / duplicate animations) |
 | DM7 | Tab transitions | CSS crossfade; View Transitions as an enhancement | None |
 | DM8 | Reduced motion | 100ms fades; in-app Motion setting (System/Reduced/Full) | Follow the OS only |
 | DM9 | Sound on time's up | None in this plan | Optional chime (needs a user gesture to unlock audio) |
@@ -365,7 +375,7 @@ Every item is complete only when `npm run lint && npm test && npm run build` pas
 :root[data-motion="reduced"] .dot-running, :root[data-motion="reduced"] .ring-pulse { animation: none; }
 ```
 
-## Appendix B — `useFlip` sketch
+## Appendix B — `useFlip` sketch (Historical — superseded by Motion `LayoutGroup` + `layoutId`)
 
 ```ts
 import { useLayoutEffect, useRef } from 'react';

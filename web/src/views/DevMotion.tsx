@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Sparkles } from 'lucide-react';
+import { motion, LayoutGroup } from 'motion/react';
 import { readMotionTokens } from '../motion/tokens';
 import { useMotionMode, type MotionMode } from '../motion/useMotionMode';
+import { useMotionTokens, useMotionTransition } from '../motion';
 import { animate } from '../motion/animate';
 import { Button, SegmentedControl, useToast } from '../components/ui';
 
 export const DevMotion: React.FC = () => {
   const { motionMode, setMotionMode } = useMotionMode();
+  const motionTokens = useMotionTokens();
+  const isReduced = motionTokens.isReduced;
+  const itemTransition = useMotionTransition('base');
   const [tokens, setTokens] = useState(() => readMotionTokens(true));
   const [isBreathingActive, setIsBreathingActive] = useState(false);
   const [ringPulseCount, setRingPulseCount] = useState(0);
@@ -215,59 +220,64 @@ export const DevMotion: React.FC = () => {
       <section className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-xs flex flex-col gap-4">
         <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Layer 3: Spatial Continuity (A17/A18)</h2>
 
-        <div className="flex flex-col gap-2">
-          {flipItems.map((item) => (
-            <div
-              key={item.id}
-              className="px-3 py-2 bg-[var(--surface-hover)] rounded-lg flex items-center justify-between text-xs transition"
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    item.group === 'running'
-                      ? 'bg-[var(--accent-text)]'
-                      : item.group === 'completed'
-                      ? 'bg-[var(--success)]'
-                      : 'border border-[var(--muted)]'
-                  }`}
-                />
-                <span className={item.group === 'completed' ? 'line-through text-[var(--muted)]' : 'text-[var(--text)] font-medium'}>
-                  {item.title}
-                </span>
-                <span className="text-[10px] text-[var(--muted)] px-1.5 py-0.5 rounded bg-[var(--surface)]">
-                  {item.group}
-                </span>
-              </div>
+        <LayoutGroup id="dev-motion-items">
+          <div className="flex flex-col gap-2">
+            {flipItems.map((item) => (
+              <motion.div
+                key={item.id}
+                layout={isReduced ? false : 'position'}
+                layoutId={`dev-item-${item.id}`}
+                transition={itemTransition}
+                className="px-3 py-2 bg-[var(--surface-hover)] rounded-lg flex items-center justify-between text-xs select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      item.group === 'running'
+                        ? 'bg-[var(--accent-text)]'
+                        : item.group === 'completed'
+                        ? 'bg-[var(--success)]'
+                        : 'border border-[var(--muted)]'
+                    }`}
+                  />
+                  <span className={item.group === 'completed' ? 'line-through text-[var(--muted)]' : 'text-[var(--text)] font-medium'}>
+                    {item.title}
+                  </span>
+                  <span className="text-[10px] text-[var(--muted)] px-1.5 py-0.5 rounded bg-[var(--surface)]">
+                    {item.group}
+                  </span>
+                </div>
 
-              <div className="flex items-center gap-1">
-                {item.group !== 'running' && (
-                  <button
-                    onClick={() => triggerFlipMove(item.id, 'running')}
-                    className="px-2 py-1 rounded text-[10px] bg-[var(--surface)] hover:text-[var(--accent-text)] cursor-pointer"
-                  >
-                    Run
-                  </button>
-                )}
-                {item.group !== 'completed' && (
-                  <button
-                    onClick={() => triggerFlipMove(item.id, 'completed')}
-                    className="px-2 py-1 rounded text-[10px] bg-[var(--surface)] hover:text-[var(--success-text)] cursor-pointer"
-                  >
-                    Done
-                  </button>
-                )}
-                {item.group === 'completed' && (
-                  <button
-                    onClick={() => triggerFlipMove(item.id, 'pending')}
-                    className="px-2 py-1 rounded text-[10px] bg-[var(--surface)] hover:text-[var(--text)] cursor-pointer"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+                <div className="flex items-center gap-1">
+                  {item.group !== 'running' && (
+                    <button
+                      onClick={() => triggerFlipMove(item.id, 'running')}
+                      className="px-2 py-1 rounded text-[10px] bg-[var(--surface)] hover:text-[var(--accent-text)] cursor-pointer"
+                    >
+                      Run
+                    </button>
+                  )}
+                  {item.group !== 'completed' && (
+                    <button
+                      onClick={() => triggerFlipMove(item.id, 'completed')}
+                      className="px-2 py-1 rounded text-[10px] bg-[var(--surface)] hover:text-[var(--success-text)] cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  )}
+                  {item.group === 'completed' && (
+                    <button
+                      onClick={() => triggerFlipMove(item.id, 'pending')}
+                      className="px-2 py-1 rounded text-[10px] bg-[var(--surface)] hover:text-[var(--text)] cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </LayoutGroup>
       </section>
     </div>
   );

@@ -153,11 +153,10 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(cssContent).toContain('animation: none !important;');
     });
 
-    it('uses Presence helper for floating timer bar in App.tsx', () => {
+    it('uses AnimatePresence for floating islands in App.tsx', () => {
       const appCode = fs.readFileSync(path.resolve(__dirname, '../App.tsx'), 'utf8');
-      expect(appCode).toContain('<Presence');
-      expect(appCode).toContain('enterAnimation="animate-[rise-in_var(--dur-base)_var(--ease-out)]"');
-      expect(appCode).toContain('exitAnimation="animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]"');
+      expect(appCode).toContain('<AnimatePresence>');
+      expect(appCode).not.toContain('<Presence');
     });
 
     it('applies fixed width, ring-pulse and ambient state transitions in TimerBar', () => {
@@ -298,13 +297,6 @@ describe('Motion Foundations (Phase M0)', () => {
       const appCode = fs.readFileSync(path.resolve(__dirname, '../App.tsx'), 'utf8');
       expect(appCode).toContain('<ViewHost activeTab={currentView} className="h-full">');
       expect(appCode).not.toContain('view-enter');
-    });
-
-    it('nests animated container inside positioned container in Presence for rock-solid centering', () => {
-      const presenceCode = fs.readFileSync(path.resolve(__dirname, '../motion/Presence.tsx'), 'utf8');
-      expect(presenceCode).toContain('<div className={className}>');
-      expect(presenceCode).toContain('data-state={animState}');
-      expect(presenceCode).toContain('className={animState === \'open\' ? enterAnimation : exitAnimation}');
     });
 
     it('enforces calm budget: no raw durations or easings outside motion.css and tokens.ts', () => {

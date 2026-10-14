@@ -21,7 +21,8 @@ import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContex
 import { FloatingPlayerIsland } from './components/FloatingPlayerIsland';
 import { WallpaperLayers } from './components/WallpaperLayers';
 import { ViewHost } from './components/ViewHost';
-import { Presence, MotionProvider } from './motion';
+import { AnimatePresence, motion } from 'motion/react';
+import { MotionProvider, useMotionTokens, useMotionTransition } from './motion';
 
 type AuthStatus = 'checking' | 'login' | 'unreachable' | 'ok';
 
@@ -37,6 +38,8 @@ export const AppContent: React.FC = () => {
   const { connectionStatus, snapshot, receivedAt, refetchSnapshot } = useEventStream();
   const { currentTrack, pause, clearPlayer, loadMediaListForTask } = useAudioPlayer();
   const prevSnapshotStateRef = useRef<string>(snapshot?.state || 'idle');
+  const tokens = useMotionTokens();
+  const floatingTransition = useMotionTransition('base');
 
   useEffect(() => {
     const prevState = prevSnapshotStateRef.current;
@@ -165,31 +168,39 @@ export const AppContent: React.FC = () => {
 
       {/* Floating Bottom Island (TimerBar if task active, or FloatingPlayerIsland if idle & music playing) */}
       {!isFocusView && (
-        <>
-          <Presence
-            present={Boolean(snapshot && snapshot.state !== 'idle')}
-            className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw]"
-            enterAnimation="animate-[rise-in_var(--dur-base)_var(--ease-out)]"
-            exitAnimation="animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]"
-          >
-            <TimerBar
-              snapshot={snapshot}
-              receivedAt={receivedAt}
-              onOpenFocus={() => navigate('focus')}
-              onOpenStartPicker={() => setIsStartPickerOpen(true)}
-              onActionComplete={refetchSnapshot}
-            />
-          </Presence>
+        <AnimatePresence>
+          {Boolean(snapshot && snapshot.state !== 'idle') && (
+            <motion.div
+              key="timer-bar"
+              initial={{ opacity: 0, y: tokens.isReduced ? 0 : 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: tokens.isReduced ? 0 : 16 }}
+              transition={floatingTransition}
+              className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw]"
+            >
+              <TimerBar
+                snapshot={snapshot}
+                receivedAt={receivedAt}
+                onOpenFocus={() => navigate('focus')}
+                onOpenStartPicker={() => setIsStartPickerOpen(true)}
+                onActionComplete={refetchSnapshot}
+              />
+            </motion.div>
+          )}
 
-          <Presence
-            present={Boolean((!snapshot || snapshot.state === 'idle') && currentTrack)}
-            className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw]"
-            enterAnimation="animate-[rise-in_var(--dur-base)_var(--ease-out)]"
-            exitAnimation="animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]"
-          >
-            <FloatingPlayerIsland />
-          </Presence>
-        </>
+          {Boolean((!snapshot || snapshot.state === 'idle') && currentTrack) && (
+            <motion.div
+              key="floating-player-island"
+              initial={{ opacity: 0, y: tokens.isReduced ? 0 : 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: tokens.isReduced ? 0 : 16 }}
+              transition={floatingTransition}
+              className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw]"
+            >
+              <FloatingPlayerIsland />
+            </motion.div>
+          )}
+        </AnimatePresence>
       )}
 
       <BottomTabBar
