@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useFlip } from '../motion';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -356,9 +357,14 @@ export const TodayView: React.FC<TodayViewProps> = ({
     const isNewlyAdded = newlyAddedTaskId === t.id;
 
     return (
-      <div
+      <motion.div
         key={t.id}
+        layout
         ref={registerFlip(String(t.id))}
+        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, height: 0, scale: 0.95 }}
+        transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
         className={`min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] group rounded-[var(--radius-control)] select-none ${
           isNewlyAdded ? 'task-row-add' : ''
         }`}
@@ -545,7 +551,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+      </motion.div>
     );
   };
 
@@ -743,7 +749,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 <span>Now Running</span>
               </div>
               <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--accent)]/30 bg-[var(--accent)]/5 rounded-[var(--radius-control)]">
-                {runningTasks.map((t) => renderTaskRow(t))}
+                <AnimatePresence initial={false}>
+                  {runningTasks.map((t) => renderTaskRow(t))}
+                </AnimatePresence>
               </div>
             </div>
           )}
@@ -755,7 +763,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 Overdue ({visibleOverdue.length})
               </div>
               <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--warning)]/30">
-                {visibleOverdue.map((t) => renderTaskRow(t, true))}
+                <AnimatePresence initial={false}>
+                  {visibleOverdue.map((t) => renderTaskRow(t, true))}
+                </AnimatePresence>
               </div>
             </div>
           )}
@@ -767,7 +777,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 Tasks ({upNextTasks.length})
               </div>
               <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
-                {upNextTasks.map((t) => renderTaskRow(t))}
+                <AnimatePresence initial={false}>
+                  {upNextTasks.map((t) => renderTaskRow(t))}
+                </AnimatePresence>
               </div>
             </div>
           )}
@@ -782,11 +794,21 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 <span>Completed ({doneTasks.length})</span>
                 <span className="text-[10px] opacity-75">{doneCollapsed ? '▼' : '▲'}</span>
               </button>
-              {!doneCollapsed && (
-                <div className="flex flex-col divide-y divide-[var(--border)]/30 border-y border-[var(--border)]/40 opacity-70">
-                  {doneTasks.map((t) => renderTaskRow(t))}
-                </div>
-              )}
+              <AnimatePresence initial={false}>
+                {!doneCollapsed && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                    className="flex flex-col divide-y divide-[var(--border)]/30 border-y border-[var(--border)]/40 opacity-70 overflow-hidden"
+                  >
+                    <AnimatePresence initial={false}>
+                      {doneTasks.map((t) => renderTaskRow(t))}
+                    </AnimatePresence>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>
