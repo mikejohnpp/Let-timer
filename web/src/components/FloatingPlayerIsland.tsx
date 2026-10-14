@@ -604,20 +604,21 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
               )}
             </div>
 
-            {/* Track Name */}
-            <span className="text-xs font-semibold truncate max-w-[120px] sm:max-w-[200px] text-[var(--text)] leading-none">
-              {track ? track.name : 'Focus media'}
-            </span>
+            {/* Track Name & Timer Digits (sharing baseline) */}
+            <div className="flex items-baseline gap-1.5 min-w-0">
+              <span className="text-xs font-semibold truncate max-w-[120px] sm:max-w-[200px] text-[var(--text)]">
+                {track ? track.name : 'Focus media'}
+              </span>
 
-            {/* Time */}
-            {duration > 0 && (
-              <TimerDigits
-                digits={formatTime(currentTime)}
-                mode="idle"
-                size="inline"
-                className="hidden sm:inline leading-none"
-              />
-            )}
+              {duration > 0 && (
+                <TimerDigits
+                  digits={formatTime(currentTime)}
+                  mode="idle"
+                  size="inline"
+                  className="hidden sm:inline"
+                />
+              )}
+            </div>
           </div>
 
           {/* Quick Play/Pause Button */}

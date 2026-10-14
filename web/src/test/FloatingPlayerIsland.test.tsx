@@ -122,7 +122,8 @@ describe('T4: FloatingPlayerIsland single Motion engine', () => {
     );
 
     const trackName = screen.getByText('Ambient Rain');
-    expect(trackName.classList.contains('leading-none')).toBe(true);
+    const textGroup = trackName.closest('div');
+    expect(textGroup?.classList.contains('items-baseline')).toBe(true);
 
     const playPauseBtn = screen.getByRole('button', { name: 'Pause music' });
     expect(playPauseBtn.classList.contains('w-6')).toBe(true);
