@@ -341,7 +341,7 @@ Every item is complete only when `npm run lint && npm test && npm run build` pas
 | DM3 | Breathing dot | 28s then still | Never, or always while running |
 | DM4 | `Live` badge | Static | Slow pulse |
 | DM5 | Ken Burns / parallax in Focus | Not implemented; optional later behind a setting, default off | Ship now |
-| DM6 | List library | Own `useFlip` | Motion library |
+| DM6 | List & overall animation library | Adopted Motion library (`motion` v14) with `MotionConfig`, `AnimatePresence`, and layout animations | Manual CSS keyframes / custom `useFlip` hook (caused flickering / duplicate animations) |
 | DM7 | Tab transitions | CSS crossfade; View Transitions as an enhancement | None |
 | DM8 | Reduced motion | 100ms fades; in-app Motion setting (System/Reduced/Full) | Follow the OS only |
 | DM9 | Sound on time's up | None in this plan | Optional chime (needs a user gesture to unlock audio) |
