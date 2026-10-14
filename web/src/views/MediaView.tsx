@@ -71,14 +71,25 @@ export const MediaView: React.FC = () => {
   const { showToast } = useToast();
   const confirm = useConfirm();
 
+  // Animation tracking states
+  const [newlyAddedListId, setNewlyAddedListId] = useState<number | null>(null);
+  const [deletingListIds, setDeletingListIds] = useState<Set<number>>(new Set());
+  const [newlyAddedItemId, setNewlyAddedItemId] = useState<number | null>(null);
+  const [deletingItemIds, setDeletingItemIds] = useState<Set<number>>(new Set());
+  const [newlyAttachedItemId, setNewlyAttachedItemId] = useState<number | null>(null);
+  const [deletingAttachedItemIds, setDeletingAttachedItemIds] = useState<Set<number>>(new Set());
+  const isFirstLoadRef = useRef(true);
+
   // Animated list refs
   const [playlistsListRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
   const [playlistItemsRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
   const [libraryItemsRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
   const [formsContainerRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (showSkeleton = false) => {
+    if (showSkeleton && isFirstLoadRef.current) {
+      setIsLoading(true);
+    }
     try {
       const [resLists, resItems] = await Promise.all([
         apiFetch('/api/v1/media-lists'),
@@ -92,11 +103,12 @@ export const MediaView: React.FC = () => {
       showToast('Failed to load media library', 'danger');
     } finally {
       setIsLoading(false);
+      isFirstLoadRef.current = false;
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, []);
 
   const loadListDetail = async (id: number) => {
@@ -125,9 +137,14 @@ export const MediaView: React.FC = () => {
       });
 
       if (res.ok) {
+        const created: MediaList = await res.json().catch(() => null);
         setNewListName('');
         setNewListDesc('');
         setIsCreatingList(false);
+        if (created?.id) {
+          setNewlyAddedListId(created.id);
+          setTimeout(() => setNewlyAddedListId(null), 700);
+        }
         showToast('Created media list', 'success');
         loadData();
       } else {
@@ -178,6 +195,7 @@ export const MediaView: React.FC = () => {
         });
 
         if (res.ok) {
+          const created: MediaItem = await res.json().catch(() => null);
           setNewItemName('');
           setNewItemUrl('');
           setNewItemDesc('');
@@ -185,6 +203,10 @@ export const MediaView: React.FC = () => {
           setSelectedUploadFile(null);
           if (itemFileInputRef.current) itemFileInputRef.current.value = '';
           setIsCreatingItem(false);
+          if (created?.id) {
+            setNewlyAddedItemId(created.id);
+            setTimeout(() => setNewlyAddedItemId(null), 700);
+          }
           showToast('Media uploaded and saved to library', 'success');
           loadData();
         } else {
@@ -217,12 +239,17 @@ export const MediaView: React.FC = () => {
       });
 
       if (res.ok) {
+        const created: MediaItem = await res.json().catch(() => null);
         setNewItemName('');
         setNewItemUrl('');
         setNewItemDesc('');
         setNewItemContent('');
         setSelectedUploadFile(null);
         setIsCreatingItem(false);
+        if (created?.id) {
+          setNewlyAddedItemId(created.id);
+          setTimeout(() => setNewlyAddedItemId(null), 700);
+        }
         showToast('Created media item', 'success');
         loadData();
       } else {
@@ -235,6 +262,16 @@ export const MediaView: React.FC = () => {
   };
 
   const handleAddItemToList = async (listId: number, mediaId: number) => {
+    const itemToAttach = items.find((i) => i.id === mediaId);
+    if (itemToAttach && selectedList && selectedList.list.id === listId) {
+      setNewlyAttachedItemId(mediaId);
+      setSelectedList({
+        ...selectedList,
+        items: [...selectedList.items, itemToAttach],
+      });
+      setTimeout(() => setNewlyAttachedItemId(null), 700);
+    }
+
     try {
       const res = await apiFetch(`/api/v1/media-lists/${listId}/medias`, {
         method: 'POST',
@@ -247,13 +284,24 @@ export const MediaView: React.FC = () => {
       if (res.ok) {
         showToast('Item attached to list', 'success');
         loadListDetail(listId);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.message || 'Failed to attach item', 'danger');
+        loadListDetail(listId);
       }
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Failed to attach item', 'danger');
+      loadListDetail(listId);
     }
   };
 
   const handleRemoveItemFromList = async (listId: number, mediaId: number) => {
+    setDeletingAttachedItemIds((prev) => new Set(prev).add(mediaId));
+    await new Promise((r) => setTimeout(r, 200));
+    setSelectedList((prev) =>
+      prev ? { ...prev, items: prev.items.filter((i) => i.id !== mediaId) } : prev
+    );
+
     try {
       const res = await apiFetch(`/api/v1/media-lists/${listId}/medias/${mediaId}`, {
         method: 'DELETE',
@@ -262,9 +310,18 @@ export const MediaView: React.FC = () => {
       if (res.ok) {
         showToast('Item detached from list', 'info');
         loadListDetail(listId);
+      } else {
+        loadListDetail(listId);
       }
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Failed to detach item', 'danger');
+      loadListDetail(listId);
+    } finally {
+      setDeletingAttachedItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(mediaId);
+        return next;
+      });
     }
   };
 
@@ -277,15 +334,30 @@ export const MediaView: React.FC = () => {
     });
     if (!ok) return;
 
+    setDeletingListIds((prev) => new Set(prev).add(id));
+    await new Promise((r) => setTimeout(r, 200));
+    setLists((prev) => prev.filter((l) => l.id !== id));
+    if (selectedList?.list.id === id) {
+      setSelectedList(null);
+    }
+
     try {
       const res = await apiFetch(`/api/v1/media-lists/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        setSelectedList(null);
         showToast('List deleted', 'success');
+        loadData();
+      } else {
         loadData();
       }
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Failed to delete list', 'danger');
+      loadData();
+    } finally {
+      setDeletingListIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -297,14 +369,27 @@ export const MediaView: React.FC = () => {
     });
     if (!ok) return;
 
+    setDeletingItemIds((prev) => new Set(prev).add(id));
+    await new Promise((r) => setTimeout(r, 200));
+    setItems((prev) => prev.filter((i) => i.id !== id));
+
     try {
       const res = await apiFetch(`/api/v1/medias/${id}`, { method: 'DELETE' });
       if (res.ok) {
         showToast('Item deleted', 'success');
         loadData();
+      } else {
+        loadData();
       }
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Failed to delete item', 'danger');
+      loadData();
+    } finally {
+      setDeletingItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -588,7 +673,7 @@ export const MediaView: React.FC = () => {
             <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] mb-1 px-1">
               Playlists
             </div>
-            {isLoading ? (
+            {isLoading && lists.length === 0 ? (
               <div className="flex flex-col gap-2">
                 <Skeleton height="40px" />
                 <Skeleton height="40px" />
@@ -599,11 +684,16 @@ export const MediaView: React.FC = () => {
               <div ref={playlistsListRef} className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
                 {lists.map((l) => {
                   const isSelected = selectedList?.list.id === l.id;
+                  const isNewlyAdded = newlyAddedListId === l.id;
+                  const isDeleting = deletingListIds.has(l.id);
+
                   return (
                     <div
                       key={l.id}
                       onClick={() => loadListDetail(l.id)}
                       className={`p-2.5 rounded-lg cursor-pointer transition flex items-center justify-between gap-2 select-none group ${
+                        isNewlyAdded ? 'task-row-add' : ''
+                      } ${isDeleting ? 'task-row-delete' : ''} ${
                         isSelected
                           ? 'bg-[var(--accent)]/10 text-[var(--accent-text)] font-semibold'
                           : 'hover:bg-[var(--surface-hover)]/50 text-[var(--text)]'
@@ -661,6 +751,8 @@ export const MediaView: React.FC = () => {
                       <div
                         key={item.id}
                         className={`py-2 px-1.5 flex items-center justify-between gap-3 text-xs group rounded-md transition-colors ${
+                          newlyAttachedItemId === item.id ? 'task-row-add' : ''
+                        } ${deletingAttachedItemIds.has(item.id) ? 'task-row-delete' : ''} ${
                           currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10 text-[var(--accent-text)]' : 'hover:bg-[var(--surface-hover)]/30'
                         }`}
                       >
@@ -755,7 +847,7 @@ export const MediaView: React.FC = () => {
       {/* Content for All Media Items Tab */}
       {tab === 'items' && (
         <div className="animate-[fade-in_var(--dur-fast)_var(--ease-out)]">
-          {isLoading ? (
+          {isLoading && items.length === 0 ? (
             <div className="flex flex-col gap-2">
               <Skeleton height="44px" />
               <Skeleton height="44px" />
@@ -773,13 +865,19 @@ export const MediaView: React.FC = () => {
             </div>
           ) : (
             <div ref={libraryItemsRef} className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className={`py-3 px-2 flex items-center justify-between gap-4 rounded-lg hover:bg-[var(--surface-hover)]/40 transition group select-none ${
-                    currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10' : ''
-                  }`}
-                >
+              {items.map((item) => {
+                const isNewlyAdded = newlyAddedItemId === item.id;
+                const isDeleting = deletingItemIds.has(item.id);
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`py-3 px-2 flex items-center justify-between gap-4 rounded-lg hover:bg-[var(--surface-hover)]/40 transition group select-none ${
+                      isNewlyAdded ? 'task-row-add' : ''
+                    } ${isDeleting ? 'task-row-delete' : ''} ${
+                      currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10' : ''
+                    }`}
+                  >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-7 h-7 rounded-md bg-[var(--surface-hover)]/70 flex items-center justify-center text-[var(--muted)] shrink-0">
                       {item.media_type === 'music' ? (
@@ -853,7 +951,8 @@ export const MediaView: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           )}
         </div>
