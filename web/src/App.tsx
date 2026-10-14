@@ -20,8 +20,8 @@ import { ToastProvider, ConfirmProvider, ErrorState } from './components/ui';
 import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
 import { FloatingPlayerIsland } from './components/FloatingPlayerIsland';
 import { WallpaperLayers } from './components/WallpaperLayers';
-import { Presence, MotionProvider, useMotionTransition } from './motion';
-import { AnimatePresence, motion } from 'motion/react';
+import { ViewHost } from './components/ViewHost';
+import { Presence, MotionProvider } from './motion';
 
 type AuthStatus = 'checking' | 'login' | 'unreachable' | 'ok';
 
@@ -33,7 +33,6 @@ export const AppContent: React.FC = () => {
   const focusControlsVisible = useIdleTimer(3000, isFocusView);
   const [isStartPickerOpen, setIsStartPickerOpen] = useState(false);
   const { wallpaperUrl } = useWallpaper();
-  const tabTransition = useMotionTransition('base');
 
   const { connectionStatus, snapshot, receivedAt, refetchSnapshot } = useEventStream();
   const { currentTrack, pause, clearPlayer, loadMediaListForTask } = useAudioPlayer();
@@ -141,37 +140,27 @@ export const AppContent: React.FC = () => {
       />
 
       <main className={`relative z-10 flex-1 ${!isFocusView ? 'pb-24 lg:pb-16' : ''}`}>
-        <div key={currentView} className="view-enter h-full">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={currentView}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={tabTransition}
-            >
-              {currentView === 'today' && (
-                <TodayView
-                  snapshot={snapshot}
-                  onRefreshTimer={refetchSnapshot}
-                  onOpenStartPicker={() => setIsStartPickerOpen(true)}
-                />
-              )}
-              {currentView === 'focus' && (
-                <FocusView
-                  snapshot={snapshot}
-                  receivedAt={receivedAt}
-                  onRefreshTimer={refetchSnapshot}
-                  onOpenStartPicker={() => setIsStartPickerOpen(true)}
-                />
-              )}
-              {currentView === 'workspaces' && <WorkspacesView />}
-              {currentView === 'media' && <MediaView />}
-              {currentView === 'settings' && <SettingsView />}
-              {currentView === 'dev/motion' && <DevMotion />}
-            </motion.div>
-          </AnimatePresence>
-        </div>
+        <ViewHost activeTab={currentView} className="h-full">
+          {currentView === 'today' && (
+            <TodayView
+              snapshot={snapshot}
+              onRefreshTimer={refetchSnapshot}
+              onOpenStartPicker={() => setIsStartPickerOpen(true)}
+            />
+          )}
+          {currentView === 'focus' && (
+            <FocusView
+              snapshot={snapshot}
+              receivedAt={receivedAt}
+              onRefreshTimer={refetchSnapshot}
+              onOpenStartPicker={() => setIsStartPickerOpen(true)}
+            />
+          )}
+          {currentView === 'workspaces' && <WorkspacesView />}
+          {currentView === 'media' && <MediaView />}
+          {currentView === 'settings' && <SettingsView />}
+          {currentView === 'dev/motion' && <DevMotion />}
+        </ViewHost>
       </main>
 
       {/* Floating Bottom Island (TimerBar if task active, or FloatingPlayerIsland if idle & music playing) */}

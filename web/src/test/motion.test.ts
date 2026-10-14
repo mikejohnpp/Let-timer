@@ -271,11 +271,9 @@ describe('Motion Foundations (Phase M0)', () => {
   });
 
   describe('View Transitions and Polish (Phase M5)', () => {
-    it('defines view-enter keyframe and animation with reduced/off parity in motion.css (A24)', () => {
-      expect(cssContent).toContain('@keyframes view-enter');
-      expect(cssContent).toContain('.view-enter {\n  animation: view-enter 180ms var(--ease-out);\n}');
-      expect(cssContent).toContain(':root[data-motion="reduced"] .view-enter {\n  animation: view-enter 100ms var(--ease-out);\n}');
-      expect(cssContent).toContain(':root[data-motion="off"] .view-enter {\n  animation: none !important;\n}');
+    it('has removed .view-enter in favor of ViewHost single-engine transition (A24)', () => {
+      expect(cssContent).not.toContain('.view-enter {');
+      expect(cssContent).not.toContain('@keyframes view-enter');
     });
 
     it('isolates wallpaper with view-transition-name: none and applies view-enter to tab views', () => {
@@ -285,9 +283,10 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(wallCode).toContain("viewTransitionName: 'none'");
     });
 
-    it('wraps current view in App.tsx with view-enter and key for smooth flicker-free tab transitions', () => {
+    it('wraps current view in App.tsx with ViewHost for single-engine flicker-free tab transitions', () => {
       const appCode = fs.readFileSync(path.resolve(__dirname, '../App.tsx'), 'utf8');
-      expect(appCode).toContain('<div key={currentView} className="view-enter h-full">');
+      expect(appCode).toContain('<ViewHost activeTab={currentView} className="h-full">');
+      expect(appCode).not.toContain('view-enter');
     });
 
     it('nests animated container inside positioned container in Presence for rock-solid centering', () => {
