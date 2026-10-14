@@ -89,7 +89,7 @@ export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttrib
         ref={ref}
         className={twMerge(
           clsx(
-            'h-9 px-3 rounded-[var(--radius-control)] bg-[var(--surface-hover)]/40 backdrop-blur-sm border border-[var(--border)]/40 text-xs text-[var(--text)] outline-none transition focus:border-[var(--accent-text)] focus:ring-2 focus:ring-[var(--accent-text)]/20 disabled:opacity-50 disabled:bg-[var(--surface-hover)]/20',
+            'h-9 px-3 rounded-[var(--radius-control)] bg-[var(--surface-hover)]/40 backdrop-blur-sm border border-[var(--border)]/40 text-xs text-[var(--text)] outline-none transition focus:border-[var(--accent-text)] focus:ring-2 focus:ring-[var(--accent-text)]/20 disabled:opacity-50 disabled:bg-[var(--surface-hover)]/20 [&>option]:bg-[var(--surface)] [&>option]:text-[var(--text)]',
             className
           )
         )}

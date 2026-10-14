@@ -270,7 +270,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
           )}
         </FormField>
 
-        <div className="pt-4 border-t border-[var(--border)] flex items-center justify-between gap-3">
+        <div className="pt-4 border-t border-[var(--border)]/30 flex items-center justify-between gap-3">
           {taskToEdit ? (
             <Button
               type="button"

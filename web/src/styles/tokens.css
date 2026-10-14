@@ -543,15 +543,13 @@
   background-color: color-mix(in srgb, var(--surface) 86%, transparent);
 }
 
-/* Prerequisite 0.2: Overlays, popovers, drawers and menus must be opaque surfaces */
+/* Overlays, popovers, drawers and menus frosted glass surfaces */
 [data-radix-popper-content-wrapper] [data-radix-popover-content],
 [data-radix-popper-content-wrapper] [role="dialog"],
 [role="dialog"],
-[role="menu"],
-.opaque-surface {
-  background-color: var(--surface) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+[role="menu"] {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 

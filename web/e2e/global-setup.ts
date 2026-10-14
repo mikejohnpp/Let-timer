@@ -128,7 +128,8 @@ export default async function globalSetup() {
   }
 
   // 3. Create Tasks (pending, running, completed, no-estimate, overtime)
-  const today = new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   // Focus running task
   const t1Res = await fetch(`${apiBase}/tasks`, {

@@ -32,7 +32,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 bg-black/55 backdrop-blur-[2px] z-50 data-[state=open]:animate-[fade-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]" />
+        <DialogPrimitive.Overlay className="fixed inset-0 bg-black/45 backdrop-blur-sm sm:backdrop-blur-md z-50 data-[state=open]:animate-[fade-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]" />
         <DialogPrimitive.Content
           onCloseAutoFocus={(e) => {
             if (triggerRef.current) {
@@ -42,19 +42,19 @@ export const Drawer: React.FC<DrawerProps> = ({
           }}
           className={twMerge(
             clsx(
-              'fixed z-50 bg-[var(--surface)] border-[var(--border)] shadow-xl flex flex-col outline-none opaque-surface',
+              'fixed z-50 bg-[var(--surface)]/90 backdrop-blur-xl sm:backdrop-blur-2xl border-[var(--border)]/40 shadow-2xl flex flex-col outline-none',
               // Base (mobile bottom sheet):
-              'inset-x-0 bottom-0 max-h-[92vh] border-t rounded-t-[var(--radius-modal)] data-[state=open]:animate-[rise-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
+              'inset-x-0 bottom-0 max-h-[92vh] border-t border-[var(--border)]/40 rounded-t-[var(--radius-modal)] data-[state=open]:animate-[rise-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
               // Desktop (right-side drawer, 100% full viewport height):
-              'sm:inset-y-0 sm:top-0 sm:bottom-0 sm:right-0 sm:left-auto sm:h-screen sm:max-h-none sm:w-full sm:max-w-md sm:border-l sm:border-t-0 sm:rounded-none sm:data-[state=open]:animate-[slide-in-right_var(--dur-base)_var(--ease-out)] sm:data-[state=closed]:animate-[slide-out-right_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
+              'sm:inset-y-0 sm:top-0 sm:bottom-0 sm:right-0 sm:left-auto sm:h-screen sm:max-h-none sm:w-full sm:max-w-md sm:border-l sm:border-[var(--border)]/40 sm:border-t-0 sm:rounded-none sm:data-[state=open]:animate-[slide-in-right_var(--dur-base)_var(--ease-out)] sm:data-[state=closed]:animate-[slide-out-right_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
               className
             )
           )}
         >
-          <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[var(--border)] shrink-0">
+          <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[var(--border)]/30 shrink-0">
             <div>
               {title && (
-                <DialogPrimitive.Title className="text-base font-semibold leading-tight text-[var(--text)]">
+                <DialogPrimitive.Title className="font-serif text-lg font-semibold leading-tight text-[var(--text)] tracking-tight">
                   {title}
                 </DialogPrimitive.Title>
               )}

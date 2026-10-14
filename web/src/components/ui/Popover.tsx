@@ -18,7 +18,7 @@ export const PopoverContent = React.forwardRef<
       sideOffset={sideOffset}
       className={twMerge(
         clsx(
-          'z-50 w-72 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 text-[var(--text)] shadow-[var(--shadow-popover)] outline-none opaque-surface data-[state=open]:animate-[pop-in_var(--dur-fast)_var(--ease-out)] data-[state=closed]:animate-[fade-out_var(--dur-instant)_var(--ease-out)_forwards] [transform-origin:var(--radix-popover-content-transform-origin)]',
+          'z-50 w-72 rounded-[var(--radius-card)] border border-[var(--border)]/40 bg-[var(--surface)]/90 backdrop-blur-xl p-4 text-[var(--text)] shadow-xl outline-none data-[state=open]:animate-[pop-in_var(--dur-fast)_var(--ease-out)] data-[state=closed]:animate-[fade-out_var(--dur-instant)_var(--ease-out)_forwards] [transform-origin:var(--radix-popover-content-transform-origin)]',
           className
         )
       )}

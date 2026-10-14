@@ -41,7 +41,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               layout
               initial={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS }}
               animate={{ opacity: 1, y: 0, transition: enterTransition }}
-              exit={{ opacity: 0, height: 0, overflow: 'hidden', transition: exitTransition }}
+              exit={{ opacity: 0, y: tokens.isReduced ? 0 : -tokens.travelS, transition: exitTransition }}
             >
               <ToastPrimitive.Root
                 key={t.id}
@@ -49,10 +49,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   if (!open) setToasts((prev) => prev.filter((item) => item.id !== t.id));
                 }}
                 className={clsx(
-                  'flex items-center justify-between gap-3 p-3.5 rounded-[var(--radius-control)] border shadow-[var(--shadow-popover)] text-xs',
-                  t.tone === 'danger' && 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger)]/30',
-                  t.tone === 'success' && 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success)]/20',
-                  (!t.tone || t.tone === 'info') && 'bg-[var(--surface)] text-[var(--text)] border-[var(--border)]'
+                  'pointer-events-auto flex items-center justify-between gap-3 p-3.5 rounded-[var(--radius-card)] border backdrop-blur-md shadow-xl text-xs',
+                  t.tone === 'danger' && 'bg-[var(--danger-bg)]/90 text-[var(--danger-text)] border-[var(--danger)]/30',
+                  t.tone === 'success' && 'bg-[var(--success-bg)]/90 text-[var(--success-text)] border-[var(--success)]/20',
+                  (!t.tone || t.tone === 'info') && 'bg-[var(--surface)]/90 text-[var(--text)] border-[var(--border)]/40'
                 )}
               >
             <div className="flex items-center gap-2">
@@ -62,7 +62,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               <ToastPrimitive.Description>{t.description}</ToastPrimitive.Description>
             </div>
             <ToastPrimitive.Close asChild>
-              <button className="p-1 rounded text-[var(--muted)] hover:text-[var(--text)] cursor-pointer">
+              <button className="p-1 rounded-[var(--radius-control)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition cursor-pointer">
                 <X className="w-3.5 h-3.5" />
               </button>
             </ToastPrimitive.Close>
@@ -70,7 +70,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         </motion.div>
       ))}
     </AnimatePresence>
-    <ToastPrimitive.Viewport className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-full max-w-sm outline-none" />
+    <ToastPrimitive.Viewport className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-full max-w-sm outline-none pointer-events-none" />
       </ToastPrimitive.Provider>
     </ToastContext.Provider>
   );

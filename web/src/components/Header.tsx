@@ -329,14 +329,14 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
 
               {/* Inline Create Form */}
-              <form onSubmit={handleCreateWorkspace} className="flex gap-1.5 pt-2 border-t border-[var(--border)]">
+              <form onSubmit={handleCreateWorkspace} className="flex gap-1.5 pt-2 border-t border-[var(--border)]/30">
                 <input
                   type="text"
                   required
                   placeholder="New workspace..."
                   value={newWsName}
                   onChange={(e) => setNewWsName(e.target.value)}
-                  className="flex-1 min-w-0 bg-[var(--surface-hover)] text-xs px-2 py-1 rounded outline-none border border-transparent focus:border-[var(--accent-text)] text-[var(--text)] placeholder-[var(--muted)]"
+                  className="flex-1 min-w-0 bg-[var(--surface-hover)]/60 text-xs px-2 py-1 rounded outline-none border border-[var(--border)]/30 focus:border-[var(--accent-text)] text-[var(--text)] placeholder-[var(--muted)]"
                 />
                 <Button
                   type="submit"
