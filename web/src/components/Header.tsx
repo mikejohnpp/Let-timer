@@ -4,6 +4,7 @@ import type { components } from '../api/schema';
 import type { AppView } from '../hooks/useHashRoute';
 import { getStoredWorkspace, setStoredWorkspace, apiFetch } from '../api/client';
 import { withThemeTransition } from '../utils/themeTransition';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   ConnectionBadge,
   IconButton,
@@ -275,45 +276,52 @@ export const Header: React.FC<HeaderProps> = ({
 
               {/* Workspaces list */}
               <div className="flex flex-col divide-y divide-[var(--border)]/40 max-h-48 overflow-y-auto">
-                {workspaces.map((w) => {
-                  const isActive = w.id.toString() === activeWorkspaceId;
-                  return (
-                    <div
-                      key={w.id}
-                      onClick={() => handleWorkspaceSelect(w.id.toString())}
-                      className={`py-1.5 px-1.5 flex items-center justify-between gap-2 rounded cursor-pointer transition group ${
-                        isActive
-                          ? 'bg-[var(--accent)]/10 text-[var(--accent-text)] font-semibold'
-                          : 'text-[var(--text)] hover:bg-[var(--surface-hover)]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className={`w-2 h-2 rounded-full shrink-0 ${
-                            isActive ? 'bg-[var(--accent-text)]' : 'border border-[var(--muted)]'
-                          }`}
-                        />
-                        <span className="text-xs truncate">{w.name}</span>
-                      </div>
+                <AnimatePresence initial={false}>
+                  {workspaces.map((w) => {
+                    const isActive = w.id.toString() === activeWorkspaceId;
+                    return (
+                      <motion.div
+                        key={w.id}
+                        layout
+                        initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
+                        transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+                        onClick={() => handleWorkspaceSelect(w.id.toString())}
+                        className={`py-1.5 px-1.5 flex items-center justify-between gap-2 rounded cursor-pointer transition group ${
+                          isActive
+                            ? 'bg-[var(--accent)]/10 text-[var(--accent-text)] font-semibold'
+                            : 'text-[var(--text)] hover:bg-[var(--surface-hover)]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={`w-2 h-2 rounded-full shrink-0 ${
+                              isActive ? 'bg-[var(--accent-text)]' : 'border border-[var(--muted)]'
+                            }`}
+                          />
+                          <span className="text-xs truncate">{w.name}</span>
+                        </div>
 
-                      {!isActive && (
-                        <IconButton
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 text-[var(--muted)] hover:text-[var(--danger-text)]"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteWorkspace(w.id, w.name);
-                          }}
-                          aria-label={`Delete ${w.name}`}
-                          title={`Delete ${w.name}`}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </IconButton>
-                      )}
-                    </div>
-                  );
-                })}
+                        {!isActive && (
+                          <IconButton
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 text-[var(--muted)] hover:text-[var(--danger-text)]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteWorkspace(w.id, w.name);
+                            }}
+                            aria-label={`Delete ${w.name}`}
+                            title={`Delete ${w.name}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </IconButton>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
 
               {/* Inline Create Form */}

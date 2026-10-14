@@ -13,7 +13,7 @@ import {
 import type { components } from '../api/schema';
 import { apiFetch } from '../api/client';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
-import { useAutoAnimate } from '@formkit/auto-animate/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Button,
   IconButton,
@@ -70,18 +70,7 @@ export const MediaView: React.FC = () => {
 
   const { showToast } = useToast();
   const confirm = useConfirm();
-
-  // Animation tracking states
-  const [newlyAddedListId, setNewlyAddedListId] = useState<number | null>(null);
-  const [newlyAddedItemId, setNewlyAddedItemId] = useState<number | null>(null);
-  const [newlyAttachedItemId, setNewlyAttachedItemId] = useState<number | null>(null);
   const isFirstLoadRef = useRef(true);
-
-  // Animated list refs
-  const [playlistsListRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
-  const [playlistItemsRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
-  const [libraryItemsRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
-  const [formsContainerRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
 
   const loadData = async (showSkeleton = false) => {
     if (showSkeleton && isFirstLoadRef.current) {
@@ -134,14 +123,9 @@ export const MediaView: React.FC = () => {
       });
 
       if (res.ok) {
-        const created: MediaList = await res.json().catch(() => null);
         setNewListName('');
         setNewListDesc('');
         setIsCreatingList(false);
-        if (created?.id) {
-          setNewlyAddedListId(created.id);
-          setTimeout(() => setNewlyAddedListId(null), 700);
-        }
         showToast('Created media list', 'success');
         loadData();
       } else {
@@ -192,7 +176,6 @@ export const MediaView: React.FC = () => {
         });
 
         if (res.ok) {
-          const created: MediaItem = await res.json().catch(() => null);
           setNewItemName('');
           setNewItemUrl('');
           setNewItemDesc('');
@@ -200,10 +183,6 @@ export const MediaView: React.FC = () => {
           setSelectedUploadFile(null);
           if (itemFileInputRef.current) itemFileInputRef.current.value = '';
           setIsCreatingItem(false);
-          if (created?.id) {
-            setNewlyAddedItemId(created.id);
-            setTimeout(() => setNewlyAddedItemId(null), 700);
-          }
           showToast('Media uploaded and saved to library', 'success');
           loadData();
         } else {
@@ -236,17 +215,12 @@ export const MediaView: React.FC = () => {
       });
 
       if (res.ok) {
-        const created: MediaItem = await res.json().catch(() => null);
         setNewItemName('');
         setNewItemUrl('');
         setNewItemDesc('');
         setNewItemContent('');
         setSelectedUploadFile(null);
         setIsCreatingItem(false);
-        if (created?.id) {
-          setNewlyAddedItemId(created.id);
-          setTimeout(() => setNewlyAddedItemId(null), 700);
-        }
         showToast('Created media item', 'success');
         loadData();
       } else {
@@ -261,12 +235,10 @@ export const MediaView: React.FC = () => {
   const handleAddItemToList = async (listId: number, mediaId: number) => {
     const itemToAttach = items.find((i) => i.id === mediaId);
     if (itemToAttach && selectedList && selectedList.list.id === listId) {
-      setNewlyAttachedItemId(mediaId);
       setSelectedList({
         ...selectedList,
         items: [...selectedList.items, itemToAttach],
       });
-      setTimeout(() => setNewlyAttachedItemId(null), 700);
     }
 
     try {
@@ -415,228 +387,246 @@ export const MediaView: React.FC = () => {
       </div>
 
       {/* New Creation Forms with smooth expand/collapse */}
-      <div ref={formsContainerRef}>
+      <AnimatePresence initial={false}>
         {/* New List Form */}
         {isCreatingList && (
-        <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5 mb-2">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add new media list</h2>
-          <form onSubmit={handleCreateList} className="flex flex-col gap-3">
-            <div className="grid sm:grid-cols-2 gap-3">
-              <FormField label="List name" required>
-                {(id) => (
-                  <Input
-                    id={id}
-                    required
-                    placeholder="e.g. Deep coding mix"
-                    value={newListName}
-                    onChange={(e) => setNewListName(e.target.value)}
-                  />
-                )}
-              </FormField>
-              <FormField label="Description (optional)">
-                {(id) => (
-                  <Input
-                    id={id}
-                    placeholder="Optional description"
-                    value={newListDesc}
-                    onChange={(e) => setNewListDesc(e.target.value)}
-                  />
-                )}
-              </FormField>
-            </div>
-            <div className="flex justify-end gap-2 mt-2">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreatingList(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" size="sm">
-                Create list
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* New Item Form */}
-      {isCreatingItem && (
-        <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5 mb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Add new media item</h2>
-            <div className="flex items-center gap-1 bg-[var(--surface-hover)]/60 p-0.5 rounded-lg border border-[var(--border)]/40">
-              <button
-                type="button"
-                onClick={() => setNewItemSource('upload')}
-                className={`px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer ${
-                  newItemSource === 'upload'
-                    ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
-                    : 'text-[var(--muted)] hover:text-[var(--text)]'
-                }`}
-              >
-                Upload File
-              </button>
-              <button
-                type="button"
-                onClick={() => setNewItemSource('url')}
-                className={`px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer ${
-                  newItemSource === 'url'
-                    ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
-                    : 'text-[var(--muted)] hover:text-[var(--text)]'
-                }`}
-              >
-                External URL
-              </button>
-            </div>
-          </div>
-
-          <form onSubmit={handleCreateItem} className="flex flex-col gap-3">
-            {newItemSource === 'upload' ? (
-              <div className="flex flex-col gap-3">
-                <FormField label="File (Image or Audio)" required>
-                  {() => (
-                    <div>
-                      <input
-                        ref={itemFileInputRef}
-                        type="file"
-                        accept="image/*,audio/*,.mp3,.wav,.ogg,.flac,.m4a,.aac,.jpg,.jpeg,.png,.gif,.webp,.svg,.avif"
-                        className="hidden"
-                        onChange={handleFileChange}
-                      />
-                      <div
-                        onClick={() => itemFileInputRef.current?.click()}
-                        className="border border-dashed border-[var(--border)] hover:border-[var(--accent-text)] rounded-lg p-4 text-center cursor-pointer bg-[var(--surface-hover)]/30 transition flex flex-col items-center gap-1.5"
-                      >
-                        <Upload className="w-5 h-5 text-[var(--muted)]" />
-                        {selectedUploadFile ? (
-                          <div className="text-xs">
-                            <span className="font-medium text-[var(--text)]">{selectedUploadFile.name}</span>{' '}
-                            <span className="text-[var(--muted)]">
-                              ({(selectedUploadFile.size / 1024 / 1024).toFixed(2)} MB)
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-[var(--muted)]">
-                            <span className="font-medium text-[var(--accent-text)]">Click to choose a file</span> or drag & drop (Image or Audio)
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </FormField>
-
+          <motion.div
+            key="new-list-form"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            className="overflow-hidden mb-2"
+          >
+            <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add new media list</h2>
+              <form onSubmit={handleCreateList} className="flex flex-col gap-3">
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <FormField label="Title (optional, defaults to filename)">
+                  <FormField label="List name" required>
                     {(id) => (
                       <Input
                         id={id}
-                        placeholder="e.g. Ambient Focus"
-                        value={newItemName}
-                        onChange={(e) => setNewItemName(e.target.value)}
+                        required
+                        placeholder="e.g. Deep coding mix"
+                        value={newListName}
+                        onChange={(e) => setNewListName(e.target.value)}
                       />
                     )}
                   </FormField>
-
-                  <FormField label="Type">
+                  <FormField label="Description (optional)">
                     {(id) => (
-                      <Select
+                      <Input
                         id={id}
-                        value={newItemType}
-                        onChange={(e) => setNewItemType(e.target.value as 'image' | 'music')}
-                      >
-                        <option value="music">Music / Audio</option>
-                        <option value="image">Image / Art</option>
-                      </Select>
+                        placeholder="Optional description"
+                        value={newListDesc}
+                        onChange={(e) => setNewListDesc(e.target.value)}
+                      />
                     )}
                   </FormField>
                 </div>
-              </div>
-            ) : (
-              <div className="grid sm:grid-cols-3 gap-3">
-                <FormField label="Title" required>
-                  {(id) => (
-                    <Input
-                      id={id}
-                      required
-                      placeholder="e.g. Forest birds"
-                      value={newItemName}
-                      onChange={(e) => setNewItemName(e.target.value)}
-                    />
-                  )}
-                </FormField>
-
-                <FormField label="URL or URI" required>
-                  {(id) => (
-                    <Input
-                      id={id}
-                      required
-                      placeholder="https://... or data:..."
-                      value={newItemUrl}
-                      onChange={(e) => setNewItemUrl(e.target.value)}
-                    />
-                  )}
-                </FormField>
-
-                <FormField label="Type">
-                  {(id) => (
-                    <Select
-                      id={id}
-                      value={newItemType}
-                      onChange={(e) => setNewItemType(e.target.value as 'image' | 'music' | 'poem')}
-                    >
-                      <option value="music">Music / Audio</option>
-                      <option value="image">Image / Art</option>
-                      <option value="poem">Poem (Schema v4)</option>
-                    </Select>
-                  )}
-                </FormField>
-              </div>
-            )}
-
-            <FormField label="Description (optional)">
-              {(id) => (
-                <Input
-                  id={id}
-                  placeholder="Optional description"
-                  value={newItemDesc}
-                  onChange={(e) => setNewItemDesc(e.target.value)}
-                />
-              )}
-            </FormField>
-
-            {newItemSource === 'url' && newItemType === 'poem' && (
-              <FormField label="Inline poem verses (optional)">
-                {(id) => (
-                  <Textarea
-                    id={id}
-                    rows={4}
-                    placeholder="Enter poem verses here…"
-                    value={newItemContent}
-                    onChange={(e) => setNewItemContent(e.target.value)}
-                    className="font-serif"
-                  />
-                )}
-              </FormField>
-            )}
-
-            <div className="flex justify-end gap-2 mt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setIsCreatingItem(false);
-                  setSelectedUploadFile(null);
-                  if (itemFileInputRef.current) itemFileInputRef.current.value = '';
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" size="sm" disabled={isUploading}>
-                {isUploading ? 'Uploading…' : newItemSource === 'upload' ? 'Upload file' : 'Create item'}
-              </Button>
+                <div className="flex justify-end gap-2 mt-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreatingList(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" size="sm">
+                    Create list
+                  </Button>
+                </div>
+              </form>
             </div>
-          </form>
-        </div>
-      )}
-      </div>
+          </motion.div>
+        )}
+
+        {/* New Item Form */}
+        {isCreatingItem && (
+          <motion.div
+            key="new-item-form"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            className="overflow-hidden mb-2"
+          >
+            <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Add new media item</h2>
+                <div className="flex items-center gap-1 bg-[var(--surface-hover)]/60 p-0.5 rounded-lg border border-[var(--border)]/40">
+                  <button
+                    type="button"
+                    onClick={() => setNewItemSource('upload')}
+                    className={`px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer ${
+                      newItemSource === 'upload'
+                        ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
+                        : 'text-[var(--muted)] hover:text-[var(--text)]'
+                    }`}
+                  >
+                    Upload File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewItemSource('url')}
+                    className={`px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer ${
+                      newItemSource === 'url'
+                        ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
+                        : 'text-[var(--muted)] hover:text-[var(--text)]'
+                    }`}
+                  >
+                    External URL
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleCreateItem} className="flex flex-col gap-3">
+                {newItemSource === 'upload' ? (
+                  <div className="flex flex-col gap-3">
+                    <FormField label="File (Image or Audio)" required>
+                      {() => (
+                        <div>
+                          <input
+                            ref={itemFileInputRef}
+                            type="file"
+                            accept="image/*,audio/*,.mp3,.wav,.ogg,.flac,.m4a,.aac,.jpg,.jpeg,.png,.gif,.webp,.svg,.avif"
+                            className="hidden"
+                            onChange={handleFileChange}
+                          />
+                          <div
+                            onClick={() => itemFileInputRef.current?.click()}
+                            className="border border-dashed border-[var(--border)] hover:border-[var(--accent-text)] rounded-lg p-4 text-center cursor-pointer bg-[var(--surface-hover)]/30 transition flex flex-col items-center gap-1.5"
+                          >
+                            <Upload className="w-5 h-5 text-[var(--muted)]" />
+                            {selectedUploadFile ? (
+                              <div className="text-xs">
+                                <span className="font-medium text-[var(--text)]">{selectedUploadFile.name}</span>{' '}
+                                <span className="text-[var(--muted)]">
+                                  ({(selectedUploadFile.size / 1024 / 1024).toFixed(2)} MB)
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-[var(--muted)]">
+                                <span className="font-medium text-[var(--accent-text)]">Click to choose a file</span> or drag & drop (Image or Audio)
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </FormField>
+
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <FormField label="Title (optional, defaults to filename)">
+                        {(id) => (
+                          <Input
+                            id={id}
+                            placeholder="e.g. Ambient Focus"
+                            value={newItemName}
+                            onChange={(e) => setNewItemName(e.target.value)}
+                          />
+                        )}
+                      </FormField>
+
+                      <FormField label="Type">
+                        {(id) => (
+                          <Select
+                            id={id}
+                            value={newItemType}
+                            onChange={(e) => setNewItemType(e.target.value as 'image' | 'music')}
+                          >
+                            <option value="music">Music / Audio</option>
+                            <option value="image">Image / Art</option>
+                          </Select>
+                        )}
+                      </FormField>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    <FormField label="Title" required>
+                      {(id) => (
+                        <Input
+                          id={id}
+                          required
+                          placeholder="e.g. Forest birds"
+                          value={newItemName}
+                          onChange={(e) => setNewItemName(e.target.value)}
+                        />
+                      )}
+                    </FormField>
+
+                    <FormField label="URL or URI" required>
+                      {(id) => (
+                        <Input
+                          id={id}
+                          required
+                          placeholder="https://... or data:..."
+                          value={newItemUrl}
+                          onChange={(e) => setNewItemUrl(e.target.value)}
+                        />
+                      )}
+                    </FormField>
+
+                    <FormField label="Type">
+                      {(id) => (
+                        <Select
+                          id={id}
+                          value={newItemType}
+                          onChange={(e) => setNewItemType(e.target.value as 'image' | 'music' | 'poem')}
+                        >
+                          <option value="music">Music / Audio</option>
+                          <option value="image">Image / Art</option>
+                          <option value="poem">Poem (Schema v4)</option>
+                        </Select>
+                      )}
+                    </FormField>
+                  </div>
+                )}
+
+                <FormField label="Description (optional)">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      placeholder="Optional description"
+                      value={newItemDesc}
+                      onChange={(e) => setNewItemDesc(e.target.value)}
+                    />
+                  )}
+                </FormField>
+
+                {newItemSource === 'url' && newItemType === 'poem' && (
+                  <FormField label="Inline poem verses (optional)">
+                    {(id) => (
+                      <Textarea
+                        id={id}
+                        rows={4}
+                        placeholder="Enter poem verses here…"
+                        value={newItemContent}
+                        onChange={(e) => setNewItemContent(e.target.value)}
+                        className="font-serif"
+                      />
+                    )}
+                  </FormField>
+                )}
+
+                <div className="flex justify-end gap-2 mt-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setIsCreatingItem(false);
+                      setSelectedUploadFile(null);
+                      if (itemFileInputRef.current) itemFileInputRef.current.value = '';
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" size="sm" disabled={isUploading}>
+                    {isUploading ? 'Uploading…' : newItemSource === 'upload' ? 'Upload file' : 'Create item'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Content for Media Lists Tab */}
       {tab === 'lists' && (
@@ -654,46 +644,50 @@ export const MediaView: React.FC = () => {
             ) : lists.length === 0 ? (
               <div className="text-xs text-[var(--muted)] py-4 px-1">No playlists yet.</div>
             ) : (
-              <div ref={playlistsListRef} className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
-                {lists.map((l) => {
-                  const isSelected = selectedList?.list.id === l.id;
-                  const isNewlyAdded = newlyAddedListId === l.id;
+              <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
+                <AnimatePresence initial={false}>
+                  {lists.map((l) => {
+                    const isSelected = selectedList?.list.id === l.id;
 
-                  return (
-                    <div
-                      key={l.id}
-                      onClick={() => loadListDetail(l.id)}
-                      className={`p-2.5 rounded-lg cursor-pointer transition flex items-center justify-between gap-2 select-none group ${
-                        isNewlyAdded ? 'task-row-add' : ''
-                      } ${
-                        isSelected
-                          ? 'bg-[var(--accent)]/10 text-[var(--accent-text)] font-semibold'
-                          : 'hover:bg-[var(--surface-hover)]/50 text-[var(--text)]'
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <div className="text-xs sm:text-sm truncate">
-                          {l.name}
-                        </div>
-                        {l.description && (
-                          <div className="text-[11px] text-[var(--muted)] truncate mt-0.5">{l.description}</div>
-                        )}
-                      </div>
-                      <IconButton
-                        variant="ghost"
-                        size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--muted)] hover:text-[var(--danger-text)] h-6 w-6 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteList(l.id, l.name);
-                        }}
-                        aria-label={`Delete list ${l.name}`}
+                    return (
+                      <motion.div
+                        key={l.id}
+                        layout
+                        initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
+                        transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                        onClick={() => loadListDetail(l.id)}
+                        className={`p-2.5 rounded-lg cursor-pointer transition flex items-center justify-between gap-2 select-none group ${
+                          isSelected
+                            ? 'bg-[var(--accent)]/10 text-[var(--accent-text)] font-semibold'
+                            : 'hover:bg-[var(--surface-hover)]/50 text-[var(--text)]'
+                        }`}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </IconButton>
-                    </div>
-                  );
-                })}
+                        <div className="min-w-0">
+                          <div className="text-xs sm:text-sm truncate">
+                            {l.name}
+                          </div>
+                          {l.description && (
+                            <div className="text-[11px] text-[var(--muted)] truncate mt-0.5">{l.description}</div>
+                          )}
+                        </div>
+                        <IconButton
+                          variant="ghost"
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--muted)] hover:text-[var(--danger-text)] h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteList(l.id, l.name);
+                          }}
+                          aria-label={`Delete list ${l.name}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </IconButton>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
             )}
           </div>
@@ -713,67 +707,72 @@ export const MediaView: React.FC = () => {
                 </div>
 
                 {/* Items in this list */}
-                <div ref={playlistItemsRef} className="divide-y divide-[var(--border)]/20 mb-4">
+                <div className="divide-y divide-[var(--border)]/20 mb-4">
                   {selectedList.items.length === 0 ? (
                     <div className="py-8 text-center text-xs text-[var(--muted)]">
                       No media items attached yet. Choose an item below to attach.
                     </div>
                   ) : (
-                    selectedList.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`py-2 px-1.5 flex items-center justify-between gap-3 text-xs group rounded-md transition-colors ${
-                          newlyAttachedItemId === item.id ? 'task-row-add' : ''
-                        } ${
-                          currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10 text-[var(--accent-text)]' : 'hover:bg-[var(--surface-hover)]/30'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {item.media_type === 'music' && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (currentTrack?.id === item.id) {
-                                  togglePlay();
-                                } else {
-                                  playTrack(
-                                    item,
-                                    selectedList.items.filter((i) => i.media_type === 'music')
-                                  );
-                                }
-                              }}
-                              className="w-5 h-5 rounded-full flex items-center justify-center bg-[var(--surface-hover)] hover:bg-[var(--accent)] hover:text-white text-[var(--accent-text)] transition cursor-pointer shrink-0"
-                              title={currentTrack?.id === item.id && isPlaying ? 'Pause' : 'Play'}
-                            >
-                              {currentTrack?.id === item.id && isPlaying ? (
-                                <Pause className="w-2.5 h-2.5" />
-                              ) : (
-                                <Play className="w-2.5 h-2.5 ml-0.5" />
-                              )}
-                            </button>
-                          )}
-                          {item.media_type === 'image' && (
-                            <ImageIcon className="w-3.5 h-3.5 text-[var(--muted)] shrink-0" />
-                          )}
-                          {item.media_type === 'poem' && (
-                            <BookOpen className="w-3.5 h-3.5 text-[var(--muted)] shrink-0" />
-                          )}
-                          <span className="font-medium truncate text-[var(--text)]">{item.name}</span>
-                          {currentTrack?.id === item.id && isPlaying && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running shrink-0" />
-                          )}
-                        </div>
-                        <IconButton
-                          variant="ghost"
-                          size="sm"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--muted)] hover:text-[var(--danger-text)] h-6 w-6 p-0"
-                          onClick={() => handleRemoveItemFromList(selectedList.list.id, item.id)}
-                          aria-label={`Detach ${item.name}`}
+                    <AnimatePresence initial={false}>
+                      {selectedList.items.map((item) => (
+                        <motion.div
+                          key={item.id}
+                          layout
+                          initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
+                          transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                          className={`py-2 px-1.5 flex items-center justify-between gap-3 text-xs group rounded-md transition-colors ${
+                            currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10 text-[var(--accent-text)]' : 'hover:bg-[var(--surface-hover)]/30'
+                          }`}
                         >
-                          <X className="w-3.5 h-3.5" />
-                        </IconButton>
-                      </div>
-                    ))
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {item.media_type === 'music' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (currentTrack?.id === item.id) {
+                                    togglePlay();
+                                  } else {
+                                    playTrack(
+                                      item,
+                                      selectedList.items.filter((i) => i.media_type === 'music')
+                                    );
+                                  }
+                                }}
+                                className="w-5 h-5 rounded-full flex items-center justify-center bg-[var(--surface-hover)] hover:bg-[var(--accent)] hover:text-white text-[var(--accent-text)] transition cursor-pointer shrink-0"
+                                title={currentTrack?.id === item.id && isPlaying ? 'Pause' : 'Play'}
+                              >
+                                {currentTrack?.id === item.id && isPlaying ? (
+                                  <Pause className="w-2.5 h-2.5" />
+                                ) : (
+                                  <Play className="w-2.5 h-2.5 ml-0.5" />
+                                )}
+                              </button>
+                            )}
+                            {item.media_type === 'image' && (
+                              <ImageIcon className="w-3.5 h-3.5 text-[var(--muted)] shrink-0" />
+                            )}
+                            {item.media_type === 'poem' && (
+                              <BookOpen className="w-3.5 h-3.5 text-[var(--muted)] shrink-0" />
+                            )}
+                            <span className="font-medium truncate text-[var(--text)]">{item.name}</span>
+                            {currentTrack?.id === item.id && isPlaying && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running shrink-0" />
+                            )}
+                          </div>
+                          <IconButton
+                            variant="ghost"
+                            size="sm"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--muted)] hover:text-[var(--danger-text)] h-6 w-6 p-0"
+                            onClick={() => handleRemoveItemFromList(selectedList.list.id, item.id)}
+                            aria-label={`Detach ${item.name}`}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </IconButton>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
                   )}
                 </div>
 
@@ -836,94 +835,97 @@ export const MediaView: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div ref={libraryItemsRef} className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
-              {items.map((item) => {
-                const isNewlyAdded = newlyAddedItemId === item.id;
-
-                return (
-                  <div
-                    key={item.id}
-                    className={`py-3 px-2 flex items-center justify-between gap-4 rounded-lg hover:bg-[var(--surface-hover)]/40 transition group select-none ${
-                      isNewlyAdded ? 'task-row-add' : ''
-                    } ${
-                      currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10' : ''
-                    }`}
-                  >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-7 h-7 rounded-md bg-[var(--surface-hover)]/70 flex items-center justify-center text-[var(--muted)] shrink-0">
-                      {item.media_type === 'music' ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (currentTrack?.id === item.id) {
-                              togglePlay();
-                            } else {
-                              playTrack(
-                                item,
-                                items.filter((i) => i.media_type === 'music')
-                              );
-                            }
-                          }}
-                          className="w-full h-full rounded-md flex items-center justify-center text-[var(--accent-text)] hover:bg-[var(--accent)] hover:text-white transition cursor-pointer"
-                          title={currentTrack?.id === item.id && isPlaying ? 'Pause' : 'Play'}
-                        >
-                          {currentTrack?.id === item.id && isPlaying ? (
-                            <Pause className="w-3.5 h-3.5" />
-                          ) : (
-                            <Play className="w-3.5 h-3.5 ml-0.5" />
-                          )}
-                        </button>
-                      ) : item.media_type === 'image' ? (
-                        <ImageIcon className="w-3.5 h-3.5" />
-                      ) : (
-                        <BookOpen className="w-3.5 h-3.5" />
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-xs sm:text-sm text-[var(--text)] truncate">
-                          {item.name}
-                        </span>
-                        {currentTrack?.id === item.id && isPlaying && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running shrink-0" />
+            <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
+              <AnimatePresence initial={false}>
+                {items.map((item) => {
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
+                      transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                      className={`py-3 px-2 flex items-center justify-between gap-4 rounded-lg hover:bg-[var(--surface-hover)]/40 transition group select-none ${
+                        currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10' : ''
+                      }`}
+                    >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-7 h-7 rounded-md bg-[var(--surface-hover)]/70 flex items-center justify-center text-[var(--muted)] shrink-0">
+                        {item.media_type === 'music' ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (currentTrack?.id === item.id) {
+                                togglePlay();
+                              } else {
+                                playTrack(
+                                  item,
+                                  items.filter((i) => i.media_type === 'music')
+                                );
+                              }
+                            }}
+                            className="w-full h-full rounded-md flex items-center justify-center text-[var(--accent-text)] hover:bg-[var(--accent)] hover:text-white transition cursor-pointer"
+                            title={currentTrack?.id === item.id && isPlaying ? 'Pause' : 'Play'}
+                          >
+                            {currentTrack?.id === item.id && isPlaying ? (
+                              <Pause className="w-3.5 h-3.5" />
+                            ) : (
+                              <Play className="w-3.5 h-3.5 ml-0.5" />
+                            )}
+                          </button>
+                        ) : item.media_type === 'image' ? (
+                          <ImageIcon className="w-3.5 h-3.5" />
+                        ) : (
+                          <BookOpen className="w-3.5 h-3.5" />
                         )}
-                        <span className="text-[10px] text-[var(--muted)] capitalize">
-                          {item.media_type}
-                        </span>
                       </div>
-                      <div className="text-[11px] text-[var(--muted)] truncate mt-0.5 flex items-center gap-2">
-                        {item.description && <span>{item.description} •</span>}
-                        <span className="font-mono text-[10px] text-[var(--muted)] opacity-70">
-                          {getDisplayHost(item.url)}
-                        </span>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-xs sm:text-sm text-[var(--text)] truncate">
+                            {item.name}
+                          </span>
+                          {currentTrack?.id === item.id && isPlaying && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running shrink-0" />
+                          )}
+                          <span className="text-[10px] text-[var(--muted)] capitalize">
+                            {item.media_type}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[var(--muted)] truncate mt-0.5 flex items-center gap-2">
+                          {item.description && <span>{item.description} •</span>}
+                          <span className="font-mono text-[10px] text-[var(--muted)] opacity-70">
+                            {getDisplayHost(item.url)}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--text)] transition"
-                      aria-label={`Open ${item.name}`}
-                      title="Open URL"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                    <button
-                      onClick={() => handleDeleteItem(item.id, item.name)}
-                      className="p-1.5 rounded hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--danger-text)] transition cursor-pointer"
-                      aria-label={`Delete ${item.name}`}
-                      title="Delete item"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--text)] transition"
+                        aria-label={`Open ${item.name}`}
+                        title="Open URL"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                      <button
+                        onClick={() => handleDeleteItem(item.id, item.name)}
+                        className="p-1.5 rounded hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--danger-text)] transition cursor-pointer"
+                        aria-label={`Delete ${item.name}`}
+                        title="Delete item"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              </AnimatePresence>
             </div>
           )}
         </div>

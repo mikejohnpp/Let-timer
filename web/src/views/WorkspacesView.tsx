@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { components } from '../api/schema';
 import { getStoredWorkspace, setStoredWorkspace, apiFetch } from '../api/client';
-import { useAutoAnimate } from '@formkit/auto-animate/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Button,
   IconButton,
@@ -28,7 +28,6 @@ export const WorkspacesView: React.FC = () => {
 
   const { showToast } = useToast();
   const confirm = useConfirm();
-  const [listRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
 
   const loadWorkspaces = async () => {
     setIsLoading(true);
@@ -150,46 +149,57 @@ export const WorkspacesView: React.FC = () => {
       </div>
 
       {/* Inline Create Form */}
-      {isCreating && (
-        <div className="mb-6 p-4 border border-[var(--border)] rounded-[var(--radius-control)] bg-[var(--surface-hover)]/40">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add Workspace</h2>
-          {error && <Banner tone="danger" className="mb-3">{error}</Banner>}
+      <AnimatePresence initial={false}>
+        {isCreating && (
+          <motion.div
+            key="create-workspace-form"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            className="overflow-hidden mb-6"
+          >
+            <div className="p-4 border border-[var(--border)] rounded-[var(--radius-control)] bg-[var(--surface-hover)]/40">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add Workspace</h2>
+              {error && <Banner tone="danger" className="mb-3">{error}</Banner>}
 
-          <form onSubmit={handleCreate} className="flex flex-col gap-3 text-xs">
-            <FormField label="Workspace name" required>
-              {(id) => (
-                <Input
-                  id={id}
-                  required
-                  value={newWsName}
-                  onChange={(e) => setNewWsName(e.target.value)}
-                  placeholder="e.g. Study, Work, Personal"
-                />
-              )}
-            </FormField>
+              <form onSubmit={handleCreate} className="flex flex-col gap-3 text-xs">
+                <FormField label="Workspace name" required>
+                  {(id) => (
+                    <Input
+                      id={id}
+                      required
+                      value={newWsName}
+                      onChange={(e) => setNewWsName(e.target.value)}
+                      placeholder="e.g. Study, Work, Personal"
+                    />
+                  )}
+                </FormField>
 
-            <FormField label="Description (optional)">
-              {(id) => (
-                <Input
-                  id={id}
-                  value={newWsDesc}
-                  onChange={(e) => setNewWsDesc(e.target.value)}
-                  placeholder="e.g. University exam prep"
-                />
-              )}
-            </FormField>
+                <FormField label="Description (optional)">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      value={newWsDesc}
+                      onChange={(e) => setNewWsDesc(e.target.value)}
+                      placeholder="e.g. University exam prep"
+                    />
+                  )}
+                </FormField>
 
-            <div className="flex justify-end gap-2 mt-1">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreating(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" size="sm">
-                Create
-              </Button>
+                <div className="flex justify-end gap-2 mt-1">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreating(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" size="sm">
+                    Create
+                  </Button>
+                </div>
+              </form>
             </div>
-          </form>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Workspaces List */}
       {isLoading ? (
@@ -207,71 +217,78 @@ export const WorkspacesView: React.FC = () => {
           }}
         />
       ) : (
-        <div ref={listRef} className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
-          {workspaces.map((w) => {
-            const isActive = activeWsId === w.id.toString();
+        <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
+          <AnimatePresence initial={false}>
+            {workspaces.map((w) => {
+              const isActive = activeWsId === w.id.toString();
 
-            return (
-              <div
-                key={w.id}
-                className={`py-3 px-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)]/60 transition group cursor-pointer ${
-                  isActive ? 'bg-[var(--accent)]/5' : ''
-                }`}
-                onClick={() => !isActive && handleSelectWorkspace(w.id)}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full shrink-0 transition ${
-                      isActive ? 'bg-[var(--accent-text)] ring-4 ring-[var(--accent-text)]/20' : 'border border-[var(--muted)]'
-                    }`}
-                  />
+              return (
+                <motion.div
+                  key={w.id}
+                  layout
+                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
+                  transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                  className={`py-3 px-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)]/60 transition group cursor-pointer ${
+                    isActive ? 'bg-[var(--accent)]/5' : ''
+                  }`}
+                  onClick={() => !isActive && handleSelectWorkspace(w.id)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full shrink-0 transition ${
+                        isActive ? 'bg-[var(--accent-text)] ring-4 ring-[var(--accent-text)]/20' : 'border border-[var(--muted)]'
+                      }`}
+                    />
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs sm:text-sm font-semibold truncate ${isActive ? 'text-[var(--accent-text)]' : 'text-[var(--text)]'}`}>
-                        {w.name}
-                      </span>
-                      {isActive && (
-                        <span className="text-[10px] font-bold text-[var(--accent-text)] bg-[var(--accent)]/15 px-1.5 py-0.2 rounded-full">
-                          Active
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs sm:text-sm font-semibold truncate ${isActive ? 'text-[var(--accent-text)]' : 'text-[var(--text)]'}`}>
+                          {w.name}
                         </span>
+                        {isActive && (
+                          <span className="text-[10px] font-bold text-[var(--accent-text)] bg-[var(--accent)]/15 px-1.5 py-0.2 rounded-full">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      {w.description && (
+                        <p className="text-[11px] text-[var(--muted)] mt-0.5 truncate max-w-md">
+                          {w.description}
+                        </p>
                       )}
                     </div>
-                    {w.description && (
-                      <p className="text-[11px] text-[var(--muted)] mt-0.5 truncate max-w-md">
-                        {w.description}
-                      </p>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                    {!isActive && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSelectWorkspace(w.id)}
+                        className="text-xs h-6 px-2 text-[var(--muted)] hover:text-[var(--text)]"
+                      >
+                        Switch
+                      </Button>
+                    )}
+
+                    {!isActive && (
+                      <IconButton
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-[var(--muted)] hover:text-[var(--danger-text)]"
+                        onClick={() => handleDelete(w.id, w.name)}
+                        aria-label={`Delete workspace ${w.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </IconButton>
                     )}
                   </div>
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                  {!isActive && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSelectWorkspace(w.id)}
-                      className="text-xs h-6 px-2 text-[var(--muted)] hover:text-[var(--text)]"
-                    >
-                      Switch
-                    </Button>
-                  )}
-
-                  {!isActive && (
-                    <IconButton
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 text-[var(--muted)] hover:text-[var(--danger-text)]"
-                      onClick={() => handleDelete(w.id, w.name)}
-                      aria-label={`Delete workspace ${w.name}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </IconButton>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
       )}
     </div>
