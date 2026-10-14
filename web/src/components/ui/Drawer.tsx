@@ -54,12 +54,12 @@ export const Drawer: React.FC<DrawerProps> = ({
           <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[var(--border)] shrink-0">
             <div>
               {title && (
-                <DialogPrimitive.Title className="text-base font-bold text-[var(--text)]">
+                <DialogPrimitive.Title className="text-base font-semibold leading-tight text-[var(--text)]">
                   {title}
                 </DialogPrimitive.Title>
               )}
               {description && (
-                <DialogPrimitive.Description className="text-xs text-[var(--muted)] mt-0.5">
+                <DialogPrimitive.Description className="text-xs text-[var(--muted)] leading-relaxed mt-0.5">
                   {description}
                 </DialogPrimitive.Description>
               )}

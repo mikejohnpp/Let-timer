@@ -18,7 +18,7 @@ export const TimerDigits: React.FC<TimerDigitsProps> = ({ digits, mode = 'countd
   };
 
   return (
-    <span className={twMerge(clsx('font-mono tabular-nums tracking-tight', modes[mode], className))}>
+    <span className={twMerge(clsx('font-mono tabular-nums', modes[mode], className))}>
       {digits}
     </span>
   );

@@ -12,6 +12,12 @@
  * Typography Scale (§7):
  *  - Approved scale: 12 / 14 / 16 / 20 / 28 / 48 / 72 px (= xs / sm / base / lg+ / display).
  *  - Sub-12px text (text-[10px], text-[11px]) is forbidden without an explicit `// type-allow: <reason>`.
+ *
+ * Typography Roles:
+ *  - Group header:       semibold, uppercase, tracking-wider, leading-tight
+ *  - Body:               normal, emphasis via medium, multi-line descriptions via leading-relaxed
+ *  - Headings & CTAs:    semibold, leading-tight (avoid bold except timer digits)
+ *  - Display timer:      font-light, tracking-tighter (large display sizes only; no tracking-tighter on small digits)
  */
 
 :root {

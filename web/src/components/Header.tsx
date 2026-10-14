@@ -253,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             onClick={() => onNavigate('today')}
-            className="flex items-center gap-1.5 font-bold text-sm sm:text-base tracking-tight hover:opacity-80 transition cursor-pointer select-none"
+            className="flex items-center gap-1.5 font-semibold text-sm sm:text-base tracking-tight leading-tight hover:opacity-80 transition cursor-pointer select-none"
           >
             <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--accent-text)]" />
             <span className="text-[var(--text)] hidden sm:inline">Let-timer</span>
@@ -273,7 +273,7 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-64 p-3 flex flex-col gap-2">
-              <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] px-1">
+              <div className="text-xs font-semibold uppercase tracking-wider leading-tight text-[var(--muted)] px-1">
                 Workspaces
               </div>
 

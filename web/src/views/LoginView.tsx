@@ -73,7 +73,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoggedIn }) => {
             <Clock className="w-7 h-7" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-[var(--text)]">Let-timer</h1>
+            <h1 className="text-xl font-semibold leading-tight text-[var(--text)]">Let-timer</h1>
             <p className="text-xs text-[var(--muted)]">Focus timer & daily task manager</p>
           </div>
         </div>

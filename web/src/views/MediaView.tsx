@@ -348,7 +348,7 @@ export const MediaView: React.FC = () => {
       {/* Header and tab switcher */}
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-2">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text)] tracking-tight">Media</h1>
+          <h1 className="text-2xl sm:text-3xl font-serif font-semibold text-[var(--text)] tracking-tight leading-tight">Media</h1>
           <p className="text-xs text-[var(--muted)] mt-1">
             Curated music, artwork, and poems for focus sessions
           </p>
@@ -402,7 +402,7 @@ export const MediaView: React.FC = () => {
             className="overflow-hidden mb-2"
           >
             <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add new media list</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider leading-tight text-[var(--muted)] mb-3">Add new media list</h2>
               <form onSubmit={handleCreateList} className="flex flex-col gap-3">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <FormField label="List name" required>
@@ -452,7 +452,7 @@ export const MediaView: React.FC = () => {
           >
             <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Add new media item</h2>
+                <h2 className="text-xs font-semibold uppercase tracking-wider leading-tight text-[var(--muted)]">Add new media item</h2>
                 <div className="flex items-center gap-1 bg-[var(--surface-hover)]/60 p-0.5 rounded-lg border border-[var(--border)]/40">
                   <button
                     type="button"

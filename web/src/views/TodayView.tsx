@@ -427,7 +427,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           >
             <div className="flex items-center gap-2">
               <span
-                className={`text-xs sm:text-sm font-medium truncate transition-colors duration-[var(--dur-fast)] ${
+                className={`text-xs sm:text-sm font-medium truncate transition-colors duration-[var(--dur-fast)] leading-snug ${
                   isCompleted || isCancelled ? 'line-through text-[var(--muted)]' : 'text-[var(--text)]'
                 }`}
               >
@@ -436,7 +436,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
               <PriorityMarker priority={t.priority} />
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-[var(--muted)] mt-0.5">
+            <div className="flex items-center gap-2 text-xs text-[var(--muted)] mt-0.5 leading-normal">
               {isOverdueItem && t.scheduled_on && (
                 <span className="text-[var(--warning-text)] font-medium">from {t.scheduled_on}</span>
               )}
@@ -588,7 +588,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
       {/* Title & Date Bar */}
       <div className="flex items-baseline justify-between gap-4 mb-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text)] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-serif font-semibold text-[var(--text)] tracking-tight leading-tight">
             {isToday
               ? 'Today'
               : new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, {
@@ -773,7 +773,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             {/* Running Group */}
             {runningTasks.length > 0 && (
               <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-[var(--accent-text)] mb-2 flex items-center gap-1.5">
+                <div className="text-xs font-semibold uppercase tracking-wider leading-tight text-[var(--accent-text)] mb-2 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running" />
                   <span>Now Running</span>
                 </div>
@@ -788,7 +788,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             {/* Overdue Group */}
             {isToday && visibleOverdue.length > 0 && (
               <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-[var(--warning-text)] mb-2">
+                <div className="text-xs font-semibold uppercase tracking-wider leading-tight text-[var(--warning-text)] mb-2">
                   Overdue ({visibleOverdue.length})
                 </div>
                 <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--warning)]/30">
@@ -802,7 +802,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             {/* Up Next Group */}
             {upNextTasks.length > 0 && (
               <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
+                <div className="text-xs font-semibold uppercase tracking-wider leading-tight text-[var(--muted)] mb-2">
                   Tasks ({upNextTasks.length})
                 </div>
                 <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
@@ -818,7 +818,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
               <div className="pt-2">
                 <button
                   onClick={() => setDoneCollapsed(!doneCollapsed)}
-                  className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-2 flex items-center gap-1.5 cursor-pointer select-none hover:text-[var(--text)] transition"
+                  className="text-xs font-semibold uppercase tracking-wider leading-tight text-[var(--muted)] mb-2 flex items-center gap-1.5 cursor-pointer select-none hover:text-[var(--text)] transition"
                 >
                   <span>Completed ({doneTasks.length})</span>
                   <span className="text-xs opacity-75">{doneCollapsed ? '▼' : '▲'}</span>

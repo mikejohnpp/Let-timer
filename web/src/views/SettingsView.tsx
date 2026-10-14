@@ -341,7 +341,7 @@ export const SettingsView: React.FC = () => {
       {/* Header */}
       <div className="flex items-baseline justify-between border-b border-[var(--border)]/30 pb-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text)] tracking-tight">Settings</h1>
+          <h1 className="text-2xl sm:text-3xl font-serif font-semibold text-[var(--text)] tracking-tight leading-tight">Settings</h1>
           <p className="text-xs text-[var(--muted)] mt-1">
             Configure appearance, preferences, and API credentials
           </p>

@@ -13,13 +13,13 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const base = 'inline-flex items-center justify-center font-medium transition-[background-color,color,border-color,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] active:scale-[0.98] active:duration-[var(--dur-instant)] select-none disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer focus-visible:outline-2 focus-visible:outline-[var(--accent-text)] focus-visible:outline-offset-2';
 
     const variants = {
-      primary: 'bg-[var(--accent)] text-[var(--on-accent)] hover:bg-[var(--accent-hover)] rounded-[var(--radius-control)] shadow-sm',
+      primary: 'font-semibold bg-[var(--accent)] text-[var(--on-accent)] hover:bg-[var(--accent-hover)] rounded-[var(--radius-control)] shadow-sm',
       secondary: 'bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text)] hover:bg-[var(--surface-hover)] rounded-[var(--radius-control)] shadow-xs',
       ghost: 'bg-transparent text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] rounded-[var(--radius-control)]',
       danger: 'bg-transparent text-[var(--danger-text)] hover:bg-[var(--danger-bg)] rounded-[var(--radius-control)]',
-      'danger-solid': 'bg-[var(--danger)] text-[var(--on-danger)] hover:opacity-90 rounded-[var(--radius-control)] shadow-sm',
+      'danger-solid': 'font-semibold bg-[var(--danger)] text-[var(--on-danger)] hover:opacity-90 rounded-[var(--radius-control)] shadow-sm',
       pill: 'bg-[var(--surface-hover)]/70 hover:bg-[var(--surface)] text-[var(--text)] border border-[var(--border)]/60 rounded-full backdrop-blur-md shadow-xs',
-      'pill-primary': 'bg-[var(--accent)]/85 hover:bg-[var(--accent)] text-[var(--on-accent)] border border-white/20 rounded-full backdrop-blur-md shadow-sm',
+      'pill-primary': 'font-semibold bg-[var(--accent)]/85 hover:bg-[var(--accent)] text-[var(--on-accent)] border border-white/20 rounded-full backdrop-blur-md shadow-sm',
     };
 
     const sizes = {

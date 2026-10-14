@@ -136,7 +136,7 @@ export const WorkspacesView: React.FC = () => {
       {/* Header */}
       <div className="flex items-baseline justify-between mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text)] tracking-tight">Workspaces</h1>
+          <h1 className="text-2xl sm:text-3xl font-serif font-semibold text-[var(--text)] tracking-tight leading-tight">Workspaces</h1>
           <p className="text-xs text-[var(--muted)] mt-1">
             Active workspace scopes your tasks and timer.
           </p>
@@ -164,7 +164,7 @@ export const WorkspacesView: React.FC = () => {
             className="overflow-hidden mb-6"
           >
             <div className="p-4 border border-[var(--border)] rounded-[var(--radius-control)] bg-[var(--surface-hover)]/40">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add Workspace</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider leading-tight text-[var(--muted)] mb-3">Add Workspace</h2>
               {error && <Banner tone="danger" className="mb-3">{error}</Banner>}
 
               <form onSubmit={handleCreate} className="flex flex-col gap-3 text-xs">

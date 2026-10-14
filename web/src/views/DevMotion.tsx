@@ -63,7 +63,7 @@ export const DevMotion: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-[var(--accent-text)]" />
-            <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text)] tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-serif font-semibold text-[var(--text)] tracking-tight leading-tight">
               Motion Gallery
             </h1>
           </div>
@@ -88,7 +88,7 @@ export const DevMotion: React.FC = () => {
       {/* Section 1: Live Motion Tokens */}
       <section className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-xs flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Active Motion Tokens</h2>
+          <h2 className="text-xs font-semibold text-[var(--text)] uppercase tracking-wider leading-tight">Active Motion Tokens</h2>
           <span className="text-xs font-mono text-[var(--muted)]">
             Mode: <strong className="text-[var(--accent-text)]">{tokens.isOff ? 'off' : tokens.isReduced ? 'reduced' : 'full'}</strong>
           </span>
@@ -132,7 +132,7 @@ export const DevMotion: React.FC = () => {
 
       {/* Section 2: Layer 1 (Feedback) Micro-interactions */}
       <section className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-xs flex flex-col gap-4">
-        <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Layer 1: Input Feedback</h2>
+        <h2 className="text-xs font-semibold text-[var(--text)] uppercase tracking-wider leading-tight">Layer 1: Input Feedback</h2>
 
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary" size="sm" onClick={handleTestAnimate}>
@@ -168,7 +168,7 @@ export const DevMotion: React.FC = () => {
 
       {/* Section 3: Layer 2 (Presence) Breathing & Ring Pulses */}
       <section className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-xs flex flex-col gap-4">
-        <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Layer 2: Presence & Ambience</h2>
+        <h2 className="text-xs font-semibold text-[var(--text)] uppercase tracking-wider leading-tight">Layer 2: Presence & Ambience</h2>
 
         <div className="grid sm:grid-cols-2 gap-4">
           {/* Running Dot Breathing (A12) */}
@@ -218,7 +218,7 @@ export const DevMotion: React.FC = () => {
 
       {/* Section 4: Layer 3 (Continuity) Group Transitions */}
       <section className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-xs flex flex-col gap-4">
-        <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Layer 3: Spatial Continuity (A17/A18)</h2>
+        <h2 className="text-xs font-semibold text-[var(--text)] uppercase tracking-wider leading-tight">Layer 3: Spatial Continuity (A17/A18)</h2>
 
         <LayoutGroup id="dev-motion-items">
           <div className="flex flex-col gap-2">

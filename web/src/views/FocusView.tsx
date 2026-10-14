@@ -234,7 +234,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
 
         {/* Task Name or Idle Title */}
         <h1
-          className={`font-serif text-2xl sm:text-3xl md:text-4xl font-bold mt-4 max-w-2xl px-4 ${
+          className={`font-serif text-2xl sm:text-3xl md:text-4xl font-semibold leading-tight mt-4 max-w-2xl px-4 ${
             hasAnyBg ? 'text-[var(--imm-text)]' : 'text-[var(--text)]'
           }`}
         >
@@ -244,7 +244,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
         {/* Task description or MediaList selector */}
         {!isIdle && snapshot.task.description && (
           <p
-            className={`text-xs sm:text-sm mt-2 max-w-lg truncate ${
+            className={`text-xs sm:text-sm mt-2 max-w-lg truncate leading-relaxed ${
               hasAnyBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'
             }`}
           >

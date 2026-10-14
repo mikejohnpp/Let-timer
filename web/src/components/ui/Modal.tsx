@@ -35,7 +35,7 @@ export const Modal: React.FC<ModalProps> = ({
         >
           <div className="flex items-center justify-between">
             {title && (
-              <DialogPrimitive.Title className="text-base font-bold text-[var(--text)]">
+              <DialogPrimitive.Title className="text-base font-semibold leading-tight text-[var(--text)]">
                 {title}
               </DialogPrimitive.Title>
             )}
@@ -49,7 +49,7 @@ export const Modal: React.FC<ModalProps> = ({
             </DialogPrimitive.Close>
           </div>
           {description && (
-            <DialogPrimitive.Description className="text-xs text-[var(--muted)] -mt-2">
+            <DialogPrimitive.Description className="text-xs text-[var(--muted)] leading-relaxed -mt-2">
               {description}
             </DialogPrimitive.Description>
           )}

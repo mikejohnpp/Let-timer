@@ -545,7 +545,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
             <div className="flex flex-col gap-4 max-h-64 overflow-y-auto py-1 px-1 text-center">
               {poems.map((poem) => (
                 <article key={poem.id} className="border-b border-[var(--border)]/20 pb-3 last:border-b-0">
-                  <h4 className="font-serif text-sm font-bold text-[var(--text)]">{poem.name}</h4>
+                  <h4 className="font-serif text-sm font-semibold leading-tight text-[var(--text)]">{poem.name}</h4>
                   {poem.description && (
                     <p className="text-xs text-[var(--muted)] italic mb-2">{poem.description}</p>
                   )}
