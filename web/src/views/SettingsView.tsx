@@ -393,6 +393,7 @@ export const SettingsView: React.FC = () => {
                 { value: 'default', label: 'Indigo' },
                 { value: 'forest', label: 'Forest' },
                 { value: 'tokyo-night', label: 'Tokyo Night' },
+                { value: 'catppuccin', label: 'Catppuccin' },
               ]}
             />
           </div>

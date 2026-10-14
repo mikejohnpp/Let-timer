@@ -108,6 +108,28 @@
   --info-bg: #eff4fc;
 }
 
+/* Catppuccin (Latte) — Catppuccin Latte palette */
+:root[data-palette="catppuccin"] {
+  --bg: #eff1f5;
+  --surface: #ffffff;
+  --surface-hover: #e6e9ef;
+  --border: #ccd0da;
+  --border-strong: #6c6f85;
+  --text: #4c4f69;
+  --muted: #595c74;
+  --accent: #7928d1;
+  --accent-hover: #6820b8;
+  --on-accent: #ffffff;
+  --accent-text: #7928d1;
+  --timer-over: #e65100;
+  --over-text: #ba3c04;
+  --danger-bg: #fdf2f4;
+  --warning-bg: #fefbee;
+  --success-bg: #edfbf3;
+  --over-bg: #fef6ee;
+  --info-bg: #f2f0fc;
+}
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #0b0f19;
@@ -178,6 +200,26 @@
   --info-bg: #16233d;
 }
 
+/* Catppuccin (Mocha) — Catppuccin Mocha palette */
+:root[data-theme="dark"][data-palette="catppuccin"] {
+  --bg: #181825;
+  --surface: #1e1e2e;
+  --surface-hover: #252538;
+  --border: #313244;
+  --border-strong: #7f849c;
+  --text: #cdd6f4;
+  --muted: #a6adc8;
+  --accent: #7928d1;
+  --accent-hover: #6820b8;
+  --on-accent: #ffffff;
+  --accent-text: #cba6f7;
+  --danger-bg: #2a1620;
+  --warning-bg: #292114;
+  --success-bg: #12281e;
+  --over-bg: #2a1b14;
+  --info-bg: #201a30;
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
@@ -246,6 +288,25 @@
     --success-bg: #122a24;
     --over-bg: #2b1b16;
     --info-bg: #16233d;
+  }
+
+  :root:not([data-theme="light"])[data-palette="catppuccin"] {
+    --bg: #181825;
+    --surface: #1e1e2e;
+    --surface-hover: #252538;
+    --border: #313244;
+    --border-strong: #7f849c;
+    --text: #cdd6f4;
+    --muted: #a6adc8;
+    --accent: #7928d1;
+    --accent-hover: #6820b8;
+    --on-accent: #ffffff;
+    --accent-text: #cba6f7;
+    --danger-bg: #2a1620;
+    --warning-bg: #292114;
+    --success-bg: #12281e;
+    --over-bg: #2a1b14;
+    --info-bg: #201a30;
   }
 }
 

@@ -32,6 +32,9 @@ export function readThemes(css: string): {
   tokyoNightLight: TokenMap;
   tokyoNightDark: TokenMap;
   tokyoNightDarkMedia: TokenMap;
+  catppuccinLight: TokenMap;
+  catppuccinDark: TokenMap;
+  catppuccinDarkMedia: TokenMap;
 } {
   const light = parseVars(extractBlock(css, ':root {'));
   const dark = { ...light, ...parseVars(extractBlock(css, ':root[data-theme="dark"] {')) };
@@ -46,6 +49,10 @@ export function readThemes(css: string): {
   const tokyoNightDark = { ...dark, ...parseVars(extractBlock(css, ':root[data-theme="dark"][data-palette="tokyo-night"] {')) };
   const tokyoNightDarkMedia = { ...darkMedia, ...parseVars(extractBlock(media, ':root:not([data-theme="light"])[data-palette="tokyo-night"] {')) };
 
+  const catppuccinLight = { ...light, ...parseVars(extractBlock(css, ':root[data-palette="catppuccin"] {')) };
+  const catppuccinDark = { ...dark, ...parseVars(extractBlock(css, ':root[data-theme="dark"][data-palette="catppuccin"] {')) };
+  const catppuccinDarkMedia = { ...darkMedia, ...parseVars(extractBlock(media, ':root:not([data-theme="light"])[data-palette="catppuccin"] {')) };
+
   return {
     light,
     dark,
@@ -56,6 +63,9 @@ export function readThemes(css: string): {
     tokyoNightLight,
     tokyoNightDark,
     tokyoNightDarkMedia,
+    catppuccinLight,
+    catppuccinDark,
+    catppuccinDarkMedia,
   };
 }
 
