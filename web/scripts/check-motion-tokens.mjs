@@ -13,6 +13,9 @@ const FORBIDDEN_PATTERNS = [
   { name: 'cubic-bezier', regex: /cubic-bezier\(/ },
   { name: 'infinite/banned Tailwind animation', regex: /animate-(ping|pulse|bounce)/ },
   { name: 'raw transition-duration', regex: /transition-duration:\s*\d/ },
+  { name: 'raw non-zero y offset', regex: /\by:\s*-?[1-9]\d*/ },
+  { name: 'raw scale literal', regex: /\bscale:\s*0\.\d+/ },
+  { name: 'raw ease string', regex: /\bease:\s*['"][a-zA-Z]/ },
 ];
 
 const ALLOW_REGEX = /(?:\/\/|\/\*)\s*motion-allow:\s*(\S+.*)/;

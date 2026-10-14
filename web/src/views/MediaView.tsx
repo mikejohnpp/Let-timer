@@ -14,7 +14,7 @@ import type { components } from '../api/schema';
 import { apiFetch } from '../api/client';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { useMotionTransition } from '../motion';
+import { useMotionTransition, useMotionTokens } from '../motion';
 import {
   Button,
   IconButton,
@@ -46,6 +46,7 @@ function getDisplayHost(url: string) {
 
 export const MediaView: React.FC = () => {
   const { currentTrack, isPlaying, playTrack, togglePlay } = useAudioPlayer();
+  const tokens = useMotionTokens();
   const mediaTransition = useMotionTransition('base');
   const [tab, setTab] = useState<'lists' | 'items'>('lists');
   const [lists, setLists] = useState<MediaList[]>([]);
@@ -665,8 +666,8 @@ export const MediaView: React.FC = () => {
                       <motion.div
                         key={l.id}
                         layout
-                        initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        initial={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS }}
+                        animate={{ opacity: 1, y: 0 }}
                         exit={{
                           opacity: 0,
                           height: 0,
@@ -674,7 +675,6 @@ export const MediaView: React.FC = () => {
                           paddingBottom: 0,
                           marginTop: 0,
                           marginBottom: 0,
-                          scale: 0.95,
                           overflow: 'hidden',
                         }}
                         transition={mediaTransition}
@@ -739,8 +739,8 @@ export const MediaView: React.FC = () => {
                         <motion.div
                           key={item.id}
                           layout
-                          initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          initial={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS }}
+                          animate={{ opacity: 1, y: 0 }}
                           exit={{
                             opacity: 0,
                             height: 0,
@@ -748,7 +748,6 @@ export const MediaView: React.FC = () => {
                             paddingBottom: 0,
                             marginTop: 0,
                             marginBottom: 0,
-                            scale: 0.95,
                             overflow: 'hidden',
                           }}
                           transition={mediaTransition}
@@ -873,8 +872,8 @@ export const MediaView: React.FC = () => {
                     <motion.div
                       key={item.id}
                       layout
-                      initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      initial={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS }}
+                      animate={{ opacity: 1, y: 0 }}
                       exit={{
                         opacity: 0,
                         height: 0,
@@ -882,7 +881,6 @@ export const MediaView: React.FC = () => {
                         paddingBottom: 0,
                         marginTop: 0,
                         marginBottom: 0,
-                        scale: 0.95,
                         overflow: 'hidden',
                       }}
                       transition={mediaTransition}

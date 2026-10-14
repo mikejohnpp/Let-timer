@@ -17,11 +17,13 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | null>(null);
 
-import { useMotionTransition } from '../../motion';
+import { useMotionTokens, useMotionTransition } from '../../motion';
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const toastTransition = useMotionTransition('base');
+  const tokens = useMotionTokens();
+  const enterTransition = useMotionTransition('base');
+  const exitTransition = useMotionTransition('base', { exit: true });
 
   const showToast = useCallback((description: string, tone: 'info' | 'success' | 'danger' = 'info') => {
     const id = Math.random().toString(36).slice(2);
@@ -37,10 +39,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             <motion.div
               key={t.id}
               layout
-              initial={{ opacity: 0, y: 12, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95, height: 0, overflow: 'hidden' }}
-              transition={toastTransition}
+              initial={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS }}
+              animate={{ opacity: 1, y: 0, transition: enterTransition }}
+              exit={{ opacity: 0, height: 0, overflow: 'hidden', transition: exitTransition }}
             >
               <ToastPrimitive.Root
                 key={t.id}
@@ -49,7 +50,6 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 }}
                 className={clsx(
                   'flex items-center justify-between gap-3 p-3.5 rounded-[var(--radius-control)] border shadow-[var(--shadow-popover)] text-xs',
-                  'data-[state=open]:animate-[rise-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
                   t.tone === 'danger' && 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger)]/30',
                   t.tone === 'success' && 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success)]/20',
                   (!t.tone || t.tone === 'info') && 'bg-[var(--surface)] text-[var(--text)] border-[var(--border)]'

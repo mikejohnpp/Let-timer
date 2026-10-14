@@ -281,6 +281,23 @@
   transition: none !important;
 }
 
+/* Generic Reduced Motion Guard */
+:root[data-motion="reduced"] [class*="animate-"],
+:root[data-motion="off"] [class*="animate-"] {
+  animation: none !important;
+}
+
+/* Date Slide Override (Fade-only under reduced motion, ≤100ms) */
+:root[data-motion="reduced"] [class*="slide-date-"] {
+  animation: fade-in var(--dur-fast) var(--ease-out) !important;
+  transform: none !important;
+}
+
+:root[data-motion="off"] [class*="slide-date-"] {
+  animation: none !important;
+  transform: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .dot-running,
   :root:not([data-motion="full"]) .ring-pulse,
@@ -291,6 +308,15 @@
   :root:not([data-motion="full"]) .eq-bar-3,
   :root:not([data-motion="full"]) .animate-spin {
     animation: none !important;
+    transform: none !important;
+  }
+
+  :root:not([data-motion="full"]) [class*="animate-"] {
+    animation: none !important;
+  }
+
+  :root:not([data-motion="full"]) [class*="slide-date-"] {
+    animation: fade-in var(--dur-fast) var(--ease-out) !important;
     transform: none !important;
   }
 

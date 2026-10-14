@@ -203,9 +203,9 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
           <motion.div
             key="card"
             layoutId={isReduced ? undefined : 'floating-island'}
-            initial={{ opacity: 0, scale: isReduced ? 1 : 0.96 }}
+            initial={{ opacity: 0, scale: isReduced ? 1 : 0.96 }} // motion-allow: island expansion morph (A26)
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }}
+            exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }} // motion-allow: island expansion morph (A26)
             transition={islandTransition}
             className={`origin-bottom w-[92vw] max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl border flex flex-col gap-4 max-h-[80vh] overflow-hidden ${
               hasBackgroundPhoto
@@ -574,9 +574,9 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
         <motion.div
           key="pill"
           layoutId={isReduced ? undefined : 'floating-island'}
-          initial={{ opacity: 0, scale: isReduced ? 1 : 0.96 }}
+          initial={{ opacity: 0, scale: isReduced ? 1 : 0.96 }} // motion-allow: island expansion morph (A26)
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }}
+          exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }} // motion-allow: island expansion morph (A26)
           transition={islandTransition}
           role="button"
           tabIndex={0}

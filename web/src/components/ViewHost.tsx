@@ -14,7 +14,7 @@ export const ViewHost: React.FC<ViewHostProps> = ({ activeTab, children, classNa
   const exitTransition = useMotionTransition('base', { exit: true });
 
   const isReduced = tokens.isReduced;
-  const travelY = isReduced ? 0 : 4;
+  const travelY = isReduced ? 0 : tokens.travelS;
 
   return (
     <div className={className} data-testid="view-host">

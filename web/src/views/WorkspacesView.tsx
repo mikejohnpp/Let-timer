@@ -3,7 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import type { components } from '../api/schema';
 import { getStoredWorkspace, setStoredWorkspace, apiFetch } from '../api/client';
 import { motion, AnimatePresence } from 'motion/react';
-import { useMotionTransition } from '../motion';
+import { useMotionTransition, useMotionTokens } from '../motion';
 import {
   Button,
   IconButton,
@@ -20,6 +20,7 @@ type Workspace = components['schemas']['WorkspaceDto'];
 
 export const WorkspacesView: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const tokens = useMotionTokens();
   const baseTransition = useMotionTransition('base');
   const [activeWsId, setActiveWsId] = useState<string>(getStoredWorkspace() || '');
   const [newWsName, setNewWsName] = useState('');
@@ -229,9 +230,9 @@ export const WorkspacesView: React.FC = () => {
                 <motion.div
                   key={w.id}
                   layout
-                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
+                  initial={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
                   transition={baseTransition}
                   className={`py-3 px-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)]/60 transition group cursor-pointer ${
                     isActive ? 'bg-[var(--accent)]/5' : ''

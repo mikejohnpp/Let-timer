@@ -5,7 +5,7 @@ import type { AppView } from '../hooks/useHashRoute';
 import { getStoredWorkspace, setStoredWorkspace, apiFetch } from '../api/client';
 import { withThemeTransition } from '../utils/themeTransition';
 import { motion, AnimatePresence } from 'motion/react';
-import { useMotionTransition } from '../motion';
+import { useMotionTokens, useMotionTransition } from '../motion';
 import {
   ConnectionBadge,
   IconButton,
@@ -43,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const { showToast } = useToast();
   const confirm = useConfirm();
+  const tokens = useMotionTokens();
   const wsItemTransition = useMotionTransition('base');
 
   const isFocusView = currentView === 'focus';
@@ -285,9 +286,9 @@ export const Header: React.FC<HeaderProps> = ({
                       <motion.div
                         key={w.id}
                         layout
-                        initial={{ opacity: 0, y: 4, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
+                        initial={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
                         transition={wsItemTransition}
                         onClick={() => handleWorkspaceSelect(w.id.toString())}
                         className={`py-1.5 px-1.5 flex items-center justify-between gap-2 rounded cursor-pointer transition group ${
