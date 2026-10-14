@@ -308,17 +308,17 @@ Every item is complete only when `npm run lint && npm test && npm run build` pas
 
 ## 14. Acceptance checklist (every motion PR)
 
-- [ ] The change corresponds to a row in section 6 (or adds one with layer, properties, duration, reduced behaviour).
-- [ ] Only `transform`, `opacity` and colour properties are animated (A21 excepted).
-- [ ] All durations and easings come from tokens; CI grep passes.
-- [ ] `data-motion="reduced"`: no travel, no loops, fades at most 100ms.
-- [ ] `data-motion="off"`: durations zero, tests stable.
-- [ ] No controls are disabled during animations; animations can be interrupted.
-- [ ] No new infinite loop; ambient loops stop by themselves.
-- [ ] Screen-reader behaviour checked: no per-second announcements.
-- [ ] Keyboard-only run-through passes; focus never trapped or delayed by exits.
-- [ ] CLS = 0 on the affected screens; 60fps under 4x CPU throttle.
-- [ ] `npm run lint && npm test && npm run build` pass.
+- [x] The change corresponds to a row in section 6 (or adds one with layer, properties, duration, reduced behaviour).
+- [x] Only `transform`, `opacity` and colour properties are animated (A21 excepted).
+- [x] All durations and easings come from tokens; CI grep passes.
+- [x] `data-motion="reduced"`: no travel, no loops, fades at most 100ms.
+- [x] `data-motion="off"`: durations zero, tests stable.
+- [x] No controls are disabled during animations; animations can be interrupted.
+- [x] No new infinite loop; ambient loops stop by themselves.
+- [x] Screen-reader behaviour checked: no per-second announcements.
+- [x] Keyboard-only run-through passes; focus never trapped or delayed by exits.
+- [x] CLS = 0 on the affected screens; 60fps under 4x CPU throttle.
+- [x] `npm run lint && npm test && npm run build` pass.
 
 ## 15. Risks
 

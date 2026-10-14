@@ -139,25 +139,27 @@ export const AppContent: React.FC = () => {
       />
 
       <main className={`relative z-10 flex-1 ${!isFocusView ? 'pb-24 lg:pb-16' : ''}`}>
-        {currentView === 'today' && (
-          <TodayView
-            snapshot={snapshot}
-            onRefreshTimer={refetchSnapshot}
-            onOpenStartPicker={() => setIsStartPickerOpen(true)}
-          />
-        )}
-        {currentView === 'focus' && (
-          <FocusView
-            snapshot={snapshot}
-            receivedAt={receivedAt}
-            onRefreshTimer={refetchSnapshot}
-            onOpenStartPicker={() => setIsStartPickerOpen(true)}
-          />
-        )}
-        {currentView === 'workspaces' && <WorkspacesView />}
-        {currentView === 'media' && <MediaView />}
-        {currentView === 'settings' && <SettingsView />}
-        {currentView === 'dev/motion' && <DevMotion />}
+        <div key={currentView} className="view-enter h-full">
+          {currentView === 'today' && (
+            <TodayView
+              snapshot={snapshot}
+              onRefreshTimer={refetchSnapshot}
+              onOpenStartPicker={() => setIsStartPickerOpen(true)}
+            />
+          )}
+          {currentView === 'focus' && (
+            <FocusView
+              snapshot={snapshot}
+              receivedAt={receivedAt}
+              onRefreshTimer={refetchSnapshot}
+              onOpenStartPicker={() => setIsStartPickerOpen(true)}
+            />
+          )}
+          {currentView === 'workspaces' && <WorkspacesView />}
+          {currentView === 'media' && <MediaView />}
+          {currentView === 'settings' && <SettingsView />}
+          {currentView === 'dev/motion' && <DevMotion />}
+        </div>
       </main>
 
       {/* Floating Bottom Island (TimerBar if task active, or FloatingPlayerIsland if idle & music playing) */}

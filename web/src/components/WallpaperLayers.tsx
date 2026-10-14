@@ -71,7 +71,11 @@ export const WallpaperLayers: React.FC<WallpaperLayersProps> = ({
   if (!currentUrl && !nextUrl) return null;
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+    <div
+      className="wallpaper-layers absolute inset-0 pointer-events-none z-0 overflow-hidden"
+      style={{ viewTransitionName: 'none' }}
+      aria-hidden="true"
+    >
       {/* Current base layer */}
       {currentUrl && (
         <div

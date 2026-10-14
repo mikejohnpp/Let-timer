@@ -269,4 +269,57 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(badgeCode).toContain("label: 'Live'");
     });
   });
+
+  describe('View Transitions and Polish (Phase M5)', () => {
+    it('defines view-enter keyframe and animation with reduced/off parity in motion.css (A24)', () => {
+      expect(cssContent).toContain('@keyframes view-enter');
+      expect(cssContent).toContain('.view-enter {\n  animation: view-enter 180ms var(--ease-out);\n}');
+      expect(cssContent).toContain(':root[data-motion="reduced"] .view-enter {\n  animation: view-enter 100ms var(--ease-out);\n}');
+      expect(cssContent).toContain(':root[data-motion="off"] .view-enter {\n  animation: none !important;\n}');
+    });
+
+    it('defines progressive View Transitions API pseudo-element styling with wallpaper isolation', () => {
+      expect(cssContent).toContain('::view-transition-old(root) {\n  animation: 90ms var(--ease-out) both fade-out;\n}');
+      expect(cssContent).toContain('::view-transition-new(root) {\n  animation: 180ms var(--ease-out) both fade-in;\n}');
+      expect(cssContent).toContain('.wallpaper-layers {\n  view-transition-name: none;\n}');
+
+      const wallCode = fs.readFileSync(path.resolve(__dirname, '../components/WallpaperLayers.tsx'), 'utf8');
+      expect(wallCode).toContain("viewTransitionName: 'none'");
+    });
+
+    it('wraps current view in App.tsx with view-enter and key for tab transitions', () => {
+      const appCode = fs.readFileSync(path.resolve(__dirname, '../App.tsx'), 'utf8');
+      expect(appCode).toContain('<div key={currentView} className="view-enter h-full">');
+    });
+
+    it('uses document.startViewTransition enhancement in useHashRoute', () => {
+      const routeCode = fs.readFileSync(path.resolve(__dirname, '../hooks/useHashRoute.ts'), 'utf8');
+      expect(routeCode).toContain('startViewTransition');
+    });
+
+    it('enforces calm budget: no raw durations or easings outside motion.css and tokens.ts', () => {
+      const srcDir = path.resolve(__dirname, '..');
+      const files: string[] = [];
+      const walk = (dir: string) => {
+        fs.readdirSync(dir, { withFileTypes: true }).forEach((entry) => {
+          const res = path.resolve(dir, entry.name);
+          if (entry.isDirectory()) {
+            if (entry.name !== 'node_modules' && entry.name !== 'test') walk(res);
+          } else if (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts') || entry.name.endsWith('.css')) {
+            if (!res.endsWith('motion.css') && !res.endsWith('tokens.ts')) {
+              files.push(res);
+            }
+          }
+        });
+      };
+      walk(srcDir);
+
+      files.forEach((file) => {
+        const content = fs.readFileSync(file, 'utf8');
+        expect(content).not.toMatch(/transition-duration:\s*[0-9]/);
+        expect(content).not.toMatch(/cubic-bezier\(/);
+        expect(content).not.toMatch(/animation:\s*.*[0-9]+ms/);
+      });
+    });
+  });
 });

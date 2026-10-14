@@ -305,4 +305,56 @@
   :root:not([data-motion="full"]) .theme-transition * {
     transition: none !important;
   }
+
+  :root:not([data-motion="full"]) .view-enter {
+    animation: view-enter 100ms var(--ease-out);
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 100ms !important;
+  }
+}
+
+/* ─── Tab / View Transition (A24) ─────────────────────────────────────────── */
+@keyframes view-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.view-enter {
+  animation: view-enter 180ms var(--ease-out);
+}
+
+.wallpaper-layers {
+  view-transition-name: none;
+}
+
+::view-transition-old(root) {
+  animation: 90ms var(--ease-out) both fade-out;
+}
+
+::view-transition-new(root) {
+  animation: 180ms var(--ease-out) both fade-in;
+}
+
+:root[data-motion="reduced"] .view-enter {
+  animation: view-enter 100ms var(--ease-out);
+}
+
+:root[data-motion="reduced"]::view-transition-group(*),
+:root[data-motion="reduced"]::view-transition-old(*),
+:root[data-motion="reduced"]::view-transition-new(*) {
+  animation-duration: 100ms !important;
+}
+
+:root[data-motion="off"] .view-enter {
+  animation: none !important;
+}
+
+:root[data-motion="off"]::view-transition-group(*),
+:root[data-motion="off"]::view-transition-old(*),
+:root[data-motion="off"]::view-transition-new(*) {
+  animation: none !important;
 }
