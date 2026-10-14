@@ -3,3 +3,4 @@ export * from './useMotionMode';
 export * from './animate';
 export * from './Presence';
 export * from './useFlip';
+export * from './MotionProvider';

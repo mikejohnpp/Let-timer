@@ -20,7 +20,8 @@ import { ToastProvider, ConfirmProvider, ErrorState } from './components/ui';
 import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
 import { FloatingPlayerIsland } from './components/FloatingPlayerIsland';
 import { WallpaperLayers } from './components/WallpaperLayers';
-import { Presence } from './motion';
+import { Presence, MotionProvider } from './motion';
+import { AnimatePresence, motion } from 'motion/react';
 
 type AuthStatus = 'checking' | 'login' | 'unreachable' | 'ok';
 
@@ -140,25 +141,35 @@ export const AppContent: React.FC = () => {
 
       <main className={`relative z-10 flex-1 ${!isFocusView ? 'pb-24 lg:pb-16' : ''}`}>
         <div key={currentView} className="view-enter h-full">
-          {currentView === 'today' && (
-            <TodayView
-              snapshot={snapshot}
-              onRefreshTimer={refetchSnapshot}
-              onOpenStartPicker={() => setIsStartPickerOpen(true)}
-            />
-          )}
-          {currentView === 'focus' && (
-            <FocusView
-              snapshot={snapshot}
-              receivedAt={receivedAt}
-              onRefreshTimer={refetchSnapshot}
-              onOpenStartPicker={() => setIsStartPickerOpen(true)}
-            />
-          )}
-          {currentView === 'workspaces' && <WorkspacesView />}
-          {currentView === 'media' && <MediaView />}
-          {currentView === 'settings' && <SettingsView />}
-          {currentView === 'dev/motion' && <DevMotion />}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={currentView}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
+            >
+              {currentView === 'today' && (
+                <TodayView
+                  snapshot={snapshot}
+                  onRefreshTimer={refetchSnapshot}
+                  onOpenStartPicker={() => setIsStartPickerOpen(true)}
+                />
+              )}
+              {currentView === 'focus' && (
+                <FocusView
+                  snapshot={snapshot}
+                  receivedAt={receivedAt}
+                  onRefreshTimer={refetchSnapshot}
+                  onOpenStartPicker={() => setIsStartPickerOpen(true)}
+                />
+              )}
+              {currentView === 'workspaces' && <WorkspacesView />}
+              {currentView === 'media' && <MediaView />}
+              {currentView === 'settings' && <SettingsView />}
+              {currentView === 'dev/motion' && <DevMotion />}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
 
@@ -217,13 +228,15 @@ export const AppContent: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <ToastProvider>
-      <ConfirmProvider>
-        <AudioPlayerProvider>
-          <AppContent />
-        </AudioPlayerProvider>
-      </ConfirmProvider>
-    </ToastProvider>
+    <MotionProvider>
+      <ToastProvider>
+        <ConfirmProvider>
+          <AudioPlayerProvider>
+            <AppContent />
+          </AudioPlayerProvider>
+        </ConfirmProvider>
+      </ToastProvider>
+    </MotionProvider>
   );
 };
 
