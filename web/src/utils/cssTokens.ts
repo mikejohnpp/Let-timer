@@ -35,6 +35,9 @@ export function readThemes(css: string): {
   catppuccinLight: TokenMap;
   catppuccinDark: TokenMap;
   catppuccinDarkMedia: TokenMap;
+  kanagawaLight: TokenMap;
+  kanagawaDark: TokenMap;
+  kanagawaDarkMedia: TokenMap;
 } {
   const light = parseVars(extractBlock(css, ':root {'));
   const dark = { ...light, ...parseVars(extractBlock(css, ':root[data-theme="dark"] {')) };
@@ -53,6 +56,10 @@ export function readThemes(css: string): {
   const catppuccinDark = { ...dark, ...parseVars(extractBlock(css, ':root[data-theme="dark"][data-palette="catppuccin"] {')) };
   const catppuccinDarkMedia = { ...darkMedia, ...parseVars(extractBlock(media, ':root:not([data-theme="light"])[data-palette="catppuccin"] {')) };
 
+  const kanagawaLight = { ...light, ...parseVars(extractBlock(css, ':root[data-palette="kanagawa"] {')) };
+  const kanagawaDark = { ...dark, ...parseVars(extractBlock(css, ':root[data-theme="dark"][data-palette="kanagawa"] {')) };
+  const kanagawaDarkMedia = { ...darkMedia, ...parseVars(extractBlock(media, ':root:not([data-theme="light"])[data-palette="kanagawa"] {')) };
+
   return {
     light,
     dark,
@@ -66,6 +73,9 @@ export function readThemes(css: string): {
     catppuccinLight,
     catppuccinDark,
     catppuccinDarkMedia,
+    kanagawaLight,
+    kanagawaDark,
+    kanagawaDarkMedia,
   };
 }
 

@@ -130,6 +130,29 @@
   --info-bg: #f2f0fc;
 }
 
+/* Kanagawa (Lotus) — kanagawa.nvim Lotus paper palette */
+:root[data-palette="kanagawa"] {
+  --bg: #f2ecbc;
+  --surface: #ffffff;
+  --surface-hover: #f0e8d2;
+  --border: #dcd4b8;
+  --border-strong: #6e6754;
+  --text: #2d2d34;
+  --muted: #54545e;
+  --accent: #2a577c;
+  --accent-hover: #204563;
+  --on-accent: #ffffff;
+  --accent-text: #2a577c;
+  --timer-over: #e65100;
+  --over-text: #ba3c04;
+  --success-text: #036b4d;
+  --danger-bg: #fae8e6;
+  --warning-bg: #f9f0da;
+  --success-bg: #e6f4e8;
+  --over-bg: #faece0;
+  --info-bg: #e8eef6;
+}
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #0b0f19;
@@ -220,6 +243,26 @@
   --info-bg: #201a30;
 }
 
+/* Kanagawa (Wave) — kanagawa.nvim Wave palette */
+:root[data-theme="dark"][data-palette="kanagawa"] {
+  --bg: #16161d;
+  --surface: #1f1f28;
+  --surface-hover: #252532;
+  --border: #2a2a37;
+  --border-strong: #787898;
+  --text: #dcd7ba;
+  --muted: #9e9b93;
+  --accent: #2a4f72;
+  --accent-hover: #203f5c;
+  --on-accent: #ffffff;
+  --accent-text: #7e9cd8;
+  --danger-bg: #29161a;
+  --warning-bg: #292113;
+  --success-bg: #13281c;
+  --over-bg: #291b12;
+  --info-bg: #172233;
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
@@ -307,6 +350,25 @@
     --success-bg: #12281e;
     --over-bg: #2a1b14;
     --info-bg: #201a30;
+  }
+
+  :root:not([data-theme="light"])[data-palette="kanagawa"] {
+    --bg: #16161d;
+    --surface: #1f1f28;
+    --surface-hover: #252532;
+    --border: #2a2a37;
+    --border-strong: #787898;
+    --text: #dcd7ba;
+    --muted: #9e9b93;
+    --accent: #2a4f72;
+    --accent-hover: #203f5c;
+    --on-accent: #ffffff;
+    --accent-text: #7e9cd8;
+    --danger-bg: #29161a;
+    --warning-bg: #292113;
+    --success-bg: #13281c;
+    --over-bg: #291b12;
+    --info-bg: #172233;
   }
 }
 

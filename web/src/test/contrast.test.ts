@@ -27,6 +27,8 @@ const themeEntries = {
   'dark (tokyo-night)': themes.tokyoNightDark,
   'light (catppuccin)': themes.catppuccinLight,
   'dark (catppuccin)': themes.catppuccinDark,
+  'light (kanagawa)': themes.kanagawaLight,
+  'dark (kanagawa)': themes.kanagawaDark,
 };
 
 for (const [themeName, t] of Object.entries(themeEntries)) {
@@ -106,6 +108,13 @@ describe('theme blocks', () => {
     for (const [k, v] of Object.entries(themes.catppuccinDark)) {
       if (k === 'shadow-popover') continue;
       expect(themes.catppuccinDarkMedia[k], `--${k}`).toBe(v);
+    }
+  });
+
+  it('prefers-color-scheme dark kanagawa block matches [data-theme="dark"][data-palette="kanagawa"]', () => {
+    for (const [k, v] of Object.entries(themes.kanagawaDark)) {
+      if (k === 'shadow-popover') continue;
+      expect(themes.kanagawaDarkMedia[k], `--${k}`).toBe(v);
     }
   });
 });
