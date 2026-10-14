@@ -181,4 +181,36 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(cssContent).toContain('transition: none !important;');
     });
   });
+
+  describe('Task Flow and FLIP (Phase M3)', () => {
+    it('declares draw-tick and slide-date keyframes in motion.css', () => {
+      expect(cssContent).toContain('@keyframes draw-tick');
+      expect(cssContent).toContain('@keyframes slide-date-next');
+      expect(cssContent).toContain('@keyframes slide-date-prev');
+      expect(cssContent).toContain('.task-check-tick');
+    });
+
+    it('disables task-check-tick animation in reduced and off motion', () => {
+      expect(cssContent).toContain(':root[data-motion="reduced"] .task-check-tick');
+      expect(cssContent).toContain(':root[data-motion="off"] .task-check-tick');
+    });
+
+    it('uses useFlip hook with containerRef on task rows in TodayView', () => {
+      const todayCode = fs.readFileSync(path.resolve(__dirname, '../views/TodayView.tsx'), 'utf8');
+      expect(todayCode).toContain('const registerFlip = useFlip(');
+      expect(todayCode).toContain('ref={registerFlip(String(t.id))}');
+      expect(todayCode).toContain('ref={listContainerRef}');
+    });
+
+    it('applies date slide animations in TodayView on date change', () => {
+      const todayCode = fs.readFileSync(path.resolve(__dirname, '../views/TodayView.tsx'), 'utf8');
+      expect(todayCode).toContain('slide-date-prev');
+      expect(todayCode).toContain('slide-date-next');
+    });
+
+    it('applies task-check-tick to completed StatusGlyph (A17)', () => {
+      const glyphCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/StatusGlyph.tsx'), 'utf8');
+      expect(glyphCode).toContain('task-check-tick');
+    });
+  });
 });

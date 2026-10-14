@@ -47,11 +47,11 @@ export const StatusGlyph: React.FC<StatusGlyphProps> = ({ status, className }) =
           role="img"
           aria-label="Completed"
           className={clsx(
-            'w-4 h-4 rounded-full border border-[var(--success)] bg-[var(--success)]/15 flex items-center justify-center text-[var(--success-text)] shrink-0',
+            'w-4 h-4 rounded-full border border-[var(--success)] bg-[var(--success)]/15 flex items-center justify-center text-[var(--success-text)] shrink-0 transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)]',
             className
           )}
         >
-          <Check className="w-2.5 h-2.5 stroke-[3]" />
+          <Check className="w-2.5 h-2.5 stroke-[3] task-check-tick" />
         </span>
       );
     case 'cancelled':

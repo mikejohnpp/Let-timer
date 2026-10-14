@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useFlip } from '../motion';
 import {
   ChevronLeft,
   ChevronRight,
@@ -61,6 +62,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const [doneCollapsed, setDoneCollapsed] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const [dateSlideDir, setDateSlideDir] = useState<'prev' | 'next' | null>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  const registerFlip = useFlip([tasks, overdueTasks, filterStatus, filterPriority], listContainerRef);
 
   const { showToast } = useToast();
   const confirm = useConfirm();
@@ -109,6 +114,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   }, [loadTasks]);
 
   const handleDateShift = (days: number) => {
+    setDateSlideDir(days < 0 ? 'prev' : 'next');
     const parts = selectedDate.split('-').map(Number);
     const current = new Date(parts[0], parts[1] - 1, parts[2]);
     current.setDate(current.getDate() + days);
@@ -116,7 +122,11 @@ export const TodayView: React.FC<TodayViewProps> = ({
   };
 
   const handleToday = () => {
-    setSelectedDate(toLocalISODate());
+    const today = toLocalISODate();
+    if (today !== selectedDate) {
+      setDateSlideDir(today > selectedDate ? 'next' : 'prev');
+      setSelectedDate(today);
+    }
   };
 
   // Quick add parser
@@ -300,7 +310,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
     return (
       <div
         key={t.id}
-        className="min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition group rounded-[var(--radius-control)] select-none"
+        ref={registerFlip(String(t.id))}
+        className="min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-[background-color,transform,opacity] duration-[var(--dur-fast)] ease-[var(--ease-out)] group rounded-[var(--radius-control)] select-none"
       >
         {/* Left: status glyph, title, description, priority */}
         <div
@@ -635,7 +646,17 @@ export const TodayView: React.FC<TodayViewProps> = ({
           }}
         />
       ) : (
-        <div className="flex flex-col gap-6">
+        <div
+          ref={listContainerRef}
+          key={selectedDate}
+          className={`flex flex-col gap-6 ${
+            dateSlideDir === 'prev'
+              ? 'animate-[slide-date-prev_var(--dur-base)_var(--ease-out)]'
+              : dateSlideDir === 'next'
+              ? 'animate-[slide-date-next_var(--dur-base)_var(--ease-out)]'
+              : ''
+          }`}
+        >
           {/* Running Group */}
           {runningTasks.length > 0 && (
             <div>
