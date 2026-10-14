@@ -698,10 +698,10 @@ export const MediaView: React.FC = () => {
                 {/* Attach more items dropdown */}
                 <div className="pt-3 border-t border-[var(--border)]/30">
                   <div className="text-[11px] font-medium text-[var(--muted)] mb-2">Attach an item to this list</div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <select
                       id="attach-select"
-                      className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)]/70 border border-[var(--border)]/50 text-xs outline-none text-[var(--text)]"
+                      className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)]/70 border border-[var(--border)]/50 text-xs outline-none text-[var(--text)] truncate"
                     >
                       {items
                         .filter((i) => !selectedList.items.some((si) => si.id === i.id))
@@ -714,7 +714,7 @@ export const MediaView: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-xs font-semibold text-[var(--accent-text)] h-7 px-2.5"
+                      className="text-xs font-semibold text-[var(--accent-text)] h-7 px-2.5 shrink-0"
                       onClick={() => {
                         const sel = document.getElementById('attach-select') as HTMLSelectElement;
                         if (sel && sel.value) handleAddItemToList(selectedList.list.id, parseInt(sel.value, 10));

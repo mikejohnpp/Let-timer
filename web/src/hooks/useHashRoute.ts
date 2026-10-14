@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export type AppView = 'today' | 'focus' | 'workspaces' | 'media' | 'settings';
+export type AppView = 'today' | 'focus' | 'workspaces' | 'media' | 'settings' | 'dev/motion';
 
 export interface RouteState {
   view: AppView;
@@ -17,6 +17,7 @@ function parseHash(): RouteState {
   else if (path === 'workspaces') view = 'workspaces';
   else if (path === 'media') view = 'media';
   else if (path === 'settings') view = 'settings';
+  else if (path === 'dev/motion') view = 'dev/motion';
 
   return { view, params };
 }

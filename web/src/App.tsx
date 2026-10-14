@@ -9,6 +9,7 @@ import { WorkspacesView } from './views/WorkspacesView';
 import { MediaView } from './views/MediaView';
 import { SettingsView } from './views/SettingsView';
 import { LoginView } from './views/LoginView';
+import { DevMotion } from './views/DevMotion';
 import { useEventStream } from './hooks/useEventStream';
 import { useHashRoute } from './hooks/useHashRoute';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
@@ -155,6 +156,7 @@ export const AppContent: React.FC = () => {
         {currentView === 'workspaces' && <WorkspacesView />}
         {currentView === 'media' && <MediaView />}
         {currentView === 'settings' && <SettingsView />}
+        {currentView === 'dev/motion' && <DevMotion />}
       </main>
 
       {/* Floating Bottom Island (TimerBar if task active, or FloatingPlayerIsland if idle & music playing) */}

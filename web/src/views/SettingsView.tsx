@@ -10,6 +10,7 @@ import {
 import type { components } from '../api/schema';
 import { setStoredToken, apiFetch } from '../api/client';
 import { useWallpaper } from '../hooks/useWallpaper';
+import { useMotionMode, type MotionMode } from '../motion/useMotionMode';
 import {
   Button,
   IconButton,
@@ -38,6 +39,7 @@ export interface CreatedTokenRes {
 export const SettingsView: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [palette, setPalette] = useState<'default' | 'forest'>('default');
+  const { motionMode, setMotionMode } = useMotionMode();
   const [defaultEstimate, setDefaultEstimate] = useState<string>('25');
   const [noDefaultEstimate, setNoDefaultEstimate] = useState<boolean>(false);
 
@@ -372,6 +374,22 @@ export const SettingsView: React.FC = () => {
               items={[
                 { value: 'default', label: 'Indigo' },
                 { value: 'forest', label: 'Forest' },
+              ]}
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
+            <div>
+              <div className="text-xs font-semibold text-[var(--text)]">Motion</div>
+              <div className="text-[11px] text-[var(--muted)]">Calm animations and feedback transitions</div>
+            </div>
+            <SegmentedControl
+              value={motionMode}
+              onValueChange={(val) => setMotionMode(val as MotionMode)}
+              items={[
+                { value: 'system', label: 'System' },
+                { value: 'reduced', label: 'Reduced' },
+                { value: 'full', label: 'Full' },
               ]}
             />
           </div>

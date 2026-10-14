@@ -23,10 +23,12 @@ export const StatusGlyph: React.FC<StatusGlyphProps> = ({ status, className }) =
           role="img"
           aria-label="In progress"
           className={clsx(
-            'w-4 h-4 rounded-full border-2 border-[var(--accent-text)] animate-pulse inline-block shrink-0',
+            'w-4 h-4 rounded-full border border-[var(--accent-text)] flex items-center justify-center shrink-0',
             className
           )}
-        />
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running" />
+        </span>
       );
     case 'paused':
       return (
@@ -34,13 +36,10 @@ export const StatusGlyph: React.FC<StatusGlyphProps> = ({ status, className }) =
           role="img"
           aria-label="Paused"
           className={clsx(
-            'w-4 h-4 rounded-full border border-[var(--muted)] flex items-center justify-center gap-[2px] shrink-0',
+            'w-4 h-4 rounded-full border border-dashed border-[var(--muted)] flex items-center justify-center shrink-0',
             className
           )}
-        >
-          <span className="w-[1.5px] h-2 bg-[var(--muted)] rounded-full" />
-          <span className="w-[1.5px] h-2 bg-[var(--muted)] rounded-full" />
-        </span>
+        />
       );
     case 'completed':
       return (
@@ -48,7 +47,7 @@ export const StatusGlyph: React.FC<StatusGlyphProps> = ({ status, className }) =
           role="img"
           aria-label="Completed"
           className={clsx(
-            'w-4 h-4 rounded-full bg-[var(--success)] flex items-center justify-center text-white shrink-0',
+            'w-4 h-4 rounded-full border border-[var(--success)] bg-[var(--success)]/15 flex items-center justify-center text-[var(--success-text)] shrink-0',
             className
           )}
         >

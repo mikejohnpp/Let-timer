@@ -334,10 +334,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
           </div>
         </div>
 
-        {/* Right: Actions (Progressive disclosure: visible on hover or when running/paused) */}
+        {/* Right: Actions (Progressive disclosure: visible on hover or when running/paused, always on touch) */}
         <div
           className={`flex items-center gap-1 shrink-0 ${
-            isRunning || isPaused ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity'
+            isRunning || isPaused ? 'opacity-100' : 'opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity'
           }`}
         >
           {/* Status specific actions */}

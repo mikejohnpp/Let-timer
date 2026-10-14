@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./tokens.css";
+@import "./motion.css";
 
 html, body {
   margin: 0;
@@ -8,13 +9,4 @@ html, body {
   background-color: var(--bg);
   color: var(--text);
   min-height: 100vh;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
 }

@@ -1,0 +1,170 @@
+/*
+ * Let-timer design tokens — Motion (calm, minimal, purposeful)
+ * Single source of truth for web animations, durations, easings and keyframes.
+ * Companion: docs/motion_plan.md
+ */
+
+:root {
+  --dur-instant: 80ms;
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 340ms;
+  --dur-ambient: 460ms;
+  --dur-scenic: 1200ms;          /* wallpaper crossfade only */
+
+  --ease-out:   cubic-bezier(0.2, 0, 0, 1);      /* default, decelerating */
+  --ease-inout: cubic-bezier(0.45, 0, 0.25, 1);  /* ambient, soft */
+  --ease-emph:  cubic-bezier(0.3, 0, 0, 1);      /* continuity moves */
+
+  --travel-s: 8px;               /* rise for new/entering items */
+  --travel-m: 28px;              /* drawer, sheets */
+  --exit-ratio: 0.7;             /* exits are 70% of the entry duration */
+}
+
+/* Reduced: everything becomes a short fade, nothing travels. */
+:root[data-motion="reduced"] {
+  --dur-fast: 100ms;
+  --dur-base: 100ms;
+  --dur-slow: 100ms;
+  --dur-ambient: 100ms;
+  --dur-scenic: 100ms;
+  --travel-s: 0px;
+  --travel-m: 0px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) {   /* system default and "reduced" both land here */
+    --dur-fast: 100ms;
+    --dur-base: 100ms;
+    --dur-slow: 100ms;
+    --dur-ambient: 100ms;
+    --dur-scenic: 100ms;
+    --travel-s: 0px;
+    --travel-m: 0px;
+  }
+}
+
+/* Test-only: set by ?motion=off in non-production builds */
+:root[data-motion="off"] {
+  --dur-instant: 0ms;
+  --dur-fast: 0ms;
+  --dur-base: 0ms;
+  --dur-slow: 0ms;
+  --dur-ambient: 0ms;
+  --dur-scenic: 0ms;
+  --travel-s: 0px;
+  --travel-m: 0px;
+}
+
+/* ─── Shared Keyframes (Appendix A) ────────────────────────────────────────── */
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--travel-s));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes rise-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--travel-s) * 0.6));
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(var(--travel-m));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-out-right {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(var(--travel-m));
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ring-pulse {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.16);
+  }
+}
+
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.75);
+    opacity: 0.55;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* 7 iterations (approx 28s), then still */
+.dot-running {
+  animation: breathe 4s var(--ease-inout) 7;
+}
+
+.ring-pulse {
+  animation: ring-pulse 1.1s var(--ease-out) 2;
+  animation-delay: 0s;
+}
+
+:root[data-motion="reduced"] .dot-running,
+:root[data-motion="reduced"] .ring-pulse,
+:root[data-motion="off"] .dot-running,
+:root[data-motion="off"] .ring-pulse {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .dot-running,
+  :root:not([data-motion="full"]) .ring-pulse {
+    animation: none !important;
+  }
+}
