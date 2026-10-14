@@ -59,13 +59,15 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const [quickAddText, setQuickAddText] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
-  const [doneCollapsed, setDoneCollapsed] = useState(true);
+  const [doneCollapsed, setDoneCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [dateSlideDir, setDateSlideDir] = useState<'prev' | 'next' | null>(null);
+  const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<number | null>(null);
+  const [deletingTaskIds, setDeletingTaskIds] = useState<Set<number>>(new Set());
   const listContainerRef = useRef<HTMLDivElement>(null);
 
-  const registerFlip = useFlip([tasks, overdueTasks, filterStatus, filterPriority], listContainerRef);
+  const registerFlip = useFlip([tasks, overdueTasks, filterStatus, filterPriority, deletingTaskIds, doneCollapsed], listContainerRef);
 
   const { showToast } = useToast();
   const confirm = useConfirm();
@@ -182,6 +184,11 @@ export const TodayView: React.FC<TodayViewProps> = ({
       });
 
       if (res.ok) {
+        const created: Task = await res.json().catch(() => null);
+        if (created?.id) {
+          setNewlyAddedTaskId(created.id);
+          setTimeout(() => setNewlyAddedTaskId(null), 700);
+        }
         setQuickAddText('');
         showToast(`Added "${quickAddParsed.name}"`, 'success');
         loadTasks();
@@ -232,6 +239,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
         confirmLabel: 'Delete',
       });
       if (!ok) return;
+
+      setDeletingTaskIds((prev) => new Set(prev).add(task.id));
+      await new Promise((r) => setTimeout(r, 200));
     } else if (action === 'restart') {
       const ok = await confirm({
         title: `Restart "${task.name}"?`,
@@ -273,6 +283,14 @@ export const TodayView: React.FC<TodayViewProps> = ({
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Action failed';
       showToast(msg, 'danger');
+    } finally {
+      if (action === 'delete') {
+        setDeletingTaskIds((prev) => {
+          const next = new Set(prev);
+          next.delete(task.id);
+          return next;
+        });
+      }
     }
   };
 
@@ -306,12 +324,16 @@ export const TodayView: React.FC<TodayViewProps> = ({
     const isPending = t.status === 'pending';
     const isCompleted = t.status === 'completed';
     const isCancelled = t.status === 'cancelled';
+    const isNewlyAdded = newlyAddedTaskId === t.id;
+    const isDeleting = deletingTaskIds.has(t.id);
 
     return (
       <div
         key={t.id}
         ref={registerFlip(String(t.id))}
-        className="min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-[background-color,transform,opacity] duration-[var(--dur-fast)] ease-[var(--ease-out)] group rounded-[var(--radius-control)] select-none"
+        className={`min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] group rounded-[var(--radius-control)] select-none ${
+          isNewlyAdded ? 'task-row-add' : ''
+        } ${isDeleting ? 'task-row-delete' : ''}`}
       >
         {/* Left: status glyph, title, description, priority */}
         <div
@@ -719,7 +741,13 @@ export const TodayView: React.FC<TodayViewProps> = ({
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         taskToEdit={taskToEdit}
-        onSaved={loadTasks}
+        onSaved={(saved) => {
+          if (saved?.id) {
+            setNewlyAddedTaskId(saved.id);
+            setTimeout(() => setNewlyAddedTaskId(null), 700);
+          }
+          loadTasks();
+        }}
         defaultDate={selectedDate}
       />
     </div>

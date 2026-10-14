@@ -23,7 +23,7 @@ interface TaskDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   taskToEdit: Task | null;
-  onSaved: () => void;
+  onSaved: (task?: Task) => void;
   defaultDate?: string;
 }
 
@@ -137,8 +137,9 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
         const err = await res.json().catch(() => ({}));
         setError(err.message || 'Failed to save task');
       } else {
+        const savedTask: Task | null = await res.json().catch(() => null);
         showToast(taskToEdit ? 'Task updated' : 'Task created', 'success');
-        onSaved();
+        onSaved(savedTask ?? undefined);
         onClose();
       }
     } catch (e: unknown) {

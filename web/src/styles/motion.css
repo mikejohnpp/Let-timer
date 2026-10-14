@@ -182,6 +182,86 @@
   animation: draw-tick var(--dur-base) var(--ease-out);
 }
 
+/* ─── Task Row Add (A19) & Delete (A21) ──────────────────────────────────── */
+@keyframes task-add {
+  from {
+    opacity: 0;
+    transform: translateY(var(--travel-s));
+    background-color: var(--accent-subtle, rgba(99, 102, 241, 0.15));
+  }
+  50% {
+    opacity: 1;
+    transform: none;
+    background-color: var(--accent-subtle, rgba(99, 102, 241, 0.15));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    background-color: transparent;
+  }
+}
+
+.task-row-add {
+  animation: task-add 600ms var(--ease-out);
+}
+
+@keyframes task-delete {
+  0% {
+    opacity: 1;
+    max-height: 80px;
+    transform: scale(1);
+    margin-bottom: 0px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  100% {
+    opacity: 0;
+    max-height: 0px;
+    transform: scale(0.96);
+    margin-bottom: 0px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+    overflow: hidden;
+  }
+}
+
+.task-row-delete {
+  animation: task-delete var(--dur-base) var(--ease-out) forwards;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ─── Floating Island Expand / Collapse ──────────────────────────────────── */
+@keyframes island-expand {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes island-collapse {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.island-card {
+  animation: island-expand var(--dur-fast) var(--ease-out);
+}
+
+.island-pill {
+  animation: island-collapse var(--dur-fast) var(--ease-out);
+}
+
 /* 7 iterations (approx 28s), then still */
 .dot-running {
   animation: breathe 4s var(--ease-inout) 7;
@@ -195,9 +275,17 @@
 :root[data-motion="reduced"] .dot-running,
 :root[data-motion="reduced"] .ring-pulse,
 :root[data-motion="reduced"] .task-check-tick,
+:root[data-motion="reduced"] .task-row-add,
+:root[data-motion="reduced"] .task-row-delete,
+:root[data-motion="reduced"] .island-card,
+:root[data-motion="reduced"] .island-pill,
 :root[data-motion="off"] .dot-running,
 :root[data-motion="off"] .ring-pulse,
-:root[data-motion="off"] .task-check-tick {
+:root[data-motion="off"] .task-check-tick,
+:root[data-motion="off"] .task-row-add,
+:root[data-motion="off"] .task-row-delete,
+:root[data-motion="off"] .island-card,
+:root[data-motion="off"] .island-pill {
   animation: none !important;
 }
 
@@ -285,6 +373,10 @@
   :root:not([data-motion="full"]) .dot-running,
   :root:not([data-motion="full"]) .ring-pulse,
   :root:not([data-motion="full"]) .task-check-tick,
+  :root:not([data-motion="full"]) .task-row-add,
+  :root:not([data-motion="full"]) .task-row-delete,
+  :root:not([data-motion="full"]) .island-card,
+  :root:not([data-motion="full"]) .island-pill,
   :root:not([data-motion="full"]) .skeleton-shimmer,
   :root:not([data-motion="full"]) .eq-bar-1,
   :root:not([data-motion="full"]) .eq-bar-2,

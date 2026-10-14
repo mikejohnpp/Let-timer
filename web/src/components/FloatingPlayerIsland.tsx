@@ -169,7 +169,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
       {/* ─── EXPANDED FLOATING ISLAND CARD ─────────────────────────────────── */}
       {isExpanded ? (
         <div
-          className={`w-[92vw] max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl border flex flex-col gap-4 ${
+          className={`island-card origin-bottom w-[92vw] max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl border flex flex-col gap-4 ${
             hasBackgroundPhoto
               ? 'bg-[var(--surface)]/95 backdrop-blur-2xl border-[var(--border-strong)]/40 text-[var(--text)]'
               : 'bg-[var(--surface)]/95 backdrop-blur-2xl border-[var(--border)] shadow-xl text-[var(--text)]'
@@ -412,7 +412,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
       ) : (
         /* ─── COLLAPSED FLOATING ISLAND PILL ─────────────────────────────────── */
         <div
-          className={`flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border select-none shadow-xl backdrop-blur-xl ${
+          className={`island-pill origin-bottom shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border select-none shadow-xl backdrop-blur-xl ${
             hasBackgroundPhoto
               ? 'bg-[var(--surface)]/90 border-[var(--border-strong)]/40 text-[var(--text)] shadow-black/40'
               : 'bg-[var(--surface)]/90 border-[var(--border-strong)]/30 text-[var(--text)]'

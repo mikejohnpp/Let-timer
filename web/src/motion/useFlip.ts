@@ -23,13 +23,21 @@ export function useFlip<T extends HTMLElement>(
   const prevRects = useRef(new Map<string, { left: number; top: number }>());
   const prevScroll = useRef(0);
 
-  const register = (key: string) => (el: T | null) => {
-    if (el) {
-      nodes.current.set(key, el);
-    } else {
-      nodes.current.delete(key);
-      prevRects.current.delete(key);
+  const registerCache = useRef(new Map<string, (el: T | null) => void>());
+
+  const register = (key: string) => {
+    let cb = registerCache.current.get(key);
+    if (!cb) {
+      cb = (el: T | null) => {
+        if (el) {
+          nodes.current.set(key, el);
+        } else {
+          nodes.current.delete(key);
+        }
+      };
+      registerCache.current.set(key, cb);
     }
+    return cb;
   };
 
   useLayoutEffect(() => {

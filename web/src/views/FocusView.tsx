@@ -363,14 +363,16 @@ export const FocusView: React.FC<FocusViewProps> = ({
       </div>
 
       {/* Layer 3: Bottom Floating Island & hints */}
-      <div className="relative z-3 flex items-center justify-between gap-4">
+      <div className="relative z-3 h-10 flex items-center justify-between gap-4">
         <div className="w-24 hidden sm:block" />
 
         {/* Center Stage: Floating Player Island (always visible in collapsed or expanded form) */}
-        <FloatingPlayerIsland
-          hasBackgroundPhoto={hasAnyBg}
-          className="mx-auto"
-        />
+        <div className="relative flex items-center justify-center h-10">
+          <FloatingPlayerIsland
+            hasBackgroundPhoto={hasAnyBg}
+            className="absolute bottom-0 left-1/2 -translate-x-1/2"
+          />
+        </div>
 
         <div
           className={`text-[11px] w-24 text-right hidden sm:block transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-within:opacity-100 ${
