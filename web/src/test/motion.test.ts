@@ -195,11 +195,11 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(cssContent).toContain(':root[data-motion="off"] .task-check-tick');
     });
 
-    it('uses useFlip hook with containerRef on task rows in TodayView', () => {
+    it('uses LayoutGroup and layoutId for single-engine task transitions in TodayView', () => {
       const todayCode = fs.readFileSync(path.resolve(__dirname, '../views/TodayView.tsx'), 'utf8');
-      expect(todayCode).toContain('const registerFlip = useFlip(');
-      expect(todayCode).toContain('ref={registerFlip(String(t.id))}');
-      expect(todayCode).toContain('ref={listContainerRef}');
+      expect(todayCode).toContain('<LayoutGroup id="today-tasks">');
+      expect(todayCode).toContain('layoutId={`task-${t.id}`}');
+      expect(todayCode).not.toContain('useFlip');
     });
 
     it('applies date slide animations in TodayView on date change', () => {

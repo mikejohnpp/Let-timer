@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useFlip, useMotionTransition } from '../motion';
-import { AnimatePresence, motion } from 'motion/react';
+import { useMotionTokens, useMotionTransition } from '../motion';
+import { AnimatePresence, motion, LayoutGroup } from 'motion/react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -63,11 +63,13 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const [doneCollapsed, setDoneCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const tokens = useMotionTokens();
+  const isReduced = tokens.isReduced;
   const rowTransition = useMotionTransition('base');
   const [dateSlideDir, setDateSlideDir] = useState<'prev' | 'next' | null>(null);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<number | null>(null);
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
-  const listContainerRef = useRef<HTMLDivElement>(null);
+  const [removingIds, setRemovingIds] = useState<Set<number>>(() => new Set());
   const isFirstLoadRef = useRef(true);
 
   useEffect(() => {
@@ -78,8 +80,6 @@ export const TodayView: React.FC<TodayViewProps> = ({
       }
     }
   }, [newlyAddedTaskId]);
-
-  const registerFlip = useFlip([tasks, overdueTasks, filterStatus, filterPriority, completingTaskId, doneCollapsed], listContainerRef);
 
   const { showToast } = useToast();
   const confirm = useConfirm();
@@ -269,6 +269,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
       });
       if (!ok) return;
 
+      setRemovingIds((prev) => new Set(prev).add(task.id));
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
       setOverdueTasks((prev) => prev.filter((t) => t.id !== task.id));
     } else if (action === 'done' || action === 'mark_done_force') {
@@ -328,12 +329,19 @@ export const TodayView: React.FC<TodayViewProps> = ({
       await loadTasks();
     } finally {
       setCompletingTaskId(null);
+      setRemovingIds((prev) => {
+        if (!prev.has(task.id)) return prev;
+        const next = new Set(prev);
+        next.delete(task.id);
+        return next;
+      });
     }
   };
 
   // Filter tasks
   const applyFilter = (list: Task[]) =>
     list.filter((t) => {
+      if (removingIds.has(t.id)) return false;
       if (filterStatus !== 'all' && t.status !== filterStatus) return false;
       if (filterPriority !== 'all' && t.priority.toString() !== filterPriority) return false;
       return true;
@@ -369,17 +377,25 @@ export const TodayView: React.FC<TodayViewProps> = ({
     return (
       <motion.div
         key={t.id}
-        layout
-        ref={registerFlip(String(t.id))}
-        initial={{ opacity: 0, y: 8, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, height: 0, scale: 0.95 }}
+        layout={isReduced ? false : 'position'}
+        layoutId={`task-${t.id}`}
+        initial={{ opacity: 0, y: isReduced ? 0 : 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: isReduced ? 1 : 0.98 }}
         transition={rowTransition}
         data-task-id={t.id}
-        className={`min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] group rounded-[var(--radius-control)] select-none ${
-          isNewlyAdded ? 'task-row-add' : ''
-        }`}
+        className="relative min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] group rounded-[var(--radius-control)] select-none"
       >
+        {isNewlyAdded && (
+          <motion.span
+            aria-hidden="true"
+            data-testid="row-highlight-overlay"
+            className="absolute inset-0 rounded-[var(--radius-control)] pointer-events-none bg-[var(--accent-glow)]"
+            initial={{ opacity: 0.6 }}
+            animate={{ opacity: 0 }}
+            transition={{ duration: tokens.mode === 'off' ? 0 : tokens.durSlow / 1000, ease: 'easeOut' }}
+          />
+        )}
         {/* Left: status glyph button, title, description, priority */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <button
@@ -742,89 +758,90 @@ export const TodayView: React.FC<TodayViewProps> = ({
           }}
         />
       ) : (
-        <div
-          ref={listContainerRef}
-          key={selectedDate}
-          className={`flex flex-col gap-6 ${
-            dateSlideDir === 'prev'
-              ? 'animate-[slide-date-prev_var(--dur-base)_var(--ease-out)]'
-              : dateSlideDir === 'next'
-              ? 'animate-[slide-date-next_var(--dur-base)_var(--ease-out)]'
-              : ''
-          }`}
-        >
-          {/* Running Group */}
-          {runningTasks.length > 0 && (
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--accent-text)] mb-2 flex items-center gap-1.5">
-                {/* motion-allow: pending T5 infinite loop fix */}
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] animate-ping" />
-                <span>Now Running</span>
+        <LayoutGroup id="today-tasks">
+          <div
+            key={selectedDate}
+            className={`flex flex-col gap-6 ${
+              dateSlideDir === 'prev'
+                ? 'animate-[slide-date-prev_var(--dur-base)_var(--ease-out)]'
+                : dateSlideDir === 'next'
+                ? 'animate-[slide-date-next_var(--dur-base)_var(--ease-out)]'
+                : ''
+            }`}
+          >
+            {/* Running Group */}
+            {runningTasks.length > 0 && (
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--accent-text)] mb-2 flex items-center gap-1.5">
+                  {/* motion-allow: pending T5 infinite loop fix */}
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] animate-ping" />
+                  <span>Now Running</span>
+                </div>
+                <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--accent)]/30 bg-[var(--accent)]/5 rounded-[var(--radius-control)]">
+                  <AnimatePresence initial={false}>
+                    {runningTasks.map((t) => renderTaskRow(t))}
+                  </AnimatePresence>
+                </div>
               </div>
-              <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--accent)]/30 bg-[var(--accent)]/5 rounded-[var(--radius-control)]">
+            )}
+
+            {/* Overdue Group */}
+            {isToday && visibleOverdue.length > 0 && (
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--warning-text)] mb-2">
+                  Overdue ({visibleOverdue.length})
+                </div>
+                <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--warning)]/30">
+                  <AnimatePresence initial={false}>
+                    {visibleOverdue.map((t) => renderTaskRow(t, true))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
+
+            {/* Up Next Group */}
+            {upNextTasks.length > 0 && (
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
+                  Tasks ({upNextTasks.length})
+                </div>
+                <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
+                  <AnimatePresence initial={false}>
+                    {upNextTasks.map((t) => renderTaskRow(t))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
+
+            {/* Done Group (collapsible) */}
+            {doneTasks.length > 0 && (
+              <div className="pt-2">
+                <button
+                  onClick={() => setDoneCollapsed(!doneCollapsed)}
+                  className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2 flex items-center gap-1.5 cursor-pointer select-none hover:text-[var(--text)] transition"
+                >
+                  <span>Completed ({doneTasks.length})</span>
+                  <span className="text-[10px] opacity-75">{doneCollapsed ? '▼' : '▲'}</span>
+                </button>
                 <AnimatePresence initial={false}>
-                  {runningTasks.map((t) => renderTaskRow(t))}
+                  {!doneCollapsed && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={rowTransition}
+                      className="flex flex-col divide-y divide-[var(--border)]/30 border-y border-[var(--border)]/40 opacity-70 overflow-hidden"
+                    >
+                      <AnimatePresence initial={false}>
+                        {doneTasks.map((t) => renderTaskRow(t))}
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
                 </AnimatePresence>
               </div>
-            </div>
-          )}
-
-          {/* Overdue Group */}
-          {isToday && visibleOverdue.length > 0 && (
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--warning-text)] mb-2">
-                Overdue ({visibleOverdue.length})
-              </div>
-              <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--warning)]/30">
-                <AnimatePresence initial={false}>
-                  {visibleOverdue.map((t) => renderTaskRow(t, true))}
-                </AnimatePresence>
-              </div>
-            </div>
-          )}
-
-          {/* Up Next Group */}
-          {upNextTasks.length > 0 && (
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
-                Tasks ({upNextTasks.length})
-              </div>
-              <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
-                <AnimatePresence initial={false}>
-                  {upNextTasks.map((t) => renderTaskRow(t))}
-                </AnimatePresence>
-              </div>
-            </div>
-          )}
-
-          {/* Done Group (collapsible) */}
-          {doneTasks.length > 0 && (
-            <div className="pt-2">
-              <button
-                onClick={() => setDoneCollapsed(!doneCollapsed)}
-                className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2 flex items-center gap-1.5 cursor-pointer select-none hover:text-[var(--text)] transition"
-              >
-                <span>Completed ({doneTasks.length})</span>
-                <span className="text-[10px] opacity-75">{doneCollapsed ? '▼' : '▲'}</span>
-              </button>
-              <AnimatePresence initial={false}>
-                {!doneCollapsed && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={rowTransition}
-                    className="flex flex-col divide-y divide-[var(--border)]/30 border-y border-[var(--border)]/40 opacity-70 overflow-hidden"
-                  >
-                    <AnimatePresence initial={false}>
-                      {doneTasks.map((t) => renderTaskRow(t))}
-                    </AnimatePresence>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        </LayoutGroup>
       )}
 
       {/* Task Drawer */}
