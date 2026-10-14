@@ -38,6 +38,9 @@ export function readThemes(css: string): {
   kanagawaLight: TokenMap;
   kanagawaDark: TokenMap;
   kanagawaDarkMedia: TokenMap;
+  everforestLight: TokenMap;
+  everforestDark: TokenMap;
+  everforestDarkMedia: TokenMap;
 } {
   const light = parseVars(extractBlock(css, ':root {'));
   const dark = { ...light, ...parseVars(extractBlock(css, ':root[data-theme="dark"] {')) };
@@ -60,6 +63,10 @@ export function readThemes(css: string): {
   const kanagawaDark = { ...dark, ...parseVars(extractBlock(css, ':root[data-theme="dark"][data-palette="kanagawa"] {')) };
   const kanagawaDarkMedia = { ...darkMedia, ...parseVars(extractBlock(media, ':root:not([data-theme="light"])[data-palette="kanagawa"] {')) };
 
+  const everforestLight = { ...light, ...parseVars(extractBlock(css, ':root[data-palette="everforest"] {')) };
+  const everforestDark = { ...dark, ...parseVars(extractBlock(css, ':root[data-theme="dark"][data-palette="everforest"] {')) };
+  const everforestDarkMedia = { ...darkMedia, ...parseVars(extractBlock(media, ':root:not([data-theme="light"])[data-palette="everforest"] {')) };
+
   return {
     light,
     dark,
@@ -76,6 +83,9 @@ export function readThemes(css: string): {
     kanagawaLight,
     kanagawaDark,
     kanagawaDarkMedia,
+    everforestLight,
+    everforestDark,
+    everforestDarkMedia,
   };
 }
 
