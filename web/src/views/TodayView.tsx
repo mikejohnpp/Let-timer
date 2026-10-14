@@ -65,17 +65,21 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const [dateSlideDir, setDateSlideDir] = useState<'prev' | 'next' | null>(null);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<number | null>(null);
   const [deletingTaskIds, setDeletingTaskIds] = useState<Set<number>>(new Set());
+  const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
+  const isFirstLoadRef = useRef(true);
 
-  const registerFlip = useFlip([tasks, overdueTasks, filterStatus, filterPriority, deletingTaskIds, doneCollapsed], listContainerRef);
+  const registerFlip = useFlip([tasks, overdueTasks, filterStatus, filterPriority, deletingTaskIds, completingTaskId, doneCollapsed], listContainerRef);
 
   const { showToast } = useToast();
   const confirm = useConfirm();
 
   const isToday = selectedDate === toLocalISODate();
 
-  const loadTasks = useCallback(async () => {
-    setIsLoading(true);
+  const loadTasks = useCallback(async (showSkeleton = false) => {
+    if (showSkeleton && isFirstLoadRef.current) {
+      setIsLoading(true);
+    }
     try {
       const [resDate, resOverdue] = await Promise.all([
         apiFetch(`/api/v1/tasks?date=${selectedDate}`),
@@ -97,12 +101,13 @@ export const TodayView: React.FC<TodayViewProps> = ({
       showToast('Failed to load tasks', 'danger');
     } finally {
       setIsLoading(false);
+      isFirstLoadRef.current = false;
     }
   }, [selectedDate, isToday, showToast]);
 
   useEffect(() => {
-    loadTasks();
-    const handleWsChange = () => loadTasks();
+    loadTasks(true);
+    const handleWsChange = () => loadTasks(true);
     const handleNewTask = () => {
       setTaskToEdit(null);
       setDrawerOpen(true);
@@ -114,6 +119,20 @@ export const TodayView: React.FC<TodayViewProps> = ({
       window.removeEventListener('let-timer-new-task', handleNewTask);
     };
   }, [loadTasks]);
+
+  const prevSnapshotStateRef = useRef(snapshot?.state);
+  const prevSnapshotTaskIdRef = useRef(snapshot?.task?.id);
+
+  useEffect(() => {
+    if (
+      prevSnapshotStateRef.current !== snapshot?.state ||
+      prevSnapshotTaskIdRef.current !== snapshot?.task?.id
+    ) {
+      prevSnapshotStateRef.current = snapshot?.state;
+      prevSnapshotTaskIdRef.current = snapshot?.task?.id;
+      loadTasks();
+    }
+  }, [snapshot?.state, snapshot?.task?.id, loadTasks]);
 
   const handleDateShift = (days: number) => {
     setDateSlideDir(days < 0 ? 'prev' : 'next');
@@ -242,6 +261,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
       setDeletingTaskIds((prev) => new Set(prev).add(task.id));
       await new Promise((r) => setTimeout(r, 200));
+    } else if (action === 'done' || action === 'mark_done_force') {
+      setDoneCollapsed(false);
+      setCompletingTaskId(task.id);
+      await new Promise((r) => setTimeout(r, 220));
     } else if (action === 'restart') {
       const ok = await confirm({
         title: `Restart "${task.name}"?`,
@@ -291,6 +314,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
           return next;
         });
       }
+      if (action === 'done' || action === 'mark_done_force') {
+        setCompletingTaskId(null);
+      }
     }
   };
 
@@ -319,11 +345,14 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const progressPercent = nonCancelled.length > 0 ? Math.round((completedCount / nonCancelled.length) * 100) : 0;
 
   const renderTaskRow = (t: Task, isOverdueItem: boolean = false) => {
-    const isRunning = t.status === 'in-progress';
-    const isPaused = t.status === 'paused';
-    const isPending = t.status === 'pending';
-    const isCompleted = t.status === 'completed';
-    const isCancelled = t.status === 'cancelled';
+    const isCompleting = completingTaskId === t.id;
+    const effectiveStatus = isCompleting ? 'completed' : t.status;
+
+    const isRunning = effectiveStatus === 'in-progress';
+    const isPaused = effectiveStatus === 'paused';
+    const isPending = effectiveStatus === 'pending';
+    const isCompleted = effectiveStatus === 'completed';
+    const isCancelled = effectiveStatus === 'cancelled';
     const isNewlyAdded = newlyAddedTaskId === t.id;
     const isDeleting = deletingTaskIds.has(t.id);
 
@@ -335,20 +364,37 @@ export const TodayView: React.FC<TodayViewProps> = ({
           isNewlyAdded ? 'task-row-add' : ''
         } ${isDeleting ? 'task-row-delete' : ''}`}
       >
-        {/* Left: status glyph, title, description, priority */}
-        <div
-          className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
-          onClick={() => {
-            setTaskToEdit(t);
-            setDrawerOpen(true);
-          }}
-        >
-          <StatusGlyph status={t.status as 'pending' | 'in-progress' | 'paused' | 'completed' | 'cancelled'} />
+        {/* Left: status glyph button, title, description, priority */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (t.status === 'completed') {
+                handleTaskAction(t, 'reopen');
+              } else if (t.status === 'pending') {
+                handleTaskAction(t, 'mark_done_force');
+              } else {
+                handleTaskAction(t, 'done');
+              }
+            }}
+            className="shrink-0 rounded-full focus:outline-none cursor-pointer p-0.5 -m-0.5 hover:scale-110 active:scale-95 transition-transform"
+            aria-label={t.status === 'completed' ? 'Reopen task' : 'Mark task done'}
+            title={t.status === 'completed' ? 'Click to reopen' : 'Click to complete'}
+          >
+            <StatusGlyph status={effectiveStatus as any} />
+          </button>
 
-          <div className="min-w-0 flex flex-col justify-center">
+          <div
+            className="min-w-0 flex flex-col justify-center flex-1 cursor-pointer"
+            onClick={() => {
+              setTaskToEdit(t);
+              setDrawerOpen(true);
+            }}
+          >
             <div className="flex items-center gap-2">
               <span
-                className={`text-xs sm:text-sm font-medium truncate ${
+                className={`text-xs sm:text-sm font-medium truncate transition-colors duration-[var(--dur-fast)] ${
                   isCompleted || isCancelled ? 'line-through text-[var(--muted)]' : 'text-[var(--text)]'
                 }`}
               >
@@ -375,15 +421,26 @@ export const TodayView: React.FC<TodayViewProps> = ({
         >
           {/* Status specific actions */}
           {isPending && (
-            <IconButton
-              variant="ghost"
-              size="sm"
-              onClick={() => handleStartTask(t)}
-              aria-label="Start task"
-              title="Start task"
-            >
-              <Play className="w-3.5 h-3.5 fill-current text-[var(--accent-text)]" />
-            </IconButton>
+            <>
+              <IconButton
+                variant="ghost"
+                size="sm"
+                onClick={() => handleStartTask(t)}
+                aria-label="Start task"
+                title="Start task"
+              >
+                <Play className="w-3.5 h-3.5 fill-current text-[var(--accent-text)]" />
+              </IconButton>
+              <IconButton
+                variant="ghost"
+                size="sm"
+                onClick={() => handleTaskAction(t, 'mark_done_force')}
+                aria-label="Mark done"
+                title="Mark done"
+              >
+                <Check className="w-4 h-4 stroke-[3] text-[var(--success-text)]" />
+              </IconButton>
+            </>
           )}
 
           {isRunning && (
@@ -649,7 +706,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
       </div>
 
       {/* Zen Tasks Stream */}
-      {isLoading ? (
+      {isLoading && tasks.length === 0 ? (
         <div className="flex flex-col gap-2">
           <Skeleton height="40px" />
           <Skeleton height="40px" />
