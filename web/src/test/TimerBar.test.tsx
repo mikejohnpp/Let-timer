@@ -79,4 +79,33 @@ describe('TimerBar component', () => {
     expect(screen.getByText('Resume')).toBeInTheDocument();
     expect(screen.getByText('Paused')).toBeInTheDocument();
   });
+
+  it('renders dot-running when running and ring-pulse when overtime', () => {
+    const runningSnapshot: TimerSnapshot = {
+      task: { ...baseTask, estimated_mins: 25 },
+      state: 'running',
+      elapsed_secs: 10,
+      remaining_secs: 1490,
+      workspace_name: 'Work',
+    };
+
+    const { container: runningContainer } = render(
+      <TimerBar snapshot={runningSnapshot} receivedAt={Date.now()} {...dummyProps} />
+    );
+    expect(runningContainer.querySelector('.dot-running')).toBeInTheDocument();
+
+    const overtimeSnapshot: TimerSnapshot = {
+      task: { ...baseTask, estimated_mins: 1 },
+      state: 'running',
+      elapsed_secs: 70,
+      remaining_secs: -10,
+      workspace_name: 'Work',
+    };
+
+    const { container: overtimeContainer } = render(
+      <TimerBar snapshot={overtimeSnapshot} receivedAt={Date.now()} {...dummyProps} />
+    );
+    expect(overtimeContainer.querySelector('.ring-pulse')).toBeInTheDocument();
+    expect(overtimeContainer.querySelector('.dot-running')).not.toBeInTheDocument();
+  });
 });

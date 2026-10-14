@@ -169,6 +169,13 @@
   transform: none !important;
 }
 
+:root[data-motion="reduced"] .progress-bar-fill,
+:root[data-motion="reduced"] .progress-line-indicator,
+:root[data-motion="off"] .progress-bar-fill,
+:root[data-motion="off"] .progress-line-indicator {
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .dot-running,
   :root:not([data-motion="full"]) .ring-pulse {
@@ -178,5 +185,10 @@
   :root:not([data-motion="full"]) button:active,
   :root:not([data-motion="full"]) [role="button"]:active {
     transform: none !important;
+  }
+
+  :root:not([data-motion="full"]) .progress-bar-fill,
+  :root:not([data-motion="full"]) .progress-line-indicator {
+    transition: none !important;
   }
 }

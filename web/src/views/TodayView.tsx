@@ -503,8 +503,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
       {/* Hairline Progress Line */}
       <div className="mb-6 h-1 w-full bg-[var(--border)] rounded-full overflow-hidden">
         <div
-          className="h-full bg-[var(--accent-text)] transition-all duration-300 rounded-full"
-          style={{ width: `${progressPercent}%` }}
+          className="h-full w-full bg-[var(--accent-text)] origin-left transition-transform duration-[var(--dur-slow)] ease-[var(--ease-out)] rounded-full progress-bar-fill"
+          style={{ transform: `scaleX(${progressPercent / 100})` }}
         />
       </div>
 

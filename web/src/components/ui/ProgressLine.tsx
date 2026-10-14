@@ -22,7 +22,7 @@ export const ProgressLine: React.FC<ProgressLineProps> = ({ value, overtime = fa
       <ProgressPrimitive.Indicator
         className={twMerge(
           clsx(
-            'h-full w-full flex-1 transition-all duration-300',
+            'h-full w-full flex-1 transition-transform duration-[var(--dur-slow)] ease-[var(--ease-out)] progress-line-indicator',
             overtime ? 'bg-[var(--timer-over)]' : 'bg-[var(--accent-text)]'
           )
         )}

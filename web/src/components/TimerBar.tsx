@@ -9,7 +9,6 @@ import {
   Plus,
   MoreHorizontal,
   Target,
-  Timer as TimerIcon,
   AlertTriangle,
   Music,
   SkipForward,
@@ -78,13 +77,14 @@ export const TimerBar: React.FC<TimerBarProps> = ({
     if (timerInfo.mode === 'overtime' && modeChanged) {
       setLiveRole('alert');
       setLiveAnnouncement(`Time's up: ${snapshot.task.name}`);
+      showToast(`Time's up: ${snapshot.task.name}`, 'danger');
       setLastAnnouncedMinute(currentMinute);
     } else if (modeChanged || (currentMinute !== lastAnnouncedMinute && timerInfo.totalElapsedSecs > 0)) {
       setLiveRole('status');
       setLiveAnnouncement(`${timerInfo.display} - ${snapshot.task.name}`);
       setLastAnnouncedMinute(currentMinute);
     }
-  }, [snapshot, timerInfo.display, timerInfo.mode, timerInfo.totalElapsedSecs, lastAnnouncedMinute]);
+  }, [snapshot, timerInfo.display, timerInfo.mode, timerInfo.totalElapsedSecs, lastAnnouncedMinute, showToast]);
 
   const performTransition = async (action: 'pause' | 'resume' | 'stop' | 'done' | 'cancel' | 'restart') => {
     if (!snapshot || snapshot.state === 'idle') return;
@@ -171,7 +171,7 @@ export const TimerBar: React.FC<TimerBarProps> = ({
 
   return (
     <div
-      className={`flex items-center gap-2.5 sm:gap-3 px-3.5 sm:px-4 py-1.5 rounded-full border transition-all duration-300 select-none shadow-xl backdrop-blur-md ${
+      className={`relative flex items-center justify-between gap-2.5 sm:gap-3 px-3.5 sm:px-4 py-1.5 rounded-full border transition-[background-color,border-color,color] duration-[var(--dur-ambient)] ease-[var(--ease-out)] select-none shadow-xl backdrop-blur-md w-[320px] sm:w-[420px] max-w-[92vw] ${
         isOvertime
           ? 'bg-[var(--over-bg)]/95 border-[var(--timer-over)]'
           : isPaused
@@ -179,17 +179,29 @@ export const TimerBar: React.FC<TimerBarProps> = ({
           : 'bg-[var(--surface)]/90 border-[var(--border-strong)]/30'
       }`}
     >
+      {/* Time's up two ring pulses (A14) */}
+      {isOvertime && (
+        <div
+          aria-hidden="true"
+          className="absolute -inset-1 rounded-full border-2 border-[var(--timer-over)] ring-pulse pointer-events-none"
+        />
+      )}
+
       <LiveRegion message={liveAnnouncement} role={liveRole} />
 
       {/* Timer digits + status icon */}
-      <div className="flex items-center gap-1.5 font-mono font-bold text-xs sm:text-sm tabular-nums">
-        {isOvertime ? (
-          <AlertTriangle className="w-3.5 h-3.5 text-[var(--timer-over)]" />
-        ) : isPaused ? (
-          <Pause className="w-3.5 h-3.5 text-[var(--muted)]" />
-        ) : (
-          <TimerIcon className="w-3.5 h-3.5 text-[var(--accent-text)] animate-pulse" />
-        )}
+      <div className="flex items-center gap-1.5 font-mono font-bold text-xs sm:text-sm tabular-nums shrink-0">
+        <span className="transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] flex items-center">
+          {isOvertime ? (
+            <AlertTriangle className="w-3.5 h-3.5 text-[var(--timer-over)]" />
+          ) : isPaused ? (
+            <Pause className="w-3.5 h-3.5 text-[var(--muted)]" />
+          ) : (
+            <span className="relative flex h-3.5 w-3.5 items-center justify-center">
+              <span className="w-2 h-2 rounded-full bg-[var(--accent-text)] dot-running" />
+            </span>
+          )}
+        </span>
         <span
           className={
             isOvertime
@@ -203,9 +215,9 @@ export const TimerBar: React.FC<TimerBarProps> = ({
         </span>
       </div>
 
-      {/* Task name & status metadata */}
-      <div className="flex items-center gap-1.5 min-w-0 max-w-[100px] sm:max-w-[180px]">
-        <span className="text-xs font-semibold truncate text-[var(--text)]">
+      {/* Task name & status metadata (fixed width flex-1 with crossfade) */}
+      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        <span className="text-xs font-semibold truncate text-[var(--text)] transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)]">
           {snapshot.task.name}
         </span>
         <span className="sr-only">{snapshot.workspace_name}</span>

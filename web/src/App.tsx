@@ -19,6 +19,7 @@ import { apiFetch } from './api/client';
 import { ToastProvider, ConfirmProvider, ErrorState } from './components/ui';
 import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
 import { FloatingPlayerIsland } from './components/FloatingPlayerIsland';
+import { Presence } from './motion';
 
 type AuthStatus = 'checking' | 'login' | 'unreachable' | 'ok';
 
@@ -162,8 +163,13 @@ export const AppContent: React.FC = () => {
       {/* Floating Bottom Island (TimerBar if task active, or FloatingPlayerIsland if idle & music playing) */}
       {!isFocusView && (
         <>
-          {snapshot && snapshot.state !== 'idle' ? (
-            <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <Presence
+            present={Boolean(snapshot && snapshot.state !== 'idle')}
+            className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw]"
+            enterAnimation="animate-[rise-in_var(--dur-base)_var(--ease-out)]"
+            exitAnimation="animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]"
+          >
+            {snapshot && snapshot.state !== 'idle' && (
               <TimerBar
                 snapshot={snapshot}
                 receivedAt={receivedAt}
@@ -171,12 +177,17 @@ export const AppContent: React.FC = () => {
                 onOpenStartPicker={() => setIsStartPickerOpen(true)}
                 onActionComplete={refetchSnapshot}
               />
-            </div>
-          ) : currentTrack ? (
-            <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <FloatingPlayerIsland />
-            </div>
-          ) : null}
+            )}
+          </Presence>
+
+          <Presence
+            present={Boolean((!snapshot || snapshot.state === 'idle') && currentTrack)}
+            className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw]"
+            enterAnimation="animate-[rise-in_var(--dur-base)_var(--ease-out)]"
+            exitAnimation="animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]"
+          >
+            <FloatingPlayerIsland />
+          </Presence>
         </>
       )}
 

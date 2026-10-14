@@ -309,7 +309,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                   <button
                     type="button"
                     onClick={togglePlay}
-                    className="w-10 h-10 rounded-full bg-[var(--accent)] text-[var(--on-accent)] flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition cursor-pointer"
+                    className="w-10 h-10 rounded-full bg-[var(--accent)] text-[var(--on-accent)] flex items-center justify-center shadow-lg active:scale-[0.98] transition-[background-color,color,transform] duration-[var(--dur-fast)] active:duration-[var(--dur-instant)] cursor-pointer"
                     aria-label={isPlaying ? 'Pause' : 'Play'}
                   >
                     {isPlaying ? (
@@ -444,7 +444,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
               e.stopPropagation();
               togglePlay();
             }}
-            className="w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--on-accent)] flex items-center justify-center hover:scale-105 active:scale-95 transition cursor-pointer shrink-0"
+            className="w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--on-accent)] flex items-center justify-center active:scale-[0.98] transition-[background-color,color,transform] duration-[var(--dur-fast)] active:duration-[var(--dur-instant)] cursor-pointer shrink-0"
             aria-label={isPlaying ? 'Pause music' : 'Play music'}
             title={isPlaying ? 'Pause' : 'Play'}
           >

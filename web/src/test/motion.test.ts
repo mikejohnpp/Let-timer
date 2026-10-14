@@ -138,4 +138,47 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(segCode).toContain('ease-[var(--ease-out)]');
     });
   });
+
+  describe('Timer Pill and Lifecycle Feedback (Phase M2)', () => {
+    it('declares 7-iteration breathe and 2-pulse ring animations in motion.css', () => {
+      expect(cssContent).toContain('.dot-running {');
+      expect(cssContent).toContain('animation: breathe 4s var(--ease-inout) 7;');
+      expect(cssContent).toContain('.ring-pulse {');
+      expect(cssContent).toContain('animation: ring-pulse 1.1s var(--ease-out) 2;');
+    });
+
+    it('disables breathing and ring pulse in reduced and off motion', () => {
+      expect(cssContent).toContain(':root[data-motion="reduced"] .dot-running');
+      expect(cssContent).toContain(':root[data-motion="reduced"] .ring-pulse');
+      expect(cssContent).toContain('animation: none !important;');
+    });
+
+    it('uses Presence helper for floating timer bar in App.tsx', () => {
+      const appCode = fs.readFileSync(path.resolve(__dirname, '../App.tsx'), 'utf8');
+      expect(appCode).toContain('<Presence');
+      expect(appCode).toContain('enterAnimation="animate-[rise-in_var(--dur-base)_var(--ease-out)]"');
+      expect(appCode).toContain('exitAnimation="animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]"');
+    });
+
+    it('applies fixed width, ring-pulse and ambient state transitions in TimerBar', () => {
+      const timerCode = fs.readFileSync(path.resolve(__dirname, '../components/TimerBar.tsx'), 'utf8');
+      expect(timerCode).toContain('duration-[var(--dur-ambient)]');
+      expect(timerCode).toContain('ring-pulse');
+      expect(timerCode).toContain('dot-running');
+      expect(timerCode).toContain('w-[320px] sm:w-[420px] max-w-[92vw]');
+    });
+
+    it('animates daily progress bar using scaleX and token duration (A15)', () => {
+      const todayCode = fs.readFileSync(path.resolve(__dirname, '../views/TodayView.tsx'), 'utf8');
+      expect(todayCode).toContain('scaleX(${progressPercent / 100})');
+      expect(todayCode).toContain('duration-[var(--dur-slow)]');
+      expect(todayCode).toContain('progress-bar-fill');
+      expect(todayCode).not.toContain('width: `${progressPercent}%`');
+    });
+
+    it('disables progress bar transitions under reduced-motion CSS', () => {
+      expect(cssContent).toContain(':root[data-motion="reduced"] .progress-bar-fill');
+      expect(cssContent).toContain('transition: none !important;');
+    });
+  });
 });
