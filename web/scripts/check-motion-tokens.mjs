@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
-const srcDir = path.join(projectRoot, 'src');
+const srcDir = process.argv[2] ? path.resolve(process.argv[2]) : path.join(projectRoot, 'src');
 
 const FORBIDDEN_PATTERNS = [
   { name: 'raw duration', regex: /duration:\s*0?\.\d/ },

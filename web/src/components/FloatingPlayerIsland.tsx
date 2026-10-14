@@ -15,7 +15,7 @@ import {
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { SoundWave } from './SoundWave';
 import { motion, AnimatePresence } from 'motion/react';
-import { useMotionTransition } from '../motion';
+import { useMotionTokens, useMotionTransition } from '../motion';
 
 function formatTime(secs: number): string {
   if (isNaN(secs) || secs < 0) return '0:00';
@@ -52,6 +52,8 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
   } = useAudioPlayer();
 
   const [isExpanded, setIsExpanded] = useState(false);
+  const tokens = useMotionTokens();
+  const isReduced = tokens.isReduced;
   const islandTransition = useMotionTransition('fast');
   const [activeTab, setActiveTab] = useState<'music' | 'poetry'>('music');
   const [scrubTime, setScrubTime] = useState<number | null>(null);
@@ -184,12 +186,13 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
       <AnimatePresence mode="wait" initial={false}>
         {isExpanded ? (
           <motion.div
-            key="expanded-island-card"
-            initial={{ opacity: 0, scale: 0.95, y: 6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -4 }}
+            key="card"
+            layoutId={isReduced ? undefined : 'floating-island'}
+            initial={{ opacity: 0, scale: isReduced ? 1 : 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }}
             transition={islandTransition}
-            className={`island-card origin-bottom w-[92vw] max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl border flex flex-col gap-4 ${
+            className={`origin-bottom w-[92vw] max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl border flex flex-col gap-4 ${
               hasBackgroundPhoto
                 ? 'bg-[var(--surface)]/95 backdrop-blur-2xl border-[var(--border-strong)]/40 text-[var(--text)]'
                 : 'bg-[var(--surface)]/95 backdrop-blur-2xl border-[var(--border)] shadow-xl text-[var(--text)]'
@@ -467,12 +470,13 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
       ) : (
         /* ─── COLLAPSED FLOATING ISLAND PILL ─────────────────────────────────── */
         <motion.div
-          key="collapsed-island-pill"
-          initial={{ opacity: 0, scale: 0.96, y: -4 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 6 }}
+          key="pill"
+          layoutId={isReduced ? undefined : 'floating-island'}
+          initial={{ opacity: 0, scale: isReduced ? 1 : 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }}
           transition={islandTransition}
-          className={`island-pill origin-bottom shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border select-none shadow-xl backdrop-blur-xl ${
+          className={`origin-bottom shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border select-none shadow-xl backdrop-blur-xl ${
             hasBackgroundPhoto
               ? 'bg-[var(--surface)]/90 border-[var(--border-strong)]/40 text-[var(--text)] shadow-black/40'
               : 'bg-[var(--surface)]/90 border-[var(--border-strong)]/30 text-[var(--text)]'

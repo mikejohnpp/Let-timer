@@ -231,37 +231,6 @@
   pointer-events: none;
 }
 
-/* ─── Floating Island Expand / Collapse ──────────────────────────────────── */
-@keyframes island-expand {
-  from {
-    opacity: 0;
-    transform: scale(0.94) translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes island-collapse {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.island-card {
-  animation: island-expand var(--dur-fast) var(--ease-out);
-}
-
-.island-pill {
-  animation: island-collapse var(--dur-fast) var(--ease-out);
-}
-
 /* 7 iterations (approx 28s), then still */
 .dot-running {
   animation: breathe 4s var(--ease-inout) 7;
@@ -277,15 +246,11 @@
 :root[data-motion="reduced"] .task-check-tick,
 :root[data-motion="reduced"] .task-row-add,
 :root[data-motion="reduced"] .task-row-delete,
-:root[data-motion="reduced"] .island-card,
-:root[data-motion="reduced"] .island-pill,
 :root[data-motion="off"] .dot-running,
 :root[data-motion="off"] .ring-pulse,
 :root[data-motion="off"] .task-check-tick,
 :root[data-motion="off"] .task-row-add,
-:root[data-motion="off"] .task-row-delete,
-:root[data-motion="off"] .island-card,
-:root[data-motion="off"] .island-pill {
+:root[data-motion="off"] .task-row-delete {
   animation: none !important;
 }
 
@@ -375,8 +340,6 @@
   :root:not([data-motion="full"]) .task-check-tick,
   :root:not([data-motion="full"]) .task-row-add,
   :root:not([data-motion="full"]) .task-row-delete,
-  :root:not([data-motion="full"]) .island-card,
-  :root:not([data-motion="full"]) .island-pill,
   :root:not([data-motion="full"]) .skeleton-shimmer,
   :root:not([data-motion="full"]) .eq-bar-1,
   :root:not([data-motion="full"]) .eq-bar-2,

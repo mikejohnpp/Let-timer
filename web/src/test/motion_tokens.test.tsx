@@ -11,6 +11,7 @@ import {
 import { execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 import { prefersReducedMotion, hasReducedMotionListener } from 'motion-dom';
 
@@ -174,7 +175,7 @@ describe('T1: Motion Foundation - tokens, provider, hook, and lint', () => {
   describe('check-motion-tokens script', () => {
     it('exits non-zero on a fixture containing raw duration: 0.2', () => {
       const scriptPath = path.resolve(__dirname, '../../scripts/check-motion-tokens.mjs');
-      const tempFixtureDir = path.resolve(__dirname, '../temp_fixture_test');
+      const tempFixtureDir = path.join(os.tmpdir(), `check-motion-tokens-test-${Date.now()}`);
       fs.mkdirSync(tempFixtureDir, { recursive: true });
       const tempFixtureFile = path.join(tempFixtureDir, 'BadComponent.tsx');
       fs.writeFileSync(tempFixtureFile, 'const x = { duration: 0.2 };');
@@ -182,7 +183,7 @@ describe('T1: Motion Foundation - tokens, provider, hook, and lint', () => {
       try {
         let threw = false;
         try {
-          execSync(`node "${scriptPath}"`, {
+          execSync(`node "${scriptPath}" "${tempFixtureDir}"`, {
             cwd: path.resolve(__dirname, '../..'),
             stdio: 'pipe',
           });

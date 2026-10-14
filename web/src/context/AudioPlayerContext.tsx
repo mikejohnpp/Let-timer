@@ -57,7 +57,7 @@ const fallbackContext: AudioPlayerContextType = {
   clearPlayer: () => {},
 };
 
-const AudioPlayerContext = createContext<AudioPlayerContextType>(fallbackContext);
+export const AudioPlayerContext = createContext<AudioPlayerContextType>(fallbackContext);
 
 export const useAudioPlayer = () => useContext(AudioPlayerContext);
 
