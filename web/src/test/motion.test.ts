@@ -287,7 +287,7 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(cssContent).not.toContain('@keyframes view-enter');
     });
 
-    it('isolates wallpaper with view-transition-name: none and applies view-enter to tab views', () => {
+    it('isolates wallpaper with view-transition-name: none', () => {
       expect(cssContent).toContain('.wallpaper-layers {\n  view-transition-name: none;\n}');
 
       const wallCode = fs.readFileSync(path.resolve(__dirname, '../components/WallpaperLayers.tsx'), 'utf8');
