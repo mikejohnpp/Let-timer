@@ -71,3 +71,4 @@ if (totalViolations > 0) {
   console.log('\x1b[32mPASS: All typography sizes comply with type scale (>= 12px or annotated).\x1b[0m\n');
   process.exit(0);
 }
+

@@ -609,7 +609,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           </IconButton>
           <button
             onClick={handleToday}
-            className="font-mono text-xs font-medium px-2 py-0.5 rounded text-[var(--muted)] hover:text-[var(--text)] transition tabular-nums"
+            className="text-xs font-medium px-2 py-0.5 rounded text-[var(--muted)] hover:text-[var(--text)] transition tabular-nums"
             title="Click to jump to today"
           >
             {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, {

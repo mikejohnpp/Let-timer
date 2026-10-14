@@ -26,6 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   LiveRegion,
+  TimerDigits,
   useToast,
   useConfirm,
 } from './ui';
@@ -198,7 +199,7 @@ export const TimerBar: React.FC<TimerBarProps> = ({
       <LiveRegion message={liveAnnouncement} role={liveRole} />
 
       {/* Timer digits + status icon */}
-      <div className="flex items-center gap-1.5 font-mono font-bold text-xs sm:text-sm tabular-nums shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         <span className="transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] flex items-center">
           {isOvertime ? (
             <AlertTriangle className="w-3.5 h-3.5 text-[var(--timer-over)]" />
@@ -210,17 +211,11 @@ export const TimerBar: React.FC<TimerBarProps> = ({
             </span>
           )}
         </span>
-        <span
-          className={
-            isOvertime
-              ? 'text-[var(--over-text)]'
-              : isPaused
-              ? 'text-[var(--muted)]'
-              : 'text-[var(--accent-text)]'
-          }
-        >
-          {timerInfo.display}
-        </span>
+        <TimerDigits
+          digits={timerInfo.display}
+          mode={isOvertime ? 'overtime' : isPaused ? 'paused' : 'countdown'}
+          size="pill"
+        />
       </div>
 
       {/* Task name & status metadata (fixed width flex-1 with crossfade) */}

@@ -933,7 +933,7 @@ export const MediaView: React.FC = () => {
                         </div>
                         <div className="text-xs text-[var(--muted)] truncate mt-0.5 flex items-center gap-2">
                           {item.description && <span>{item.description} •</span>}
-                          <span className="font-mono text-xs text-[var(--muted)] opacity-70">
+                          <span className="font-mono text-xs text-[var(--muted)]">
                             {getDisplayHost(item.url)}
                           </span>
                         </div>

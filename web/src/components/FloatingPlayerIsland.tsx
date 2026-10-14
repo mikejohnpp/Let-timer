@@ -19,6 +19,7 @@ import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { SoundWave } from './SoundWave';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMotionTokens, useMotionTransition } from '../motion';
+import { TimerDigits } from './ui';
 
 function formatTime(secs: number): string {
   if (isNaN(secs) || secs < 0) return '0:00';
@@ -355,9 +356,9 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                     aria-label="Seek track"
                   />
                 </div>
-                <div className="flex justify-between items-center text-xs font-mono text-[var(--muted)] tabular-nums px-0.5">
-                  <span>{formatTime(displayTime)}</span>
-                  <span>{formatTime(duration)}</span>
+                <div className="flex justify-between items-center px-0.5">
+                  <TimerDigits digits={formatTime(displayTime)} mode="idle" size="inline" />
+                  <TimerDigits digits={formatTime(duration)} mode="idle" size="inline" />
                 </div>
               </div>
 
@@ -431,7 +432,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowQueue(!showQueue)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-mono transition cursor-pointer ${
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs tabular-nums transition cursor-pointer ${
                         showQueue
                           ? 'bg-[var(--surface-hover)] text-[var(--accent-text)] font-semibold'
                           : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]/60'
@@ -499,7 +500,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
             <div className="flex flex-col gap-2.5 py-1 px-1">
               <div className="flex items-center justify-between text-xs text-[var(--muted)] px-1">
                 <span>Task focus background</span>
-                <span className="text-xs font-mono">
+                <span className="text-xs tabular-nums">
                   {currentImageIndex + 1}/{focusImages.length}
                 </span>
               </div>
@@ -605,9 +606,12 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
 
             {/* Time */}
             {duration > 0 && (
-              <span className="text-xs font-mono text-[var(--muted)] tabular-nums hidden sm:inline">
-                {formatTime(currentTime)}
-              </span>
+              <TimerDigits
+                digits={formatTime(currentTime)}
+                mode="idle"
+                size="inline"
+                className="hidden sm:inline"
+              />
             )}
           </div>
 

@@ -67,3 +67,4 @@ describe('T1: check-type-scale script', () => {
     }
   });
 });
+

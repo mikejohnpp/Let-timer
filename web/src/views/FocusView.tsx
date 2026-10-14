@@ -9,7 +9,7 @@ import {
 import type { TimerSnapshot } from '../hooks/useEventStream';
 import { computeTimerDisplay, type FormattedTimer } from '../utils/timer';
 import { apiFetch } from '../api/client';
-import { useToast } from '../components/ui';
+import { useToast, TimerDigits } from '../components/ui';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { FloatingPlayerIsland } from '../components/FloatingPlayerIsland';
 
@@ -225,12 +225,13 @@ export const FocusView: React.FC<FocusViewProps> = ({
         </span>
 
         {/* Giant Timer Digits (Always visible with consistent giant size) */}
-        <div
-          className={`font-mono font-light tabular-nums tracking-tighter text-6xl sm:text-8xl md:text-9xl transition-colors ${digitColorClass}`}
+        <TimerDigits
+          digits={displayDigits}
+          size="display"
+          mode={isOvertime ? 'overtime' : isPaused ? 'paused' : isIdle ? 'idle' : 'countdown'}
           style={hasAnyBg ? { textShadow: '0 2px 10px rgba(0,0,0,0.5)' } : undefined}
-        >
-          {displayDigits}
-        </div>
+          className={`transition-colors ${digitColorClass}`}
+        />
 
         {/* Task Name or Idle Title */}
         <h1

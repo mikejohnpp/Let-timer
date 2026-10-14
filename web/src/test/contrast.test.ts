@@ -92,3 +92,22 @@ describe('theme blocks', () => {
   });
 });
 
+describe('small text typography contrast (10-12px, T5)', () => {
+  for (const [themeName, t] of Object.entries(themeEntries)) {
+    describe(`small text contrast (${themeName})`, () => {
+      for (const s of SURFACES) {
+        it(`small --muted on --${s} meets WCAG AA (>= 4.5:1)`, () => {
+          const ratio = contrastRatio(tok(t, 'muted'), tok(t, s));
+          expect(ratio).toBeGreaterThanOrEqual(4.5);
+        });
+
+        it(`small --text on --${s} meets WCAG AA (>= 4.5:1)`, () => {
+          const ratio = contrastRatio(tok(t, 'text'), tok(t, s));
+          expect(ratio).toBeGreaterThanOrEqual(4.5);
+        });
+      }
+    });
+  }
+});
+
+
