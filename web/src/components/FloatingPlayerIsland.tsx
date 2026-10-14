@@ -578,11 +578,9 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }} // motion-allow: island expansion morph (A26)
           transition={islandTransition}
-          role="button"
-          tabIndex={0}
+          role="region"
           aria-label={track ? `Floating audio player: ${track.name}` : 'Floating audio player'}
-          onClick={() => setIsExpanded(true)}
-          className={`origin-bottom shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border select-none shadow-xl backdrop-blur-xl cursor-pointer ${
+          className={`origin-bottom shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border select-none shadow-xl backdrop-blur-xl ${
             hasBackgroundPhoto
               ? 'bg-[var(--surface)]/90 border-[var(--border-strong)]/40 text-[var(--text)] shadow-black/40'
               : 'bg-[var(--surface)]/90 border-[var(--border-strong)]/30 text-[var(--text)]'

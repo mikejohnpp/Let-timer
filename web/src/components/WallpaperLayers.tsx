@@ -96,8 +96,6 @@ export const WallpaperLayers: React.FC<WallpaperLayersProps> = ({
     };
   }, [url, activeSlot, layerA, layerB]);
 
-  if (!layerA && !layerB) return null;
-
   const isCrossfade = Boolean(layerA && layerB);
   const transitionClass = isFadingOut || !isCrossfade
     ? 'duration-[var(--dur-base)]'
@@ -110,24 +108,28 @@ export const WallpaperLayers: React.FC<WallpaperLayersProps> = ({
       aria-hidden="true"
     >
       {/* Buffer Layer A */}
-      <div
-        className={`${className} transition-opacity ${transitionClass} ease-[var(--ease-inout)] ${
-          !isFadingOut && activeSlot === 'A' && layerA ? 'opacity-100' : 'opacity-0'
-        }`}
-        style={layerA ? { backgroundImage: `url(${layerA})` } : undefined}
-      >
-        {overlayClassName && <div className={overlayClassName} />}
-      </div>
+      {layerA && (
+        <div
+          className={`${className} transition-opacity ${transitionClass} ease-[var(--ease-inout)] ${
+            !isFadingOut && activeSlot === 'A' ? 'opacity-100' : 'opacity-0'
+          }`}
+          style={{ backgroundImage: `url(${layerA})` }}
+        >
+          {overlayClassName && <div className={overlayClassName} />}
+        </div>
+      )}
 
       {/* Buffer Layer B */}
-      <div
-        className={`${className} transition-opacity ${transitionClass} ease-[var(--ease-inout)] ${
-          !isFadingOut && activeSlot === 'B' && layerB ? 'opacity-100' : 'opacity-0'
-        }`}
-        style={layerB ? { backgroundImage: `url(${layerB})` } : undefined}
-      >
-        {overlayClassName && <div className={overlayClassName} />}
-      </div>
+      {layerB && (
+        <div
+          className={`${className} transition-opacity ${transitionClass} ease-[var(--ease-inout)] ${
+            !isFadingOut && activeSlot === 'B' ? 'opacity-100' : 'opacity-0'
+          }`}
+          style={{ backgroundImage: `url(${layerB})` }}
+        >
+          {overlayClassName && <div className={overlayClassName} />}
+        </div>
+      )}
     </div>
   );
 };

@@ -21,11 +21,25 @@ export const Drawer: React.FC<DrawerProps> = ({
   children,
   className,
 }) => {
+  const triggerRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      triggerRef.current = document.activeElement as HTMLElement | null;
+    }
+  }, [open]);
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 bg-black/55 backdrop-blur-[2px] z-50 data-[state=open]:animate-[fade-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]" />
         <DialogPrimitive.Content
+          onCloseAutoFocus={(e) => {
+            if (triggerRef.current) {
+              e.preventDefault();
+              triggerRef.current.focus();
+            }
+          }}
           className={twMerge(
             clsx(
               'fixed z-50 bg-[var(--surface)] border-[var(--border)] shadow-xl flex flex-col outline-none opaque-surface',

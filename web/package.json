@@ -10,7 +10,8 @@
     "gen:api": "openapi-typescript openapi.json -o src/api/schema.d.ts",
     "lint": "tsc --noEmit && node scripts/check-motion-tokens.mjs",
     "test": "vitest run",
-    "test:e2e": "node e2e/motion.e2e.mjs"
+    "e2e": "playwright test",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.4.1",
@@ -34,6 +35,8 @@
     "tailwind-merge": "^3.0.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.0.9",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",

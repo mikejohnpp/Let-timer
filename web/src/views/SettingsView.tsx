@@ -640,13 +640,15 @@ export const SettingsView: React.FC = () => {
               </div>
 
               {!t.revoked_at ? (
-                <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                  <button
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleRotateToken(t.name)}
-                    className="text-[11px] px-2 py-0.5 rounded text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition cursor-pointer"
+                    className="h-6 text-xs px-2"
                   >
                     Rotate
-                  </button>
+                  </Button>
                   <IconButton
                     variant="ghost"
                     size="sm"
