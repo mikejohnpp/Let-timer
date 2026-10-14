@@ -13,6 +13,7 @@ import {
 import type { components } from '../api/schema';
 import { apiFetch } from '../api/client';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import {
   Button,
   IconButton,
@@ -69,6 +70,12 @@ export const MediaView: React.FC = () => {
 
   const { showToast } = useToast();
   const confirm = useConfirm();
+
+  // Animated list refs
+  const [playlistsListRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
+  const [playlistItemsRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
+  const [libraryItemsRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
+  const [formsContainerRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
 
   const loadData = async () => {
     setIsLoading(true);
@@ -349,8 +356,10 @@ export const MediaView: React.FC = () => {
         </div>
       </div>
 
-      {/* New List Form */}
-      {isCreatingList && (
+      {/* New Creation Forms with smooth expand/collapse */}
+      <div ref={formsContainerRef}>
+        {/* New List Form */}
+        {isCreatingList && (
         <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5 mb-2">
           <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add new media list</h2>
           <form onSubmit={handleCreateList} className="flex flex-col gap-3">
@@ -569,10 +578,11 @@ export const MediaView: React.FC = () => {
           </form>
         </div>
       )}
+      </div>
 
       {/* Content for Media Lists Tab */}
       {tab === 'lists' && (
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-6 animate-[fade-in_var(--dur-fast)_var(--ease-out)]">
           {/* Lists Column */}
           <div className="md:col-span-1 flex flex-col gap-2">
             <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] mb-1 px-1">
@@ -586,7 +596,7 @@ export const MediaView: React.FC = () => {
             ) : lists.length === 0 ? (
               <div className="text-xs text-[var(--muted)] py-4 px-1">No playlists yet.</div>
             ) : (
-              <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
+              <div ref={playlistsListRef} className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
                 {lists.map((l) => {
                   const isSelected = selectedList?.list.id === l.id;
                   return (
@@ -629,7 +639,7 @@ export const MediaView: React.FC = () => {
           {/* Selected List Detail Column */}
           <div className="md:col-span-2">
             {selectedList ? (
-              <div className="backdrop-blur-md bg-[var(--surface)]/30 border border-[var(--border)]/30 rounded-xl p-4 sm:p-5">
+              <div key={selectedList.list.id} className="backdrop-blur-md bg-[var(--surface)]/30 border border-[var(--border)]/30 rounded-xl p-4 sm:p-5 animate-[fade-in_var(--dur-fast)_var(--ease-out)]">
                 <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/30 mb-3">
                   <div>
                     <h2 className="text-sm font-semibold text-[var(--text)]">{selectedList.list.name}</h2>
@@ -641,14 +651,19 @@ export const MediaView: React.FC = () => {
                 </div>
 
                 {/* Items in this list */}
-                <div className="divide-y divide-[var(--border)]/20 mb-4">
+                <div ref={playlistItemsRef} className="divide-y divide-[var(--border)]/20 mb-4">
                   {selectedList.items.length === 0 ? (
                     <div className="py-8 text-center text-xs text-[var(--muted)]">
                       No media items attached yet. Choose an item below to attach.
                     </div>
                   ) : (
                     selectedList.items.map((item) => (
-                      <div key={item.id} className="py-2 px-1 flex items-center justify-between gap-3 text-xs group">
+                      <div
+                        key={item.id}
+                        className={`py-2 px-1.5 flex items-center justify-between gap-3 text-xs group rounded-md transition-colors ${
+                          currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10 text-[var(--accent-text)]' : 'hover:bg-[var(--surface-hover)]/30'
+                        }`}
+                      >
                         <div className="flex items-center gap-2.5 min-w-0">
                           {item.media_type === 'music' && (
                             <button
@@ -680,6 +695,9 @@ export const MediaView: React.FC = () => {
                             <BookOpen className="w-3.5 h-3.5 text-[var(--muted)] shrink-0" />
                           )}
                           <span className="font-medium truncate text-[var(--text)]">{item.name}</span>
+                          {currentTrack?.id === item.id && isPlaying && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running shrink-0" />
+                          )}
                         </div>
                         <IconButton
                           variant="ghost"
@@ -736,7 +754,7 @@ export const MediaView: React.FC = () => {
 
       {/* Content for All Media Items Tab */}
       {tab === 'items' && (
-        <div>
+        <div className="animate-[fade-in_var(--dur-fast)_var(--ease-out)]">
           {isLoading ? (
             <div className="flex flex-col gap-2">
               <Skeleton height="44px" />
@@ -754,11 +772,13 @@ export const MediaView: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
+            <div ref={libraryItemsRef} className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className="py-3 px-2 flex items-center justify-between gap-4 rounded-lg hover:bg-[var(--surface-hover)]/40 transition group select-none"
+                  className={`py-3 px-2 flex items-center justify-between gap-4 rounded-lg hover:bg-[var(--surface-hover)]/40 transition group select-none ${
+                    currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10' : ''
+                  }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-7 h-7 rounded-md bg-[var(--surface-hover)]/70 flex items-center justify-center text-[var(--muted)] shrink-0">
@@ -796,6 +816,9 @@ export const MediaView: React.FC = () => {
                         <span className="font-medium text-xs sm:text-sm text-[var(--text)] truncate">
                           {item.name}
                         </span>
+                        {currentTrack?.id === item.id && isPlaying && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running shrink-0" />
+                        )}
                         <span className="text-[10px] text-[var(--muted)] capitalize">
                           {item.media_type}
                         </span>
