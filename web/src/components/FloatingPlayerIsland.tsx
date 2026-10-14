@@ -56,8 +56,15 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
   const scrubTimeRef = useRef<number | null>(null);
   const isScrubbingRef = useRef<boolean>(false);
   const islandRef = useRef<HTMLDivElement | null>(null);
+  const activeTrackRef = useRef<HTMLDivElement | null>(null);
   const hoverCloseTimerRef = useRef<number | null>(null);
   const mobileInactivityTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (activeTrackRef.current && isExpanded && activeTab === 'music') {
+      activeTrackRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [currentTrack?.id, isExpanded, activeTab]);
 
   const poems = mediaListDetail?.items.filter((i) => i.media_type === 'poem') || [];
   const tracks = playlist.length > 0 ? playlist : mediaListDetail?.items.filter((i) => i.media_type === 'music') || [];
@@ -397,6 +404,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                     return (
                       <div
                         key={t.id}
+                        ref={isSelected ? activeTrackRef : undefined}
                         onClick={() => playTrack(t, tracks)}
                         className={`py-2 px-2.5 rounded-lg flex items-center justify-between gap-2 cursor-pointer transition ${
                           isSelected

@@ -2,6 +2,13 @@
 @import "./tokens.css";
 @import "./motion.css";
 
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+  scroll-padding-bottom: 6rem;
+  overscroll-behavior-y: contain;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -9,4 +16,44 @@ html, body {
   background-color: var(--bg);
   color: var(--text);
   min-height: 100vh;
+}
+
+/* ─── Calm & Minimal Scrollbar ─────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* ─── Reduced Motion Scroll Parity ─────────────────────────────────────── */
+:root[data-motion="reduced"] html,
+:root[data-motion="off"] html,
+html[data-motion="reduced"],
+html[data-motion="off"] {
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) html,
+  html:not([data-motion="full"]) {
+    scroll-behavior: auto !important;
+  }
 }

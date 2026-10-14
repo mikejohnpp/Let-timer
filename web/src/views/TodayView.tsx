@@ -69,6 +69,15 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const listContainerRef = useRef<HTMLDivElement>(null);
   const isFirstLoadRef = useRef(true);
 
+  useEffect(() => {
+    if (newlyAddedTaskId) {
+      const el = document.querySelector(`[data-task-id="${newlyAddedTaskId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [newlyAddedTaskId]);
+
   const registerFlip = useFlip([tasks, overdueTasks, filterStatus, filterPriority, completingTaskId, doneCollapsed], listContainerRef);
 
   const { showToast } = useToast();
@@ -365,6 +374,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, height: 0, scale: 0.95 }}
         transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+        data-task-id={t.id}
         className={`min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] group rounded-[var(--radius-control)] select-none ${
           isNewlyAdded ? 'task-row-add' : ''
         }`}
