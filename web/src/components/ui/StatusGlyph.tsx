@@ -5,9 +5,10 @@ import { Check } from 'lucide-react';
 export interface StatusGlyphProps {
   status: 'pending' | 'in-progress' | 'paused' | 'completed' | 'cancelled';
   className?: string;
+  animateTick?: boolean;
 }
 
-export const StatusGlyph: React.FC<StatusGlyphProps> = ({ status, className }) => {
+export const StatusGlyph: React.FC<StatusGlyphProps> = ({ status, className, animateTick = false }) => {
   switch (status) {
     case 'pending':
       return (
@@ -51,7 +52,7 @@ export const StatusGlyph: React.FC<StatusGlyphProps> = ({ status, className }) =
             className
           )}
         >
-          <Check className="w-2.5 h-2.5 stroke-[3] task-check-tick" />
+          <Check className={clsx('w-2.5 h-2.5 stroke-[3]', animateTick && 'task-check-tick')} />
         </span>
       );
     case 'cancelled':

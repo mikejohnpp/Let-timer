@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { components } from '../api/schema';
 import { getStoredWorkspace, setStoredWorkspace, apiFetch } from '../api/client';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import {
   Button,
   IconButton,
@@ -27,6 +28,7 @@ export const WorkspacesView: React.FC = () => {
 
   const { showToast } = useToast();
   const confirm = useConfirm();
+  const [listRef] = useAutoAnimate<HTMLDivElement>({ duration: 200, easing: 'ease-out' });
 
   const loadWorkspaces = async () => {
     setIsLoading(true);
@@ -203,7 +205,7 @@ export const WorkspacesView: React.FC = () => {
           }}
         />
       ) : (
-        <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
+        <div ref={listRef} className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
           {workspaces.map((w) => {
             const isActive = activeWsId === w.id.toString();
 

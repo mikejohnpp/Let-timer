@@ -21,6 +21,8 @@ export function useFlip<T extends HTMLElement>(
 ) {
   const nodes = useRef(new Map<string, T>());
   const prevRects = useRef(new Map<string, { left: number; top: number }>());
+  const targetRects = useRef(new Map<string, { left: number; top: number }>());
+  const activeAnimations = useRef(new Map<string, Animation>());
   const prevScroll = useRef(0);
 
   const registerCache = useRef(new Map<string, (el: T | null) => void>());
@@ -33,6 +35,10 @@ export function useFlip<T extends HTMLElement>(
           nodes.current.set(key, el);
         } else {
           nodes.current.delete(key);
+          activeAnimations.current.get(key)?.cancel();
+          activeAnimations.current.delete(key);
+          targetRects.current.delete(key);
+          prevRects.current.delete(key);
         }
       };
       registerCache.current.set(key, cb);
@@ -57,8 +63,19 @@ export function useFlip<T extends HTMLElement>(
 
       const nextRects = new Map<string, { left: number; top: number }>();
 
+      // Measure resting/target positions
       nodes.current.forEach((el, k) => {
         if (!el || !el.isConnected) return;
+
+        const activeAnim = activeAnimations.current.get(k);
+        if (activeAnim && activeAnim.playState === 'running') {
+          const knownTarget = targetRects.current.get(k);
+          if (knownTarget) {
+            nextRects.set(k, knownTarget);
+            return;
+          }
+        }
+
         const r = el.getBoundingClientRect();
         if (origin) {
           nextRects.set(k, {
@@ -76,11 +93,26 @@ export function useFlip<T extends HTMLElement>(
           const el = nodes.current.get(k);
           if (!a || !el) return;
 
+          // If an animation is already running to destination b, do not interrupt or replay
+          const activeAnim = activeAnimations.current.get(k);
+          if (activeAnim && activeAnim.playState === 'running') {
+            const currentTarget = targetRects.current.get(k);
+            if (currentTarget && Math.abs(currentTarget.left - b.left) < 1 && Math.abs(currentTarget.top - b.top) < 1) {
+              return;
+            }
+          }
+
           const dx = a.left - b.left;
           const dy = a.top - b.top;
 
-          if (dx !== 0 || dy !== 0) {
-            animate(
+          // Only animate if movement is significant (>= 1px)
+          if (Math.abs(dx) >= 1 || Math.abs(dy) >= 1) {
+            if (activeAnim) {
+              activeAnim.cancel();
+              activeAnimations.current.delete(k);
+            }
+
+            const anim = animate(
               el,
               [
                 { transform: `translate(${dx}px, ${dy}px)` },
@@ -91,6 +123,17 @@ export function useFlip<T extends HTMLElement>(
                 easing: options.easing ?? tokens.easeEmph,
               }
             );
+
+            if (anim) {
+              activeAnimations.current.set(k, anim);
+              targetRects.current.set(k, b);
+              anim.onfinish = () => {
+                if (activeAnimations.current.get(k) === anim) {
+                  activeAnimations.current.delete(k);
+                  targetRects.current.delete(k);
+                }
+              };
+            }
           }
         });
       }

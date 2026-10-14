@@ -265,6 +265,14 @@ export const TodayView: React.FC<TodayViewProps> = ({
       setDoneCollapsed(false);
       setCompletingTaskId(task.id);
       await new Promise((r) => setTimeout(r, 220));
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, status: 'completed' } : t))
+      );
+      setCompletingTaskId(null);
+    } else if (action === 'reopen') {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, status: 'pending' } : t))
+      );
     } else if (action === 'restart') {
       const ok = await confirm({
         title: `Restart "${task.name}"?`,
@@ -298,14 +306,16 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
       if (res.ok) {
         onRefreshTimer();
-        loadTasks();
+        await loadTasks();
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.message || 'Action failed', 'danger');
+        await loadTasks();
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Action failed';
       showToast(msg, 'danger');
+      await loadTasks();
     } finally {
       if (action === 'delete') {
         setDeletingTaskIds((prev) => {
@@ -314,9 +324,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           return next;
         });
       }
-      if (action === 'done' || action === 'mark_done_force') {
-        setCompletingTaskId(null);
-      }
+      setCompletingTaskId(null);
     }
   };
 
@@ -382,7 +390,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             aria-label={t.status === 'completed' ? 'Reopen task' : 'Mark task done'}
             title={t.status === 'completed' ? 'Click to reopen' : 'Click to complete'}
           >
-            <StatusGlyph status={effectiveStatus as any} />
+            <StatusGlyph status={effectiveStatus as any} animateTick={isCompleting} />
           </button>
 
           <div
