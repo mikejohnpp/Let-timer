@@ -69,6 +69,17 @@ export const SettingsView: React.FC = () => {
   const [mediaImages, setMediaImages] = useState<Media[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
+  const [autoRotateBg, setAutoRotateBg] = useState<boolean>(() => {
+    const val = localStorage.getItem('let_timer_auto_rotate_bg');
+    return val === null ? true : val === 'true';
+  });
+
+  const handleAutoRotateBgChange = (checked: boolean) => {
+    setAutoRotateBg(checked);
+    localStorage.setItem('let_timer_auto_rotate_bg', String(checked));
+    window.dispatchEvent(new CustomEvent('let-timer-settings-changed'));
+  };
+
   // Load preferences from localStorage
   useEffect(() => {
     const savedTheme = (localStorage.getItem('let_timer_theme') as 'light' | 'dark' | 'system') || 'system';
@@ -430,6 +441,24 @@ export const SettingsView: React.FC = () => {
               <Checkbox
                 checked={dynamicColor}
                 onCheckedChange={(c) => setDynamicColor(!!c)}
+                label="Enable"
+              />
+            </div>
+          </div>
+
+          {/* Auto-rotate Focus Backgrounds toggle */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
+            <div>
+              <div className="text-xs font-semibold text-[var(--text)]">Auto-rotate Focus Backgrounds</div>
+              <div className="text-[11px] text-[var(--muted)]">
+                Automatically rotate focus backgrounds every 90 seconds
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Checkbox
+                checked={autoRotateBg}
+                onCheckedChange={(c) => handleAutoRotateBgChange(!!c)}
                 label="Enable"
               />
             </div>

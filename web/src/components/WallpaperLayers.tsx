@@ -17,40 +17,67 @@ export const WallpaperLayers: React.FC<WallpaperLayersProps> = ({
   className = 'absolute inset-0 bg-cover bg-center',
   overlayClassName = 'absolute inset-0 bg-[var(--imm-overlay)] pointer-events-none',
 }) => {
-  const [currentUrl, setCurrentUrl] = useState<string | null>(url);
-  const [nextUrl, setNextUrl] = useState<string | null>(null);
-  const [isCrossfading, setIsCrossfading] = useState(false);
+  // Double-buffer layers
+  const [layerA, setLayerA] = useState<string | null>(url);
+  const [layerB, setLayerB] = useState<string | null>(null);
+  const [activeSlot, setActiveSlot] = useState<'A' | 'B'>('A');
+  const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
   const activeUrlRef = useRef<string | null>(url);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (url === activeUrlRef.current) return;
 
     if (!url) {
-      setCurrentUrl(null);
-      setNextUrl(null);
       activeUrlRef.current = null;
+      setIsFadingOut(true);
+      const tokens = readMotionTokens();
+      const fadeDuration = tokens.isOff ? 0 : tokens.durBase;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        setLayerA(null);
+        setLayerB(null);
+        setIsFadingOut(false);
+      }, fadeDuration + 50);
       return;
     }
 
+    setIsFadingOut(false);
     let isCancelled = false;
     const tokens = readMotionTokens();
+    const isCrossfade = Boolean(activeUrlRef.current && (layerA || layerB));
+    const targetSlot = !isCrossfade ? activeSlot : (activeSlot === 'A' ? 'B' : 'A');
+
+    // Assign new URL to target slot
+    if (targetSlot === 'A') {
+      setLayerA(url);
+    } else {
+      setLayerB(url);
+    }
 
     const proceed = () => {
       if (isCancelled) return;
-      setNextUrl(url);
-      setIsCrossfading(true);
 
-      const crossfadeDuration = tokens.isOff ? 0 : tokens.durScenic;
-      const timer = setTimeout(() => {
-        if (!isCancelled) {
-          setCurrentUrl(url);
-          setNextUrl(null);
-          setIsCrossfading(false);
+      requestAnimationFrame(() => {
+        if (isCancelled) return;
+        requestAnimationFrame(() => {
+          if (isCancelled) return;
+          setActiveSlot(targetSlot);
           activeUrlRef.current = url;
-        }
-      }, crossfadeDuration);
 
-      return () => clearTimeout(timer);
+          const duration = tokens.isOff ? 0 : (isCrossfade ? tokens.durScenic : tokens.durBase);
+          if (timerRef.current) clearTimeout(timerRef.current);
+          timerRef.current = setTimeout(() => {
+            if (!isCancelled) {
+              if (targetSlot === 'A') {
+                setLayerB(null);
+              } else {
+                setLayerA(null);
+              }
+            }
+          }, duration + 50);
+        });
+      });
     };
 
     const img = new Image();
@@ -65,40 +92,42 @@ export const WallpaperLayers: React.FC<WallpaperLayersProps> = ({
 
     return () => {
       isCancelled = true;
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [url]);
+  }, [url, activeSlot, layerA, layerB]);
 
-  if (!currentUrl && !nextUrl) return null;
+  if (!layerA && !layerB) return null;
+
+  const isCrossfade = Boolean(layerA && layerB);
+  const transitionClass = isFadingOut || !isCrossfade
+    ? 'duration-[var(--dur-base)]'
+    : 'duration-[var(--dur-scenic)]';
 
   return (
     <div
-      className="wallpaper-layers absolute inset-0 pointer-events-none z-0 overflow-hidden"
+      className="wallpaper-layers fixed inset-0 pointer-events-none z-0 overflow-hidden"
       style={{ viewTransitionName: 'none' }}
       aria-hidden="true"
     >
-      {/* Current base layer */}
-      {currentUrl && (
-        <div
-          className={`${className} transition-opacity duration-[var(--dur-scenic)] ease-[var(--ease-inout)] ${
-            isCrossfading && nextUrl ? 'opacity-0' : 'opacity-100'
-          }`}
-          style={{ backgroundImage: `url(${currentUrl})` }}
-        >
-          {overlayClassName && <div className={overlayClassName} />}
-        </div>
-      )}
+      {/* Buffer Layer A */}
+      <div
+        className={`${className} transition-opacity ${transitionClass} ease-[var(--ease-inout)] ${
+          !isFadingOut && activeSlot === 'A' && layerA ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={layerA ? { backgroundImage: `url(${layerA})` } : undefined}
+      >
+        {overlayClassName && <div className={overlayClassName} />}
+      </div>
 
-      {/* Next incoming layer (fade in) */}
-      {nextUrl && (
-        <div
-          className={`${className} transition-opacity duration-[var(--dur-scenic)] ease-[var(--ease-inout)] ${
-            isCrossfading ? 'opacity-100' : 'opacity-0'
-          }`}
-          style={{ backgroundImage: `url(${nextUrl})` }}
-        >
-          {overlayClassName && <div className={overlayClassName} />}
-        </div>
-      )}
+      {/* Buffer Layer B */}
+      <div
+        className={`${className} transition-opacity ${transitionClass} ease-[var(--ease-inout)] ${
+          !isFadingOut && activeSlot === 'B' && layerB ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={layerB ? { backgroundImage: `url(${layerB})` } : undefined}
+      >
+        {overlayClassName && <div className={overlayClassName} />}
+      </div>
     </div>
   );
 };

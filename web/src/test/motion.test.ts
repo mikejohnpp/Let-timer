@@ -214,13 +214,12 @@ describe('Motion Foundations (Phase M0)', () => {
   });
 
   describe('Focus and Ambience (Phase M4)', () => {
-    it('uses WallpaperLayers with img.decode and dur-scenic in App and FocusView', () => {
+    it('uses WallpaperLayers with img.decode and dur-scenic for seamless wallpaper transitions (A27)', () => {
       const appCode = fs.readFileSync(path.resolve(__dirname, '../App.tsx'), 'utf8');
-      const focusCode = fs.readFileSync(path.resolve(__dirname, '../views/FocusView.tsx'), 'utf8');
       const wallCode = fs.readFileSync(path.resolve(__dirname, '../components/WallpaperLayers.tsx'), 'utf8');
 
       expect(appCode).toContain('<WallpaperLayers');
-      expect(focusCode).toContain('<WallpaperLayers');
+      expect(appCode).toContain('activeWallpaperUrl');
       expect(wallCode).toContain('img.decode');
       expect(wallCode).toContain('duration-[var(--dur-scenic)]');
     });

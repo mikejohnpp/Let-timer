@@ -36,3 +36,4 @@ export function useMotionTransition(
     ease: parseBezier(eased),
   };
 }
+

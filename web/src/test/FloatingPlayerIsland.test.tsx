@@ -24,6 +24,8 @@ const mockAudioContext: AudioPlayerContextType = {
     },
   ],
   mediaListDetail: null,
+  currentImageIndex: 0,
+  setCurrentImageIndex: vi.fn(),
   isPlaying: true,
   currentTime: 30,
   duration: 120,

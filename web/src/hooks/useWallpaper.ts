@@ -11,18 +11,49 @@ export interface WallpaperState {
   clearWallpaper: () => void;
 }
 
+function safeGetItem(key: string): string | null {
+  try {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      return localStorage.getItem(key);
+    }
+  } catch {
+    // fallback
+  }
+  return null;
+}
+
+function safeSetItem(key: string, value: string): void {
+  try {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, value);
+    }
+  } catch {
+    // fallback
+  }
+}
+
+function safeRemoveItem(key: string): void {
+  try {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // fallback
+  }
+}
+
 export function useWallpaper(): WallpaperState {
   const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(() => {
-    return localStorage.getItem('let_timer_wallpaper');
+    return safeGetItem('let_timer_wallpaper');
   });
 
   const [dynamicColor, setDynamicColorState] = useState<boolean>(() => {
-    const val = localStorage.getItem('let_timer_dynamic_color');
+    const val = safeGetItem('let_timer_dynamic_color');
     return val === null ? true : val === 'true';
   });
 
   const [extractedColor, setExtractedColor] = useState<string | null>(() => {
-    return localStorage.getItem('let_timer_extracted_color');
+    return safeGetItem('let_timer_extracted_color');
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -33,7 +64,7 @@ export function useWallpaper(): WallpaperState {
       document.documentElement.setAttribute('data-has-wallpaper', 'true');
       if (dynamicColor && !extractedColor) {
         extractDominantColor(wallpaperUrl).then((color) => {
-          localStorage.setItem('let_timer_extracted_color', color);
+          safeSetItem('let_timer_extracted_color', color);
           setExtractedColor(color);
           applyDynamicPalette(color);
         });
@@ -79,8 +110,8 @@ export function useWallpaper(): WallpaperState {
   const setWallpaper = useCallback(
     async (url: string | null) => {
       if (!url) {
-        localStorage.removeItem('let_timer_wallpaper');
-        localStorage.removeItem('let_timer_extracted_color');
+        safeRemoveItem('let_timer_wallpaper');
+        safeRemoveItem('let_timer_extracted_color');
         setWallpaperUrl(null);
         setExtractedColor(null);
         applyDynamicPalette(null);
@@ -91,13 +122,13 @@ export function useWallpaper(): WallpaperState {
 
       setIsLoading(true);
       try {
-        localStorage.setItem('let_timer_wallpaper', url);
+        safeSetItem('let_timer_wallpaper', url);
         setWallpaperUrl(url);
         document.documentElement.setAttribute('data-has-wallpaper', 'true');
 
         if (dynamicColor) {
           const color = await extractDominantColor(url);
-          localStorage.setItem('let_timer_extracted_color', color);
+          safeSetItem('let_timer_extracted_color', color);
           setExtractedColor(color);
           applyDynamicPalette(color);
         }
@@ -112,7 +143,7 @@ export function useWallpaper(): WallpaperState {
   const setDynamicColor = useCallback(
     (enabled: boolean) => {
       setDynamicColorState(enabled);
-      localStorage.setItem('let_timer_dynamic_color', String(enabled));
+      safeSetItem('let_timer_dynamic_color', String(enabled));
 
       if (enabled && extractedColor) {
         applyDynamicPalette(extractedColor);
@@ -131,9 +162,9 @@ export function useWallpaper(): WallpaperState {
   // Sync across tabs/instances
   useEffect(() => {
     const handleSync = () => {
-      const storedWp = localStorage.getItem('let_timer_wallpaper');
-      const storedColor = localStorage.getItem('let_timer_extracted_color');
-      const storedDyn = localStorage.getItem('let_timer_dynamic_color');
+      const storedWp = safeGetItem('let_timer_wallpaper');
+      const storedColor = safeGetItem('let_timer_extracted_color');
+      const storedDyn = safeGetItem('let_timer_dynamic_color');
       setWallpaperUrl(storedWp);
       setExtractedColor(storedColor);
       setDynamicColorState(storedDyn === null ? true : storedDyn === 'true');

@@ -22,6 +22,8 @@ export interface AudioPlayerContextType {
   volume: number;
   isMuted: boolean;
   mediaListDetail: MediaListDetail | null;
+  currentImageIndex: number;
+  setCurrentImageIndex: React.Dispatch<React.SetStateAction<number>>;
   playTrack: (track: MediaItem, newPlaylist?: MediaItem[]) => void;
   togglePlay: () => void;
   pause: () => void;
@@ -44,6 +46,8 @@ const fallbackContext: AudioPlayerContextType = {
   volume: 0.8,
   isMuted: false,
   mediaListDetail: null,
+  currentImageIndex: 0,
+  setCurrentImageIndex: () => {},
   playTrack: () => {},
   togglePlay: () => {},
   pause: () => {},
@@ -83,6 +87,7 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
   });
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [mediaListDetail, setMediaListDetail] = useState<MediaListDetail | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const loadedListIdRef = useRef<number | null>(null);
@@ -259,10 +264,24 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
     setIsMuted((prev) => !prev);
   }, []);
 
+  const clearPlayer = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    setCurrentTrack(null);
+    setPlaylist([]);
+    setMediaListDetail(null);
+    loadedListIdRef.current = null;
+    setCurrentImageIndex(0);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+  }, []);
+
   const loadMediaListForTask = useCallback(async (mediaListId: number | null | undefined) => {
     if (!mediaListId) {
-      setMediaListDetail(null);
-      loadedListIdRef.current = null;
+      clearPlayer();
       return;
     }
 
@@ -277,6 +296,7 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
 
         const musicTracks = data.items.filter((item) => item.media_type === 'music');
         setPlaylist(musicTracks);
+        setCurrentImageIndex(0);
 
         // Pre-select first music track if none currently selected
         setCurrentTrack((prev) => {
@@ -288,23 +308,14 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
           }
           return prev;
         });
+      } else {
+        clearPlayer();
       }
     } catch (e) {
       console.error('Failed to load media list detail for task', e);
+      clearPlayer();
     }
-  }, []);
-
-  const clearPlayer = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = '';
-    }
-    setCurrentTrack(null);
-    setPlaylist([]);
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-  }, []);
+  }, [clearPlayer]);
 
   return (
     <AudioPlayerContext.Provider
@@ -317,6 +328,8 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
         volume,
         isMuted,
         mediaListDetail,
+        currentImageIndex,
+        setCurrentImageIndex,
         playTrack,
         togglePlay,
         pause,

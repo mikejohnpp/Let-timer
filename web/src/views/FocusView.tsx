@@ -12,7 +12,6 @@ import { apiFetch } from '../api/client';
 import { useToast } from '../components/ui';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { FloatingPlayerIsland } from '../components/FloatingPlayerIsland';
-import { WallpaperLayers } from '../components/WallpaperLayers';
 
 interface FocusViewProps {
   snapshot: TimerSnapshot | null;
@@ -29,15 +28,18 @@ export const FocusView: React.FC<FocusViewProps> = ({
 }) => {
   const [now, setNow] = useState<number>(Date.now());
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [mediaLists, setMediaLists] = useState<{ id: number; name: string }[]>([]);
   const [selectedMediaListId, setSelectedMediaListId] = useState<number | null>(null);
 
   const { showToast } = useToast();
   const hideTimerRef = useRef<number | null>(null);
-  const { mediaListDetail, loadMediaListForTask, pause, clearPlayer } = useAudioPlayer();
-
-  const prevSnapshotStateRef = useRef<string>(snapshot?.state || 'idle');
+  const {
+    mediaListDetail,
+    loadMediaListForTask,
+    clearPlayer,
+    currentImageIndex,
+    setCurrentImageIndex,
+  } = useAudioPlayer();
 
   // Fetch available media lists for idle ambient playback
   useEffect(() => {
@@ -49,27 +51,29 @@ export const FocusView: React.FC<FocusViewProps> = ({
       .catch(() => {});
   }, []);
 
-  // When a task starts: stop idle music and switch to task's media list if present
-  useEffect(() => {
-    const prevState = prevSnapshotStateRef.current;
-    const currentState = snapshot?.state || 'idle';
+  const currentTaskId = snapshot?.task?.id;
+  const currentMediaListId = snapshot?.task?.media_list_id || null;
+  const prevTaskIdRef = useRef<number | null | undefined>(undefined);
 
-    if ((prevState === 'idle' || !prevState) && currentState === 'running') {
-      pause();
-      if (snapshot?.task?.media_list_id) {
-        setSelectedMediaListId(snapshot.task.media_list_id);
-        loadMediaListForTask(snapshot.task.media_list_id);
+  // When task changes or starts: sync task's media list or clear player if none
+  useEffect(() => {
+    const prevTaskId = prevTaskIdRef.current;
+    prevTaskIdRef.current = currentTaskId;
+
+    if (!currentTaskId || snapshot?.state === 'idle') {
+      return;
+    }
+
+    if (prevTaskId !== currentTaskId) {
+      if (currentMediaListId) {
+        setSelectedMediaListId(currentMediaListId);
+        loadMediaListForTask(currentMediaListId);
       } else {
         setSelectedMediaListId(null);
         clearPlayer();
       }
-    } else if (currentState !== 'idle' && snapshot?.task?.media_list_id && snapshot.task.media_list_id !== selectedMediaListId) {
-      setSelectedMediaListId(snapshot.task.media_list_id);
-      loadMediaListForTask(snapshot.task.media_list_id);
     }
-
-    prevSnapshotStateRef.current = currentState;
-  }, [snapshot?.state, snapshot?.task?.media_list_id, pause, clearPlayer, loadMediaListForTask, selectedMediaListId]);
+  }, [currentTaskId, currentMediaListId, snapshot?.state, loadMediaListForTask, clearPlayer]);
 
   // Live ticking
   useEffect(() => {
@@ -112,14 +116,29 @@ export const FocusView: React.FC<FocusViewProps> = ({
   // Filter items
   const images = mediaListDetail?.items.filter((i) => i.media_type === 'image' && i.url) || [];
 
-  // Crossfade between images every 90s if > 1
+  // Check auto-rotate setting
+  const [autoRotateBg, setAutoRotateBg] = useState<boolean>(() => {
+    const val = typeof window !== 'undefined' ? localStorage.getItem('let_timer_auto_rotate_bg') : null;
+    return val === null ? true : val === 'true';
+  });
+
   useEffect(() => {
-    if (images.length <= 1) return;
+    const handleSync = () => {
+      const val = localStorage.getItem('let_timer_auto_rotate_bg');
+      setAutoRotateBg(val === null ? true : val === 'true');
+    };
+    window.addEventListener('let-timer-settings-changed', handleSync);
+    return () => window.removeEventListener('let-timer-settings-changed', handleSync);
+  }, []);
+
+  // Crossfade between images every 90s if > 1 and auto-rotate is enabled
+  useEffect(() => {
+    if (images.length <= 1 || !autoRotateBg) return;
     const interval = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % images.length);
     }, 90000);
     return () => clearInterval(interval);
-  }, [images.length]);
+  }, [images.length, autoRotateBg]);
 
   const appWallpaper = typeof window !== 'undefined' ? localStorage.getItem('let_timer_wallpaper') : null;
   const hasImageBg = images.length > 0;
@@ -193,29 +212,18 @@ export const FocusView: React.FC<FocusViewProps> = ({
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden flex flex-col justify-between p-6 sm:p-12 pb-24 sm:pb-12 pt-14 sm:pt-16 select-none">
-      {/* Layer 0: Background Photo with two stacked layers & decode (A27) */}
-      {hasAnyBg && (
-        <WallpaperLayers
-          url={effectiveBg}
-          className="absolute inset-0 bg-cover bg-center"
-          overlayClassName="absolute inset-0 bg-[var(--imm-overlay)] pointer-events-none"
-        />
-      )}
-
-      {/* Layer 2: Top Space & Workspace label (always visible) */}
-      <div className="relative z-2 text-center">
+    <div className="relative h-[calc(100vh-var(--header-h))] min-h-[500px] w-full overflow-hidden flex flex-col justify-between p-6 sm:p-10 pb-8 sm:pb-10 pt-2 sm:pt-4 select-none">
+      {/* Layer 2: Main Timer Center Stage */}
+      <div className="relative z-2 my-auto text-center flex flex-col items-center">
+        {/* Workspace label right above timer digits */}
         <span
-          className={`text-xs uppercase tracking-widest font-semibold ${
+          className={`text-xs uppercase tracking-widest font-semibold mb-2 sm:mb-3 ${
             hasAnyBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'
           }`}
         >
           {snapshot?.workspace_name || 'Focus'}
         </span>
-      </div>
 
-      {/* Layer 2: Main Timer Center Stage */}
-      <div className="relative z-2 my-auto text-center flex flex-col items-center">
         {/* Giant Timer Digits (Always visible with consistent giant size) */}
         <div
           className={`font-mono font-light tabular-nums tracking-tighter text-6xl sm:text-8xl md:text-9xl transition-colors ${digitColorClass}`}

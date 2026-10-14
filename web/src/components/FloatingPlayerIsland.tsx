@@ -11,6 +11,9 @@ import {
   ChevronDown,
   BookOpen,
   ExternalLink,
+  Image as ImageIcon,
+  ListMusic,
+  Check,
 } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { SoundWave } from './SoundWave';
@@ -49,13 +52,17 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
     prevTrack,
     setVolume,
     toggleMute,
+    currentImageIndex,
+    setCurrentImageIndex,
   } = useAudioPlayer();
 
   const [isExpanded, setIsExpanded] = useState(false);
   const tokens = useMotionTokens();
   const isReduced = tokens.isReduced;
   const islandTransition = useMotionTransition('fast');
-  const [activeTab, setActiveTab] = useState<'music' | 'poetry'>('music');
+  const [activeTab, setActiveTab] = useState<'music' | 'background' | 'poetry'>('music');
+  const [showQueue, setShowQueue] = useState(false);
+  const queueTransition = useMotionTransition('base');
   const [scrubTime, setScrubTime] = useState<number | null>(null);
   const scrubTimeRef = useRef<number | null>(null);
   const isScrubbingRef = useRef<boolean>(false);
@@ -64,14 +71,22 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
   const hoverCloseTimerRef = useRef<number | null>(null);
   const mobileInactivityTimerRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (activeTrackRef.current && isExpanded && activeTab === 'music') {
-      activeTrackRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }, [currentTrack?.id, isExpanded, activeTab]);
-
   const poems = mediaListDetail?.items.filter((i) => i.media_type === 'poem') || [];
   const tracks = playlist.length > 0 ? playlist : mediaListDetail?.items.filter((i) => i.media_type === 'music') || [];
+  const focusImages = mediaListDetail?.items.filter((i) => i.media_type === 'image' && i.url) || [];
+
+  // If active tab was background but current task has no images, fallback to music
+  useEffect(() => {
+    if (focusImages.length === 0 && activeTab === 'background') {
+      setActiveTab('music');
+    }
+  }, [focusImages.length, activeTab]);
+
+  useEffect(() => {
+    if (activeTrackRef.current && isExpanded && activeTab === 'music' && showQueue) {
+      activeTrackRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [currentTrack?.id, isExpanded, activeTab, showQueue]);
 
   const lastActiveTrackRef = useRef(currentTrack);
   if (currentTrack) {
@@ -167,8 +182,8 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
     };
   }, [isExpanded]);
 
-  // If there's no track and no poems, nothing to show
-  if (!track && tracks.length === 0 && poems.length === 0) {
+  // If there's no track, no tracks, no poems, and no focus images, nothing to show
+  if (!track && tracks.length === 0 && poems.length === 0 && focusImages.length === 0) {
     return null;
   }
 
@@ -192,7 +207,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }}
             transition={islandTransition}
-            className={`origin-bottom w-[92vw] max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl border flex flex-col gap-4 ${
+            className={`origin-bottom w-[92vw] max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl border flex flex-col gap-4 max-h-[80vh] overflow-hidden ${
               hasBackgroundPhoto
                 ? 'bg-[var(--surface)]/95 backdrop-blur-2xl border-[var(--border-strong)]/40 text-[var(--text)]'
                 : 'bg-[var(--surface)]/95 backdrop-blur-2xl border-[var(--border)] shadow-xl text-[var(--text)]'
@@ -214,6 +229,23 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                   <span className="flex items-center gap-1.5">
                     <Music className="w-3 h-3" />
                     <span>Music ({tracks.length})</span>
+                  </span>
+                </button>
+              )}
+
+              {focusImages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('background')}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
+                    activeTab === 'background'
+                      ? 'bg-[var(--accent)] text-[var(--on-accent)] shadow-xs'
+                      : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <ImageIcon className="w-3 h-3" />
+                    <span>Background ({focusImages.length})</span>
                   </span>
                 </button>
               )}
@@ -393,48 +425,118 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                   </button>
                 </div>
 
-                {/* Spacer for symmetrical balance */}
-                <div className="w-24 flex justify-end text-[10px] text-[var(--muted)] font-mono">
-                  {tracks.length > 0 && currentTrack
-                    ? `${tracks.findIndex((t) => t.id === currentTrack.id) + 1}/${tracks.length}`
-                    : ''}
+                {/* Queue toggle button */}
+                <div className="w-24 flex justify-end">
+                  {tracks.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowQueue(!showQueue)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono transition cursor-pointer ${
+                        showQueue
+                          ? 'bg-[var(--surface-hover)] text-[var(--accent-text)] font-semibold'
+                          : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]/60'
+                      }`}
+                      aria-label={showQueue ? 'Hide queue' : 'Show queue'}
+                      title={showQueue ? 'Hide queue' : 'Show queue'}
+                    >
+                      <ListMusic className="w-3.5 h-3.5" />
+                      <span>
+                        {currentTrack ? tracks.findIndex((t) => t.id === currentTrack.id) + 1 : 1}/{tracks.length}
+                      </span>
+                      {showQueue ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Playlist queue list */}
-              {tracks.length > 0 && (
-                <div className="mt-1 pt-2 border-t border-[var(--border)]/30 max-h-36 overflow-y-auto divide-y divide-[var(--border)]/20 text-xs">
-                  {tracks.map((t) => {
-                    const isSelected = currentTrack?.id === t.id;
-                    return (
-                      <div
-                        key={t.id}
-                        ref={isSelected ? activeTrackRef : undefined}
-                        onClick={() => playTrack(t, tracks)}
-                        className={`py-2 px-2.5 rounded-lg flex items-center justify-between gap-2 cursor-pointer transition ${
-                          isSelected
-                            ? 'bg-[var(--surface-hover)] font-semibold text-[var(--accent-text)]'
-                            : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]/50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          {isSelected && isPlaying ? (
-                            <SoundWave isPlaying={true} className="shrink-0" />
-                          ) : (
-                            <Music className="w-3.5 h-3.5 shrink-0 opacity-70" />
+              {/* Collapsible Playlist Queue */}
+              <AnimatePresence>
+                {showQueue && tracks.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={queueTransition}
+                    className="mt-1 pt-2 border-t border-[var(--border)]/30 max-h-36 overflow-y-auto divide-y divide-[var(--border)]/20 text-xs"
+                  >
+                    {tracks.map((t) => {
+                      const isSelected = currentTrack?.id === t.id;
+                      return (
+                        <div
+                          key={t.id}
+                          ref={isSelected ? activeTrackRef : undefined}
+                          onClick={() => playTrack(t, tracks)}
+                          className={`py-2 px-2.5 rounded-lg flex items-center justify-between gap-2 cursor-pointer transition ${
+                            isSelected
+                              ? 'bg-[var(--surface-hover)] font-semibold text-[var(--accent-text)]'
+                              : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isSelected && isPlaying ? (
+                              <SoundWave isPlaying={true} className="shrink-0" />
+                            ) : (
+                              <Music className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                            )}
+                            <span className="truncate">{t.name}</span>
+                          </div>
+                          {t.description && (
+                            <span className="text-[10px] text-[var(--muted)] truncate max-w-[100px]">
+                              {t.description}
+                            </span>
                           )}
-                          <span className="truncate">{t.name}</span>
                         </div>
-                        {t.description && (
-                          <span className="text-[10px] text-[var(--muted)] truncate max-w-[100px]">
-                            {t.description}
-                          </span>
-                        )}
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Tab 2: Task Focus Background Selector */}
+          {activeTab === 'background' && focusImages.length > 0 && (
+            <div className="flex flex-col gap-2.5 py-1 px-1">
+              <div className="flex items-center justify-between text-xs text-[var(--muted)] px-1">
+                <span>Task focus background</span>
+                <span className="text-[11px] font-mono">
+                  {currentImageIndex + 1}/{focusImages.length}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-0.5">
+                {focusImages.map((img, idx) => {
+                  const isSelected = currentImageIndex === idx;
+                  return (
+                    <button
+                      key={img.id || idx}
+                      type="button"
+                      onClick={() => setCurrentImageIndex(idx)}
+                      className={`group relative aspect-video rounded-lg overflow-hidden border transition-all cursor-pointer text-left focus:outline-none ${
+                        isSelected
+                          ? 'border-[var(--accent)] ring-2 ring-[var(--accent)] shadow-md'
+                          : 'border-[var(--border)] hover:border-[var(--text)]/40 hover:scale-[1.02]'
+                      }`}
+                    >
+                      <img
+                        src={img.url}
+                        alt={img.name}
+                        className="w-full h-full object-cover transition-transform duration-[var(--dur-medium)] ease-[var(--ease-out)] group-hover:scale-105"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-black/25 group-hover:bg-black/10 transition-colors" />
+                      {isSelected && (
+                        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[var(--accent)] text-[var(--on-accent)] flex items-center justify-center shadow-md">
+                          <Check className="w-3 h-3 stroke-[3]" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 inset-x-0 p-1 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-[10px] text-white truncate px-1.5">
+                        {img.name}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -476,7 +578,11 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }}
           transition={islandTransition}
-          className={`origin-bottom shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border select-none shadow-xl backdrop-blur-xl ${
+          role="button"
+          tabIndex={0}
+          aria-label={track ? `Floating audio player: ${track.name}` : 'Floating audio player'}
+          onClick={() => setIsExpanded(true)}
+          className={`origin-bottom shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border select-none shadow-xl backdrop-blur-xl cursor-pointer ${
             hasBackgroundPhoto
               ? 'bg-[var(--surface)]/90 border-[var(--border-strong)]/40 text-[var(--text)] shadow-black/40'
               : 'bg-[var(--surface)]/90 border-[var(--border-strong)]/30 text-[var(--text)]'

@@ -36,29 +36,54 @@ export const AppContent: React.FC = () => {
   const { wallpaperUrl } = useWallpaper();
 
   const { connectionStatus, snapshot, receivedAt, refetchSnapshot } = useEventStream();
-  const { currentTrack, pause, clearPlayer, loadMediaListForTask } = useAudioPlayer();
+  const {
+    currentTrack,
+    pause,
+    clearPlayer,
+    loadMediaListForTask,
+    mediaListDetail,
+    currentImageIndex,
+  } = useAudioPlayer();
+  const currentTaskId = snapshot?.task?.id ?? null;
+  const currentMediaListId = snapshot?.task?.media_list_id ?? null;
+  const prevTaskIdRef = useRef<number | null>(undefined);
   const prevSnapshotStateRef = useRef<string>(snapshot?.state || 'idle');
   const tokens = useMotionTokens();
   const floatingTransition = useMotionTransition('base');
 
+  const focusImages = mediaListDetail?.items.filter((i) => i.media_type === 'image' && i.url) || [];
+  const hasTaskFocusImages = isFocusView && focusImages.length > 0;
+  const taskFocusImageUrl = hasTaskFocusImages ? (focusImages[currentImageIndex]?.url || null) : null;
+  const activeWallpaperUrl = isFocusView
+    ? (taskFocusImageUrl || wallpaperUrl || null)
+    : (wallpaperUrl || null);
+
   useEffect(() => {
     const prevState = prevSnapshotStateRef.current;
     const currentState = snapshot?.state || 'idle';
+    const prevTaskId = prevTaskIdRef.current;
+
+    prevSnapshotStateRef.current = currentState;
+    prevTaskIdRef.current = currentTaskId;
+
+    if (currentState === 'idle') {
+      clearPlayer();
+      return;
+    }
 
     if ((prevState === 'idle' || !prevState) && currentState === 'running') {
       // Dừng lại việc chơi nhạc khi task bắt đầu
       pause();
-      if (snapshot?.task?.media_list_id) {
-        loadMediaListForTask(snapshot.task.media_list_id);
+    }
+
+    if (prevTaskId !== currentTaskId || prevState === 'idle') {
+      if (currentMediaListId) {
+        loadMediaListForTask(currentMediaListId);
       } else {
         clearPlayer();
       }
-    } else if (currentState !== 'idle' && snapshot?.task?.media_list_id) {
-      loadMediaListForTask(snapshot.task.media_list_id);
     }
-
-    prevSnapshotStateRef.current = currentState;
-  }, [snapshot?.state, snapshot?.task?.media_list_id, pause, clearPlayer, loadMediaListForTask]);
+  }, [snapshot?.state, currentTaskId, currentMediaListId, pause, clearPlayer, loadMediaListForTask]);
 
   const checkAuth = useCallback(async () => {
     setAuthStatus('checking');
@@ -128,13 +153,15 @@ export const AppContent: React.FC = () => {
 
   return (
     <div className="relative min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] transition-colors">
-      {wallpaperUrl && (
-        <WallpaperLayers
-          url={wallpaperUrl}
-          className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center"
-          overlayClassName="absolute inset-0 bg-[var(--bg-glass-overlay)] backdrop-blur-[2px]"
-        />
-      )}
+      <WallpaperLayers
+        url={activeWallpaperUrl}
+        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center"
+        overlayClassName={
+          isFocusView
+            ? 'absolute inset-0 bg-[var(--imm-overlay)] pointer-events-none transition-colors duration-[var(--dur-base)]'
+            : 'absolute inset-0 bg-[var(--bg-glass-overlay)] backdrop-blur-[2px] transition-colors duration-[var(--dur-base)]'
+        }
+      />
 
       <Header
         currentView={currentView}

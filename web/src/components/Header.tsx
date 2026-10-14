@@ -237,14 +237,14 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header
-      className={`w-full border-none transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] h-[var(--header-h)] ${
+      className={`sticky top-0 z-40 w-full border-none transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] h-[var(--header-h)] ${
         isFocusView
-          ? `fixed top-0 inset-x-0 z-50 bg-transparent focus-within:opacity-100 ${
+          ? `bg-transparent focus-within:opacity-100 focus-within:pointer-events-auto ${
               focusVisible
                 ? 'opacity-100'
-                : 'opacity-0'
+                : 'opacity-0 pointer-events-none'
             }`
-          : 'sticky top-0 z-40 bg-[var(--bg)]/80 backdrop-blur-md opacity-100'
+          : 'bg-[var(--bg)]/80 backdrop-blur-md opacity-100'
       } ${className || ''}`}
     >
       <div className="relative w-full px-4 sm:px-8 h-full flex items-center justify-between gap-4">
