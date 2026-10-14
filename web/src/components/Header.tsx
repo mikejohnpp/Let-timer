@@ -273,7 +273,7 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-64 p-3 flex flex-col gap-2">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] px-1">
+              <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] px-1">
                 Workspaces
               </div>
 

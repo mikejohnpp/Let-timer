@@ -8,6 +8,10 @@
  *  - Filled buttons/badges:             base token as background + matching --on-* token as label.
  *  - Tinted banners:                    *-bg background, message in --text, icon in the base token.
  *  - Never use --danger / --warning / --success / --timer-over as small text colour.
+ *
+ * Typography Scale (§7):
+ *  - Approved scale: 12 / 14 / 16 / 20 / 28 / 48 / 72 px (= xs / sm / base / lg+ / display).
+ *  - Sub-12px text (text-[10px], text-[11px]) is forbidden without an explicit `// type-allow: <reason>`.
  */
 
 :root {

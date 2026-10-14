@@ -21,7 +21,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, children, side = 'top
           side={side}
           className={twMerge(
             clsx(
-              'z-50 overflow-hidden rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] opaque-surface px-2 py-1 text-[11px] text-[var(--text)] shadow-sm select-none',
+              'z-50 overflow-hidden rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] opaque-surface px-2 py-1 text-xs text-[var(--text)] shadow-sm select-none',
               'data-[state=delayed-open]:animate-[pop-in_var(--dur-fast)_var(--ease-out)] data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
               className
             )

@@ -96,35 +96,35 @@ export const DevMotion: React.FC = () => {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div className="p-3 bg-[var(--surface-hover)] rounded-xl">
-            <div className="text-[10px] text-[var(--muted)] uppercase font-semibold">--dur-instant</div>
+            <div className="text-xs text-[var(--muted)] uppercase font-semibold">--dur-instant</div>
             <div className="font-mono text-sm font-bold text-[var(--text)] mt-1">{tokens.durInstant}ms</div>
           </div>
           <div className="p-3 bg-[var(--surface-hover)] rounded-xl">
-            <div className="text-[10px] text-[var(--muted)] uppercase font-semibold">--dur-fast</div>
+            <div className="text-xs text-[var(--muted)] uppercase font-semibold">--dur-fast</div>
             <div className="font-mono text-sm font-bold text-[var(--text)] mt-1">{tokens.durFast}ms</div>
           </div>
           <div className="p-3 bg-[var(--surface-hover)] rounded-xl">
-            <div className="text-[10px] text-[var(--muted)] uppercase font-semibold">--dur-base</div>
+            <div className="text-xs text-[var(--muted)] uppercase font-semibold">--dur-base</div>
             <div className="font-mono text-sm font-bold text-[var(--text)] mt-1">{tokens.durBase}ms</div>
           </div>
           <div className="p-3 bg-[var(--surface-hover)] rounded-xl">
-            <div className="text-[10px] text-[var(--muted)] uppercase font-semibold">--dur-slow</div>
+            <div className="text-xs text-[var(--muted)] uppercase font-semibold">--dur-slow</div>
             <div className="font-mono text-sm font-bold text-[var(--text)] mt-1">{tokens.durSlow}ms</div>
           </div>
           <div className="p-3 bg-[var(--surface-hover)] rounded-xl">
-            <div className="text-[10px] text-[var(--muted)] uppercase font-semibold">--travel-s</div>
+            <div className="text-xs text-[var(--muted)] uppercase font-semibold">--travel-s</div>
             <div className="font-mono text-sm font-bold text-[var(--text)] mt-1">{tokens.travelS}px</div>
           </div>
           <div className="p-3 bg-[var(--surface-hover)] rounded-xl">
-            <div className="text-[10px] text-[var(--muted)] uppercase font-semibold">--travel-m</div>
+            <div className="text-xs text-[var(--muted)] uppercase font-semibold">--travel-m</div>
             <div className="font-mono text-sm font-bold text-[var(--text)] mt-1">{tokens.travelM}px</div>
           </div>
           <div className="p-3 bg-[var(--surface-hover)] rounded-xl">
-            <div className="text-[10px] text-[var(--muted)] uppercase font-semibold">--exit-ratio</div>
+            <div className="text-xs text-[var(--muted)] uppercase font-semibold">--exit-ratio</div>
             <div className="font-mono text-sm font-bold text-[var(--text)] mt-1">{tokens.exitRatio}</div>
           </div>
           <div className="p-3 bg-[var(--surface-hover)] rounded-xl">
-            <div className="text-[10px] text-[var(--muted)] uppercase font-semibold">isReduced</div>
+            <div className="text-xs text-[var(--muted)] uppercase font-semibold">isReduced</div>
             <div className="font-mono text-sm font-bold text-[var(--text)] mt-1">{tokens.isReduced ? 'true' : 'false'}</div>
           </div>
         </div>
@@ -156,7 +156,7 @@ export const DevMotion: React.FC = () => {
 
         {/* Progress bar demonstration (A15) */}
         <div className="mt-2 flex flex-col gap-1.5">
-          <div className="text-[11px] text-[var(--muted)] font-medium">Daily Progress Bar via scaleX (A15)</div>
+          <div className="text-xs text-[var(--muted)] font-medium">Daily Progress Bar via scaleX (A15)</div>
           <div className="w-full h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
             <div
               className="h-full bg-[var(--accent-text)] origin-left transition-transform duration-300 ease-out"
@@ -175,7 +175,7 @@ export const DevMotion: React.FC = () => {
           <div className="p-4 bg-[var(--surface-hover)] rounded-xl flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Running Dot Breathing (A12)</div>
-              <div className="text-[11px] text-[var(--muted)] mt-0.5">4s period, max 7 iterations then still</div>
+              <div className="text-xs text-[var(--muted)] mt-0.5">4s period, max 7 iterations then still</div>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-4 h-4 rounded-full border border-[var(--accent-text)] flex items-center justify-center">
@@ -196,7 +196,7 @@ export const DevMotion: React.FC = () => {
           <div className="p-4 bg-[var(--surface-hover)] rounded-xl flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Time's Up Pulse (A14)</div>
-              <div className="text-[11px] text-[var(--muted)] mt-0.5">Two soft expanding rings</div>
+              <div className="text-xs text-[var(--muted)] mt-0.5">Two soft expanding rings</div>
             </div>
             <div className="flex items-center gap-3">
               <div className="relative w-6 h-6 flex items-center justify-center">
@@ -243,7 +243,7 @@ export const DevMotion: React.FC = () => {
                   <span className={item.group === 'completed' ? 'line-through text-[var(--muted)]' : 'text-[var(--text)] font-medium'}>
                     {item.title}
                   </span>
-                  <span className="text-[10px] text-[var(--muted)] px-1.5 py-0.5 rounded bg-[var(--surface)]">
+                  <span className="text-xs text-[var(--muted)] px-1.5 py-0.5 rounded bg-[var(--surface)]">
                     {item.group}
                   </span>
                 </div>
@@ -252,7 +252,7 @@ export const DevMotion: React.FC = () => {
                   {item.group !== 'running' && (
                     <button
                       onClick={() => triggerFlipMove(item.id, 'running')}
-                      className="px-2 py-1 rounded text-[10px] bg-[var(--surface)] hover:text-[var(--accent-text)] cursor-pointer"
+                      className="px-2 py-1 rounded text-xs bg-[var(--surface)] hover:text-[var(--accent-text)] cursor-pointer"
                     >
                       Run
                     </button>
@@ -260,7 +260,7 @@ export const DevMotion: React.FC = () => {
                   {item.group !== 'completed' && (
                     <button
                       onClick={() => triggerFlipMove(item.id, 'completed')}
-                      className="px-2 py-1 rounded text-[10px] bg-[var(--surface)] hover:text-[var(--success-text)] cursor-pointer"
+                      className="px-2 py-1 rounded text-xs bg-[var(--surface)] hover:text-[var(--success-text)] cursor-pointer"
                     >
                       Done
                     </button>
@@ -268,7 +268,7 @@ export const DevMotion: React.FC = () => {
                   {item.group === 'completed' && (
                     <button
                       onClick={() => triggerFlipMove(item.id, 'pending')}
-                      className="px-2 py-1 rounded text-[10px] bg-[var(--surface)] hover:text-[var(--text)] cursor-pointer"
+                      className="px-2 py-1 rounded text-xs bg-[var(--surface)] hover:text-[var(--text)] cursor-pointer"
                     >
                       Reset
                     </button>

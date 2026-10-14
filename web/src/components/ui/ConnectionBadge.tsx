@@ -45,7 +45,7 @@ export const ConnectionBadge: React.FC<ConnectionBadgeProps> = ({
       )}
     >
       {current.icon}
-      <span className={clsx('text-[11px]', current.textClass)}>{current.label}</span>
+      <span className={clsx('text-xs', current.textClass)}>{current.label}</span>
     </div>
   );
 };

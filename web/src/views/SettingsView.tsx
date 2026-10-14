@@ -358,7 +358,7 @@ export const SettingsView: React.FC = () => {
 
       {/* Section: Appearance */}
       <section className="flex flex-col gap-3">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] px-1">
+        <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] px-1">
           Appearance
         </div>
 
@@ -366,7 +366,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Theme Mode</div>
-              <div className="text-[11px] text-[var(--muted)]">Light, Dark or match system</div>
+              <div className="text-xs text-[var(--muted)]">Light, Dark or match system</div>
             </div>
             <SegmentedControl
               value={theme}
@@ -382,7 +382,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Color Palette</div>
-              <div className="text-[11px] text-[var(--muted)]">Accent and focus tones</div>
+              <div className="text-xs text-[var(--muted)]">Accent and focus tones</div>
             </div>
             <SegmentedControl
               value={palette}
@@ -397,7 +397,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Motion</div>
-              <div className="text-[11px] text-[var(--muted)]">Calm animations and feedback transitions</div>
+              <div className="text-xs text-[var(--muted)]">Calm animations and feedback transitions</div>
             </div>
             <SegmentedControl
               value={motionMode}
@@ -414,7 +414,7 @@ export const SettingsView: React.FC = () => {
 
       {/* Section: Wallpaper & Tone */}
       <section className="flex flex-col gap-3">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] px-1">
+        <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] px-1">
           Wallpaper & Tone
         </div>
 
@@ -423,7 +423,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Harmonize with Wallpaper</div>
-              <div className="text-[11px] text-[var(--muted)]">
+              <div className="text-xs text-[var(--muted)]">
                 Extract dominant tones to calm backgrounds and surfaces
               </div>
             </div>
@@ -435,7 +435,7 @@ export const SettingsView: React.FC = () => {
                     className="w-3 h-3 rounded-full border border-[var(--border)]"
                     style={{ backgroundColor: extractedColor }}
                   />
-                  <span className="font-mono text-[10px] text-[var(--muted)]">{extractedColor}</span>
+                  <span className="font-mono text-xs text-[var(--muted)]">{extractedColor}</span>
                 </div>
               )}
               <Checkbox
@@ -450,7 +450,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Auto-rotate Focus Backgrounds</div>
-              <div className="text-[11px] text-[var(--muted)]">
+              <div className="text-xs text-[var(--muted)]">
                 Automatically rotate focus backgrounds every 90 seconds
               </div>
             </div>
@@ -504,7 +504,7 @@ export const SettingsView: React.FC = () => {
                 }`}
               >
                 <X className="w-3.5 h-3.5" />
-                <span className="text-[10px]">None</span>
+                <span className="text-xs">None</span>
               </button>
 
               {mediaImages.map((m) => {
@@ -537,7 +537,7 @@ export const SettingsView: React.FC = () => {
 
       {/* Section: Preferences */}
       <section className="flex flex-col gap-3">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] px-1">
+        <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] px-1">
           Preferences
         </div>
 
@@ -545,7 +545,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Default Task Estimate</div>
-              <div className="text-[11px] text-[var(--muted)]">Pre-filled when creating new tasks</div>
+              <div className="text-xs text-[var(--muted)]">Pre-filled when creating new tasks</div>
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
@@ -571,7 +571,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Server Timezone</div>
-              <div className="text-[11px] text-[var(--muted)]">Current: <strong>{timezone}</strong></div>
+              <div className="text-xs text-[var(--muted)]">Current: <strong>{timezone}</strong></div>
             </div>
             <form onSubmit={handleSaveTimezone} className="flex gap-1.5">
               <Input
@@ -590,14 +590,14 @@ export const SettingsView: React.FC = () => {
           <div className="flex items-center justify-between gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Browser Notifications</div>
-              <div className="text-[11px] text-[var(--muted)]">Status: <strong className="capitalize">{notifPermission}</strong></div>
+              <div className="text-xs text-[var(--muted)]">Status: <strong className="capitalize">{notifPermission}</strong></div>
             </div>
             {notifPermission !== 'granted' ? (
               <Button variant="ghost" size="sm" onClick={handleRequestNotifications} className="h-7 text-xs px-2.5 font-medium text-[var(--accent-text)]">
                 Enable
               </Button>
             ) : (
-              <span className="text-[11px] text-[var(--success-text)] font-medium">Enabled</span>
+              <span className="text-xs text-[var(--success-text)] font-medium">Enabled</span>
             )}
           </div>
         </div>
@@ -605,7 +605,7 @@ export const SettingsView: React.FC = () => {
 
       {/* Section: API Tokens */}
       <section className="flex flex-col gap-3">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] px-1">
+        <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] px-1">
           API Tokens
         </div>
 
@@ -633,7 +633,7 @@ export const SettingsView: React.FC = () => {
             <div key={t.id} className="py-2.5 px-1 flex items-center justify-between gap-3 group">
               <div>
                 <div className="font-medium text-[var(--text)]">{t.name}</div>
-                <div className="text-[11px] text-[var(--muted)]">
+                <div className="text-xs text-[var(--muted)]">
                   Created {new Date(t.created_at).toLocaleDateString()}
                   {t.last_used_at && ` • Last used ${new Date(t.last_used_at).toLocaleDateString()}`}
                 </div>
@@ -660,7 +660,7 @@ export const SettingsView: React.FC = () => {
                   </IconButton>
                 </div>
               ) : (
-                <span className="text-[10px] text-[var(--muted)] bg-[var(--surface-hover)] px-2 py-0.5 rounded">
+                <span className="text-xs text-[var(--muted)] bg-[var(--surface-hover)] px-2 py-0.5 rounded">
                   Revoked
                 </span>
               )}

@@ -636,7 +636,7 @@ export const MediaView: React.FC = () => {
         <div className="grid md:grid-cols-3 gap-6 animate-[fade-in_var(--dur-fast)_var(--ease-out)]">
           {/* Lists Column */}
           <div className="md:col-span-1 flex flex-col gap-2">
-            <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] mb-1 px-1">
+            <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1 px-1">
               Playlists
             </div>
             {isLoading && lists.length === 0 ? (
@@ -690,7 +690,7 @@ export const MediaView: React.FC = () => {
                             {l.name}
                           </div>
                           {l.description && (
-                            <div className="text-[11px] text-[var(--muted)] truncate mt-0.5">{l.description}</div>
+                            <div className="text-xs text-[var(--muted)] truncate mt-0.5">{l.description}</div>
                           )}
                         </div>
                         <IconButton
@@ -807,7 +807,7 @@ export const MediaView: React.FC = () => {
 
                 {/* Attach more items dropdown */}
                 <div className="pt-3 border-t border-[var(--border)]/30">
-                  <div className="text-[11px] font-medium text-[var(--muted)] mb-2">Attach an item to this list</div>
+                  <div className="text-xs font-medium text-[var(--muted)] mb-2">Attach an item to this list</div>
                   <div className="flex items-center gap-2 min-w-0">
                     <select
                       id="attach-select"
@@ -927,13 +927,13 @@ export const MediaView: React.FC = () => {
                           {currentTrack?.id === item.id && isPlaying && (
                             <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running shrink-0" />
                           )}
-                          <span className="text-[10px] text-[var(--muted)] capitalize">
+                          <span className="text-xs text-[var(--muted)] capitalize">
                             {item.media_type}
                           </span>
                         </div>
-                        <div className="text-[11px] text-[var(--muted)] truncate mt-0.5 flex items-center gap-2">
+                        <div className="text-xs text-[var(--muted)] truncate mt-0.5 flex items-center gap-2">
                           {item.description && <span>{item.description} •</span>}
-                          <span className="font-mono text-[10px] text-[var(--muted)] opacity-70">
+                          <span className="font-mono text-xs text-[var(--muted)] opacity-70">
                             {getDisplayHost(item.url)}
                           </span>
                         </div>

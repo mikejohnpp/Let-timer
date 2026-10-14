@@ -355,7 +355,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                     aria-label="Seek track"
                   />
                 </div>
-                <div className="flex justify-between items-center text-[10px] font-mono text-[var(--muted)] tabular-nums px-0.5">
+                <div className="flex justify-between items-center text-xs font-mono text-[var(--muted)] tabular-nums px-0.5">
                   <span>{formatTime(displayTime)}</span>
                   <span>{formatTime(duration)}</span>
                 </div>
@@ -431,7 +431,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowQueue(!showQueue)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono transition cursor-pointer ${
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-mono transition cursor-pointer ${
                         showQueue
                           ? 'bg-[var(--surface-hover)] text-[var(--accent-text)] font-semibold'
                           : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]/60'
@@ -481,7 +481,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                             <span className="truncate">{t.name}</span>
                           </div>
                           {t.description && (
-                            <span className="text-[10px] text-[var(--muted)] truncate max-w-[100px]">
+                            <span className="text-xs text-[var(--muted)] truncate max-w-[100px]">
                               {t.description}
                             </span>
                           )}
@@ -499,7 +499,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
             <div className="flex flex-col gap-2.5 py-1 px-1">
               <div className="flex items-center justify-between text-xs text-[var(--muted)] px-1">
                 <span>Task focus background</span>
-                <span className="text-[11px] font-mono">
+                <span className="text-xs font-mono">
                   {currentImageIndex + 1}/{focusImages.length}
                 </span>
               </div>
@@ -530,7 +530,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                           <Check className="w-3 h-3 stroke-[3]" />
                         </div>
                       )}
-                      <div className="absolute bottom-0 inset-x-0 p-1 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-[10px] text-white truncate px-1.5">
+                      <div className="absolute bottom-0 inset-x-0 p-1 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-xs text-white truncate px-1.5">
                         {img.name}
                       </div>
                     </button>
@@ -547,7 +547,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                 <article key={poem.id} className="border-b border-[var(--border)]/20 pb-3 last:border-b-0">
                   <h4 className="font-serif text-sm font-bold text-[var(--text)]">{poem.name}</h4>
                   {poem.description && (
-                    <p className="text-[11px] text-[var(--muted)] italic mb-2">{poem.description}</p>
+                    <p className="text-xs text-[var(--muted)] italic mb-2">{poem.description}</p>
                   )}
                   {poem.content ? (
                     <div className="font-serif text-xs leading-relaxed whitespace-pre-line text-[var(--text)]/90 tracking-wide px-2">
@@ -605,7 +605,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
 
             {/* Time */}
             {duration > 0 && (
-              <span className="text-[10px] font-mono text-[var(--muted)] tabular-nums hidden sm:inline">
+              <span className="text-xs font-mono text-[var(--muted)] tabular-nums hidden sm:inline">
                 {formatTime(currentTime)}
               </span>
             )}

@@ -247,7 +247,7 @@ export const TimerBar: React.FC<TimerBarProps> = ({
             ) : (
               <Music className="w-3.5 h-3.5 text-[var(--muted)] group-hover:text-[var(--text)] shrink-0 transition" />
             )}
-            <span className="text-[11px] font-medium text-[var(--muted)] group-hover:text-[var(--text)] truncate max-w-[75px] sm:max-w-[120px] transition">
+            <span className="text-xs font-medium text-[var(--muted)] group-hover:text-[var(--text)] truncate max-w-[75px] sm:max-w-[120px] transition">
               {currentTrack.name}
             </span>
           </div>
@@ -285,7 +285,7 @@ export const TimerBar: React.FC<TimerBarProps> = ({
           <button
             onClick={handleAddFiveMinutes}
             disabled={isSubmitting}
-            className="flex items-center gap-1 bg-[var(--timer-over)] text-[var(--on-over)] px-2 py-0.5 rounded-full text-[11px] font-bold hover:opacity-90 transition cursor-pointer"
+            className="flex items-center gap-1 bg-[var(--timer-over)] text-[var(--on-over)] px-2 py-0.5 rounded-full text-xs font-bold hover:opacity-90 transition cursor-pointer"
           >
             <Plus className="w-3 h-3 stroke-[3]" />
             <span>+5 min</span>

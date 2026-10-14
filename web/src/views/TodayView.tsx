@@ -436,7 +436,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
               <PriorityMarker priority={t.priority} />
             </div>
 
-            <div className="flex items-center gap-2 text-[11px] text-[var(--muted)] mt-0.5">
+            <div className="flex items-center gap-2 text-xs text-[var(--muted)] mt-0.5">
               {isOverdueItem && t.scheduled_on && (
                 <span className="text-[var(--warning-text)] font-medium">from {t.scheduled_on}</span>
               )}
@@ -649,7 +649,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           )}
         </div>
         {quickAddParsed && quickAddParsed.name && (
-          <div className="text-[11px] text-[var(--muted)] pt-1 pl-6 animate-[fade-in_var(--dur-fast)_var(--ease-out)]">
+          <div className="text-xs text-[var(--muted)] pt-1 pl-6 animate-[fade-in_var(--dur-fast)_var(--ease-out)]">
             Will add: <strong className="text-[var(--text)]">{quickAddParsed.name}</strong> •{' '}
             {quickAddParsed.estMins ? `${quickAddParsed.estMins} min` : 'no estimate'}
           </div>
@@ -773,7 +773,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             {/* Running Group */}
             {runningTasks.length > 0 && (
               <div>
-                <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--accent-text)] mb-2 flex items-center gap-1.5">
+                <div className="text-xs font-bold uppercase tracking-wider text-[var(--accent-text)] mb-2 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running" />
                   <span>Now Running</span>
                 </div>
@@ -788,7 +788,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             {/* Overdue Group */}
             {isToday && visibleOverdue.length > 0 && (
               <div>
-                <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--warning-text)] mb-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-[var(--warning-text)] mb-2">
                   Overdue ({visibleOverdue.length})
                 </div>
                 <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--warning)]/30">
@@ -802,7 +802,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             {/* Up Next Group */}
             {upNextTasks.length > 0 && (
               <div>
-                <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
                   Tasks ({upNextTasks.length})
                 </div>
                 <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--border)]/60">
@@ -818,10 +818,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
               <div className="pt-2">
                 <button
                   onClick={() => setDoneCollapsed(!doneCollapsed)}
-                  className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2 flex items-center gap-1.5 cursor-pointer select-none hover:text-[var(--text)] transition"
+                  className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-2 flex items-center gap-1.5 cursor-pointer select-none hover:text-[var(--text)] transition"
                 >
                   <span>Completed ({doneTasks.length})</span>
-                  <span className="text-[10px] opacity-75">{doneCollapsed ? '▼' : '▲'}</span>
+                  <span className="text-xs opacity-75">{doneCollapsed ? '▼' : '▲'}</span>
                 </button>
                 <AnimatePresence initial={false}>
                   {!doneCollapsed && (

@@ -19,7 +19,7 @@ export const Badge: React.FC<BadgeProps> = ({ className, variant = 'accent', chi
     <span
       className={twMerge(
         clsx(
-          'inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full border',
+          'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border',
           variants[variant],
           className
         )

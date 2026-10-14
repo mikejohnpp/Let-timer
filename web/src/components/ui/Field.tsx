@@ -34,11 +34,11 @@ export const FormField: React.FC<FormFieldProps> = ({
       )}
       {children(id, describedBy)}
       {error ? (
-        <p id={errorId} className="text-[11px] text-[var(--danger-text)] font-medium">
+        <p id={errorId} className="text-xs text-[var(--danger-text)] font-medium">
           {error}
         </p>
       ) : helperText ? (
-        <p id={helperId} className="text-[11px] text-[var(--muted)]">
+        <p id={helperId} className="text-xs text-[var(--muted)]">
           {helperText}
         </p>
       ) : null}

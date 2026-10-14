@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "gen:api": "openapi-typescript openapi.json -o src/api/schema.d.ts",
-    "lint": "tsc --noEmit && node scripts/check-motion-tokens.mjs",
+    "lint": "tsc --noEmit && node scripts/check-motion-tokens.mjs && node scripts/check-type-scale.mjs",
     "test": "vitest run",
     "e2e": "playwright test",
     "test:e2e": "playwright test"

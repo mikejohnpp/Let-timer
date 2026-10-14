@@ -383,7 +383,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
         </div>
 
         <div
-          className={`text-[11px] w-24 text-right hidden sm:block transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-within:opacity-100 ${
+          className={`text-xs w-28 text-right hidden sm:block transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-within:opacity-100 ${
             controlsVisible ? 'opacity-100' : 'opacity-0'
           } ${hasAnyBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'}`}
         >

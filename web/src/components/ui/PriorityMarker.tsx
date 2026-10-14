@@ -12,7 +12,7 @@ export const PriorityMarker: React.FC<PriorityMarkerProps> = ({ priority, showLa
     return (
       <span role="img" className={`inline-flex items-center gap-0.5 text-[var(--danger)] ${className || ''}`} aria-label="Urgent priority">
         <ChevronsUp className="w-3.5 h-3.5" />
-        {showLabel && <span className="text-[11px] font-medium text-[var(--danger-text)]">Urgent</span>}
+        {showLabel && <span className="text-xs font-medium text-[var(--danger-text)]">Urgent</span>}
       </span>
     );
   }
@@ -21,7 +21,7 @@ export const PriorityMarker: React.FC<PriorityMarkerProps> = ({ priority, showLa
     return (
       <span role="img" className={`inline-flex items-center gap-0.5 text-[var(--warning)] ${className || ''}`} aria-label="Immediate priority">
         <ChevronUp className="w-3.5 h-3.5" />
-        {showLabel && <span className="text-[11px] font-medium text-[var(--warning-text)]">Immediate</span>}
+        {showLabel && <span className="text-xs font-medium text-[var(--warning-text)]">Immediate</span>}
       </span>
     );
   }

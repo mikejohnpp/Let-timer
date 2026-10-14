@@ -41,7 +41,7 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({ currentView, onNavig
               <span className="absolute top-0 inset-x-4 h-[2px] bg-[var(--accent-text)] rounded-full" />
             )}
             {t.icon}
-            <span className="text-[10px] font-medium mt-0.5">{t.label}</span>
+            <span className="text-xs font-medium mt-0.5">{t.label}</span>
           </button>
         );
       })}

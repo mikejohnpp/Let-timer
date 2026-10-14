@@ -252,13 +252,13 @@ export const WorkspacesView: React.FC = () => {
                           {w.name}
                         </span>
                         {isActive && (
-                          <span className="text-[10px] font-bold text-[var(--accent-text)] bg-[var(--accent)]/15 px-1.5 py-0.2 rounded-full">
+                          <span className="text-xs font-semibold text-[var(--accent-text)] bg-[var(--accent)]/15 px-1.5 py-0.5 rounded-full">
                             Active
                           </span>
                         )}
                       </div>
                       {w.description && (
-                        <p className="text-[11px] text-[var(--muted)] mt-0.5 truncate max-w-md">
+                        <p className="text-xs text-[var(--muted)] mt-0.5 truncate max-w-md">
                           {w.description}
                         </p>
                       )}

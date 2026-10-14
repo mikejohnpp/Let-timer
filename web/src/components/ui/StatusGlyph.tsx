@@ -65,7 +65,7 @@ export const StatusGlyph: React.FC<StatusGlyphProps> = ({ status, className, ani
             className
           )}
         >
-          <span className="text-[10px] leading-none font-bold">×</span>
+          <span className="text-xs leading-none font-bold">×</span>
         </span>
       );
   }

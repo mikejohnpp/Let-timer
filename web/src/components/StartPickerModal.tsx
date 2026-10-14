@@ -132,7 +132,7 @@ export const StartPickerModal: React.FC<StartPickerModalProps> = ({
                     </span>
                     <PriorityMarker priority={t.priority} showLabel />
                   </div>
-                  <div className="text-[11px] text-[var(--muted)] flex items-center gap-2 mt-0.5">
+                  <div className="text-xs text-[var(--muted)] flex items-center gap-2 mt-0.5">
                     {t.scheduled_on && <span>Scheduled {t.scheduled_on}</span>}
                     {t.estimated_mins && <span>• {t.estimated_mins} min</span>}
                     {t.status === 'paused' && <span className="text-[var(--warning-text)]">• Paused</span>}
