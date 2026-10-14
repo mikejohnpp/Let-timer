@@ -94,11 +94,11 @@ Same format with `data-palette="gruvbox"`. Source: `gruvbox` (Dark Medium bg `#2
 
 ## Acceptance checklist
 
-- [ ] `npm run lint && npm test && npm run build` pass.
-- [ ] 7 palettes × light/dark/system × wallpaper on/off render correctly; A28 transition runs on every switch.
-- [ ] Contrast suite covers all palettes; zero AA failures.
-- [ ] Old `localStorage` values (`default`/`forest`/garbage) migrate safely.
-- [ ] Screenshots matrix archived in `web/.design/palettes/`.
+- [x] `npm run lint && npm test && npm run build` pass.
+- [x] 7 palettes × light/dark/system × wallpaper on/off render correctly; A28 transition runs on every switch.
+- [x] Contrast suite covers all palettes; zero AA failures.
+- [x] Old `localStorage` values (`default`/`forest`/garbage) migrate safely.
+- [x] Screenshots matrix archived in `web/.design/palettes/`.
 
 ## Explicitly out of scope
 
