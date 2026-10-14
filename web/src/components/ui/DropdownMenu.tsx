@@ -18,7 +18,7 @@ export const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       className={twMerge(
         clsx(
-          'z-50 min-w-[8rem] overflow-hidden rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] p-1 text-[var(--text)] shadow-[var(--shadow-popover)] animate-in fade-in-80 duration-100 outline-none',
+          'z-50 min-w-[8rem] overflow-hidden rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] p-1 text-[var(--text)] shadow-[var(--shadow-popover)] outline-none opaque-surface data-[state=open]:animate-[pop-in_var(--dur-fast)_var(--ease-out)] data-[state=closed]:animate-[fade-out_var(--dur-instant)_var(--ease-out)_forwards] [transform-origin:var(--radix-dropdown-menu-content-transform-origin)]',
           className
         )
       )}

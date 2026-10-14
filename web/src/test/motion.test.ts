@@ -84,4 +84,58 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(tokens.isReduced).toBe(true);
     });
   });
+
+  describe('Overlays and Micro-interactions (Phase M1)', () => {
+    it('applies Radix data-state keyframes to Drawer', () => {
+      const drawerCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/Drawer.tsx'), 'utf8');
+      expect(drawerCode).toContain('data-[state=open]:animate-[slide-in-right_var(--dur-base)_var(--ease-out)]');
+      expect(drawerCode).toContain('data-[state=closed]:animate-[slide-out-right_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]');
+      expect(drawerCode).toContain('data-[state=open]:animate-[rise-in_var(--dur-base)_var(--ease-out)]');
+      expect(drawerCode).toContain('data-[state=closed]:animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]');
+      expect(drawerCode).toContain('data-[state=open]:animate-[fade-in_var(--dur-base)_var(--ease-out)]');
+      expect(drawerCode).toContain('data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]');
+    });
+
+    it('applies Radix data-state keyframes to Modal', () => {
+      const modalCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/Modal.tsx'), 'utf8');
+      expect(modalCode).toContain('data-[state=open]:animate-[rise-in_var(--dur-base)_var(--ease-out)]');
+      expect(modalCode).toContain('data-[state=closed]:animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]');
+      expect(modalCode).toContain('data-[state=open]:animate-[fade-in_var(--dur-base)_var(--ease-out)]');
+    });
+
+    it('applies pop-in and fade-out to Popover and DropdownMenu', () => {
+      const popoverCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/Popover.tsx'), 'utf8');
+      expect(popoverCode).toContain('data-[state=open]:animate-[pop-in_var(--dur-fast)_var(--ease-out)]');
+      expect(popoverCode).toContain('data-[state=closed]:animate-[fade-out_var(--dur-instant)_var(--ease-out)_forwards]');
+
+      const menuCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/DropdownMenu.tsx'), 'utf8');
+      expect(menuCode).toContain('data-[state=open]:animate-[pop-in_var(--dur-fast)_var(--ease-out)]');
+      expect(menuCode).toContain('data-[state=closed]:animate-[fade-out_var(--dur-instant)_var(--ease-out)_forwards]');
+    });
+
+    it('configures Toast with 4000ms duration and rise-in animation', () => {
+      const toastCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/Toast.tsx'), 'utf8');
+      expect(toastCode).toContain('duration={4000}');
+      expect(toastCode).toContain('data-[state=open]:animate-[rise-in_var(--dur-base)_var(--ease-out)]');
+      expect(toastCode).toContain('data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]');
+    });
+
+    it('applies active:scale-[0.98] with duration tokens to Button and IconButton', () => {
+      const buttonCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/Button.tsx'), 'utf8');
+      expect(buttonCode).toContain('active:scale-[0.98]');
+      expect(buttonCode).toContain('duration-[var(--dur-fast)]');
+      expect(buttonCode).toContain('active:duration-[var(--dur-instant)]');
+    });
+
+    it('disables active scale on buttons in reduced-motion CSS', () => {
+      expect(cssContent).toContain(':root[data-motion="reduced"] button:active');
+      expect(cssContent).toContain('transform: none !important;');
+    });
+
+    it('applies duration-base and ease-out transitions to SegmentedControl', () => {
+      const segCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/SegmentedControl.tsx'), 'utf8');
+      expect(segCode).toContain('duration-[var(--dur-base)]');
+      expect(segCode).toContain('ease-[var(--ease-out)]');
+    });
+  });
 });

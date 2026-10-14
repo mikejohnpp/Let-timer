@@ -26,7 +26,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <ToastContext.Provider value={{ showToast }}>
-      <ToastPrimitive.Provider swipeDirection="right" duration={5000}>
+      <ToastPrimitive.Provider swipeDirection="right" duration={4000}>
         {children}
         {toasts.map((t) => (
           <ToastPrimitive.Root
@@ -35,7 +35,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               if (!open) setToasts((prev) => prev.filter((item) => item.id !== t.id));
             }}
             className={clsx(
-              'flex items-center justify-between gap-3 p-3.5 rounded-[var(--radius-control)] border shadow-[var(--shadow-popover)] text-xs transition duration-150',
+              'flex items-center justify-between gap-3 p-3.5 rounded-[var(--radius-control)] border shadow-[var(--shadow-popover)] text-xs',
+              'data-[state=open]:animate-[rise-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
               t.tone === 'danger' && 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger)]/30',
               t.tone === 'success' && 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success)]/20',
               (!t.tone || t.tone === 'info') && 'bg-[var(--surface)] text-[var(--text)] border-[var(--border)]'

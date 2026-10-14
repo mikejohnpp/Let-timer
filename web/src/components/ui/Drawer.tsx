@@ -24,15 +24,15 @@ export const Drawer: React.FC<DrawerProps> = ({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 bg-black/55 backdrop-blur-[2px] z-50 animate-in fade-in duration-150" />
+        <DialogPrimitive.Overlay className="fixed inset-0 bg-black/55 backdrop-blur-[2px] z-50 data-[state=open]:animate-[fade-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]" />
         <DialogPrimitive.Content
           className={twMerge(
             clsx(
-              'fixed z-50 bg-[var(--surface)] border-[var(--border)] shadow-xl flex flex-col outline-none transition ease-out duration-200',
+              'fixed z-50 bg-[var(--surface)] border-[var(--border)] shadow-xl flex flex-col outline-none opaque-surface',
               // Base (mobile bottom sheet):
-              'inset-x-0 bottom-0 max-h-[92vh] border-t rounded-t-[var(--radius-modal)]',
+              'inset-x-0 bottom-0 max-h-[92vh] border-t rounded-t-[var(--radius-modal)] data-[state=open]:animate-[rise-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
               // Desktop (right-side drawer, 100% full viewport height):
-              'sm:inset-y-0 sm:top-0 sm:bottom-0 sm:right-0 sm:left-auto sm:h-screen sm:max-h-none sm:w-full sm:max-w-md sm:border-l sm:border-t-0 sm:rounded-none',
+              'sm:inset-y-0 sm:top-0 sm:bottom-0 sm:right-0 sm:left-auto sm:h-screen sm:max-h-none sm:w-full sm:max-w-md sm:border-l sm:border-t-0 sm:rounded-none sm:data-[state=open]:animate-[slide-in-right_var(--dur-base)_var(--ease-out)] sm:data-[state=closed]:animate-[slide-out-right_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
               className
             )
           )}

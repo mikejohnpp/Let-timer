@@ -51,7 +51,7 @@ export const Banner: React.FC<BannerProps> = ({
       role={current.role}
       className={twMerge(
         clsx(
-          'flex items-center justify-between gap-3 p-3 rounded-[var(--radius-control)] border text-xs text-[var(--text)]',
+          'flex items-center justify-between gap-3 p-3 rounded-[var(--radius-control)] border text-xs text-[var(--text)] animate-[fade-in_var(--dur-fast)_var(--ease-out)]',
           current.bg,
           className
         )

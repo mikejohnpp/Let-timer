@@ -162,9 +162,21 @@
   animation: none !important;
 }
 
+:root[data-motion="reduced"] button:active,
+:root[data-motion="reduced"] [role="button"]:active,
+:root[data-motion="off"] button:active,
+:root[data-motion="off"] [role="button"]:active {
+  transform: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .dot-running,
   :root:not([data-motion="full"]) .ring-pulse {
     animation: none !important;
+  }
+
+  :root:not([data-motion="full"]) button:active,
+  :root:not([data-motion="full"]) [role="button"]:active {
+    transform: none !important;
   }
 }

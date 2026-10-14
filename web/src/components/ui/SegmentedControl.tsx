@@ -39,7 +39,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
         <ToggleGroupPrimitive.Item
           key={item.value}
           value={item.value}
-          className="px-3 py-1 text-xs font-medium rounded-[calc(var(--radius-control)-2px)] transition select-none cursor-pointer data-[state=on]:bg-[var(--accent)] data-[state=on]:text-[var(--on-accent)] data-[state=off]:text-[var(--muted)] data-[state=off]:hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--accent-text)]"
+          className="px-3 py-1 text-xs font-medium rounded-[calc(var(--radius-control)-2px)] transition-[background-color,color,transform] duration-[var(--dur-base)] ease-[var(--ease-out)] select-none cursor-pointer data-[state=on]:bg-[var(--accent)] data-[state=on]:text-[var(--on-accent)] data-[state=off]:text-[var(--muted)] data-[state=off]:hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--accent-text)]"
         >
           {item.label}
         </ToggleGroupPrimitive.Item>

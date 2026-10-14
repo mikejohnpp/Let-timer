@@ -526,7 +526,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           )}
         </div>
         {quickAddParsed && quickAddParsed.name && (
-          <div className="text-[11px] text-[var(--muted)] pt-1 pl-6">
+          <div className="text-[11px] text-[var(--muted)] pt-1 pl-6 animate-[fade-in_var(--dur-fast)_var(--ease-out)]">
             Will add: <strong className="text-[var(--text)]">{quickAddParsed.name}</strong> •{' '}
             {quickAddParsed.estMins ? `${quickAddParsed.estMins} min` : 'no estimate'}
           </div>
