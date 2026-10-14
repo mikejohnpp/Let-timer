@@ -20,4 +20,4 @@ export * from './States';
 export * from './TimerDigits';
 export * from './Tooltip';
 export * from './LiveRegion';
-
+export * from './PalettePicker';

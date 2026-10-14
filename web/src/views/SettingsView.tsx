@@ -17,6 +17,7 @@ import {
   Button,
   IconButton,
   SegmentedControl,
+  PalettePicker,
   Checkbox,
   Input,
   useToast,
@@ -381,23 +382,14 @@ export const SettingsView: React.FC = () => {
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-1">
+          <div className="flex flex-col gap-3 py-3 px-1">
             <div>
               <div className="text-xs font-semibold text-[var(--text)]">Color Palette</div>
-              <div className="text-xs text-[var(--muted)]">Accent and focus tones</div>
+              <div className="text-xs text-[var(--muted)]">Accent and focus tones across 7 community themes</div>
             </div>
-            <SegmentedControl
+            <PalettePicker
               value={palette}
               onValueChange={handlePaletteChange}
-              items={[
-                { value: 'default', label: 'Indigo' },
-                { value: 'forest', label: 'Forest' },
-                { value: 'tokyo-night', label: 'Tokyo Night' },
-                { value: 'catppuccin', label: 'Catppuccin' },
-                { value: 'kanagawa', label: 'Kanagawa' },
-                { value: 'everforest', label: 'Everforest' },
-                { value: 'gruvbox', label: 'Gruvbox' },
-              ]}
             />
           </div>
 
