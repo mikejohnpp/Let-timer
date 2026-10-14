@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Play,
   Pause,
@@ -50,6 +50,40 @@ export const FocusView: React.FC<FocusViewProps> = ({
       })
       .catch(() => {});
   }, []);
+
+  const [activeWorkspaceName, setActiveWorkspaceName] = useState<string>('');
+
+  const loadActiveWorkspace = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/v1/workspaces/current');
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.name) {
+          setActiveWorkspaceName(data.name);
+          return;
+        }
+      }
+      const listRes = await apiFetch('/api/v1/workspaces');
+      if (listRes.ok) {
+        const list = await listRes.json();
+        const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('let_timer_active_workspace') : null;
+        const found = stored ? list.find((w: { id: number; name: string }) => w.id.toString() === stored) : list[0];
+        if (found?.name) {
+          setActiveWorkspaceName(found.name);
+        }
+      }
+    } catch {
+      // Ignore network errors
+    }
+  }, []);
+
+  useEffect(() => {
+    loadActiveWorkspace();
+    window.addEventListener('let-timer-workspace-changed', loadActiveWorkspace);
+    return () => {
+      window.removeEventListener('let-timer-workspace-changed', loadActiveWorkspace);
+    };
+  }, [loadActiveWorkspace]);
 
   const currentTaskId = snapshot?.task?.id;
   const currentMediaListId = snapshot?.task?.media_list_id || null;
@@ -221,7 +255,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
             hasAnyBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'
           }`}
         >
-          {snapshot?.workspace_name || 'Focus'}
+          {(snapshot && snapshot.state !== 'idle' ? snapshot.workspace_name : null) || activeWorkspaceName || 'Workspace'}
         </span>
 
         {/* Giant Timer Digits (Always visible with consistent giant size) */}
