@@ -87,6 +87,27 @@
   --info-bg: #edf6f0;
 }
 
+/* Tokyo Night (Day) — tokyonight.nvim Day palette */
+:root[data-palette="tokyo-night"] {
+  --bg: #e8ecf4;
+  --surface: #ffffff;
+  --surface-hover: #f0f3f9;
+  --border: #d2d8e6;
+  --border-strong: #687296;
+  --text: #1a233e;
+  --muted: #525e82;
+  --accent: #2e58a6;
+  --accent-hover: #24488a;
+  --on-accent: #ffffff;
+  --accent-text: #2e58a6;
+  --over-text: #ba3c04;
+  --danger-bg: #fef2f2;
+  --warning-bg: #fffbee;
+  --success-bg: #edfbf4;
+  --over-bg: #fef6ee;
+  --info-bg: #eff4fc;
+}
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #0b0f19;
@@ -135,6 +156,26 @@
   --success-bg: #0e291c;
   --over-bg: #29180c;
   --info-bg: #14281e;
+}
+
+/* Tokyo Night (Storm) — tokyonight.nvim Storm palette */
+:root[data-theme="dark"][data-palette="tokyo-night"] {
+  --bg: #161822;
+  --surface: #1f2335;
+  --surface-hover: #24283b;
+  --border: #292e42;
+  --border-strong: #6f7cae;
+  --text: #c0caf5;
+  --muted: #9aa5ce;
+  --accent: #2e58a6;
+  --accent-hover: #24488a;
+  --on-accent: #ffffff;
+  --accent-text: #7aa2f7;
+  --danger-bg: #2a1622;
+  --warning-bg: #2a2215;
+  --success-bg: #122a24;
+  --over-bg: #2b1b16;
+  --info-bg: #16233d;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -186,6 +227,25 @@
     --success-bg: #0e291c;
     --over-bg: #29180c;
     --info-bg: #14281e;
+  }
+
+  :root:not([data-theme="light"])[data-palette="tokyo-night"] {
+    --bg: #161822;
+    --surface: #1f2335;
+    --surface-hover: #24283b;
+    --border: #292e42;
+    --border-strong: #6f7cae;
+    --text: #c0caf5;
+    --muted: #9aa5ce;
+    --accent: #2e58a6;
+    --accent-hover: #24488a;
+    --on-accent: #ffffff;
+    --accent-text: #7aa2f7;
+    --danger-bg: #2a1622;
+    --warning-bg: #2a2215;
+    --success-bg: #122a24;
+    --over-bg: #2b1b16;
+    --info-bg: #16233d;
   }
 }
 

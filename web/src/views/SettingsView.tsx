@@ -12,6 +12,7 @@ import { setStoredToken, apiFetch } from '../api/client';
 import { useWallpaper } from '../hooks/useWallpaper';
 import { useMotionMode, type MotionMode } from '../motion/useMotionMode';
 import { withThemeTransition } from '../utils/themeTransition';
+import { type PaletteId, parsePaletteId, PALETTES } from '../utils/theme';
 import {
   Button,
   IconButton,
@@ -39,7 +40,7 @@ export interface CreatedTokenRes {
 
 export const SettingsView: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
-  const [palette, setPalette] = useState<'default' | 'forest'>('default');
+  const [palette, setPalette] = useState<PaletteId>('default');
   const { motionMode, setMotionMode } = useMotionMode();
   const [defaultEstimate, setDefaultEstimate] = useState<string>('25');
   const [noDefaultEstimate, setNoDefaultEstimate] = useState<boolean>(false);
@@ -85,7 +86,7 @@ export const SettingsView: React.FC = () => {
     const savedTheme = (localStorage.getItem('let_timer_theme') as 'light' | 'dark' | 'system') || 'system';
     setTheme(savedTheme);
 
-    const savedPalette = (localStorage.getItem('let_timer_palette') as 'default' | 'forest') || 'default';
+    const savedPalette = parsePaletteId(localStorage.getItem('let_timer_palette'));
     setPalette(savedPalette);
 
     const savedDefEst = localStorage.getItem('let_timer_default_estimate');
@@ -112,7 +113,7 @@ export const SettingsView: React.FC = () => {
   };
 
   const handlePaletteChange = (p: string) => {
-    const next = p as 'default' | 'forest';
+    const next = parsePaletteId(p);
     setPalette(next);
     localStorage.setItem('let_timer_palette', next);
     withThemeTransition(() => {
@@ -122,7 +123,8 @@ export const SettingsView: React.FC = () => {
         document.documentElement.setAttribute('data-palette', next);
       }
     });
-    showToast(`Switched palette to ${next === 'forest' ? 'Forest & Moss' : 'Default (Indigo)'}`, 'info');
+    const palObj = PALETTES.find((item) => item.id === next);
+    showToast(`Switched palette to ${palObj?.name ?? next}`, 'info');
   };
 
   const handleEstimateChange = (val: string) => {
@@ -390,6 +392,7 @@ export const SettingsView: React.FC = () => {
               items={[
                 { value: 'default', label: 'Indigo' },
                 { value: 'forest', label: 'Forest' },
+                { value: 'tokyo-night', label: 'Tokyo Night' },
               ]}
             />
           </div>

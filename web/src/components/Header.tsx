@@ -4,6 +4,7 @@ import type { components } from '../api/schema';
 import type { AppView } from '../hooks/useHashRoute';
 import { getStoredWorkspace, setStoredWorkspace, apiFetch } from '../api/client';
 import { withThemeTransition } from '../utils/themeTransition';
+import { parsePaletteId } from '../utils/theme';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMotionTokens, useMotionTransition } from '../motion';
 import {
@@ -125,7 +126,7 @@ export const Header: React.FC<HeaderProps> = ({
     setTheme(savedTheme);
     applyTheme(savedTheme);
 
-    const savedPalette = localStorage.getItem('let_timer_palette') || 'default';
+    const savedPalette = parsePaletteId(localStorage.getItem('let_timer_palette'));
     if (savedPalette !== 'default') {
       document.documentElement.setAttribute('data-palette', savedPalette);
     }

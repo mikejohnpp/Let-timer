@@ -29,6 +29,9 @@ export function readThemes(css: string): {
   forestLight: TokenMap;
   forestDark: TokenMap;
   forestDarkMedia: TokenMap;
+  tokyoNightLight: TokenMap;
+  tokyoNightDark: TokenMap;
+  tokyoNightDarkMedia: TokenMap;
 } {
   const light = parseVars(extractBlock(css, ':root {'));
   const dark = { ...light, ...parseVars(extractBlock(css, ':root[data-theme="dark"] {')) };
@@ -39,6 +42,20 @@ export function readThemes(css: string): {
   const forestDark = { ...dark, ...parseVars(extractBlock(css, ':root[data-theme="dark"][data-palette="forest"] {')) };
   const forestDarkMedia = { ...darkMedia, ...parseVars(extractBlock(media, ':root:not([data-theme="light"])[data-palette="forest"] {')) };
 
-  return { light, dark, darkMedia, forestLight, forestDark, forestDarkMedia };
+  const tokyoNightLight = { ...light, ...parseVars(extractBlock(css, ':root[data-palette="tokyo-night"] {')) };
+  const tokyoNightDark = { ...dark, ...parseVars(extractBlock(css, ':root[data-theme="dark"][data-palette="tokyo-night"] {')) };
+  const tokyoNightDarkMedia = { ...darkMedia, ...parseVars(extractBlock(media, ':root:not([data-theme="light"])[data-palette="tokyo-night"] {')) };
+
+  return {
+    light,
+    dark,
+    darkMedia,
+    forestLight,
+    forestDark,
+    forestDarkMedia,
+    tokyoNightLight,
+    tokyoNightDark,
+    tokyoNightDarkMedia,
+  };
 }
 
