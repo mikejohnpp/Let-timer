@@ -444,3 +444,22 @@ export async function layoutShift(page: Page, ms = 1000) {
 const client = await page.context().newCDPSession(page);
 await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
 ```
+
+## Appendix E — Round 2 Refinements (R1–R5)
+
+1. **R0 — Floating Island Ownership (G1, G3)**:
+   - Root floating island elements (`TimerBar` and `FloatingPlayerIsland`) are encapsulated with isolated `AnimatePresence` distinct from tab transitions in `ViewHost`.
+2. **R1 — Reduced Guards and Strict Tokenization (G4, G5)**:
+   - Added generic reduced motion CSS guards `:root[data-motion="reduced"] [class*="animate-"]` and date-picker slide-to-fade override.
+   - Tokenized all raw literals (`travelS`, token easings) across `ViewHost`, `Toast`, `TodayView`, `WorkspacesView`, `MediaView`, and `Header`.
+   - `web/scripts/check-motion-tokens.mjs` enforces zero forbidden raw timings or non-zero offsets.
+3. **R2 — Task Row Move Proof & Delete Gating (G2)**:
+   - Row `exit` animation is strictly gated on `removingIds.has(task.id)` (`{ opacity: 0, height: 0, overflow: 'hidden' }`). Moves between task sections retain `exit=undefined`, allowing Framer Motion's shared `layoutId` to animate spatial movement smoothly without duplication.
+4. **R3 — Real Playwright E2E Suite with Real Daemon & Axe (G7)**:
+   - Replaced hand-rolled runner with `@playwright/test` (pinned to Nix `playwright-driver` version) and `@axe-core/playwright`.
+   - Uses an isolated in-memory test daemon with throw-away SQLite DB and socket, running all 18 specs covering view transitions, task moves, overlays, mode overrides, ambient loops, focus stability, and WCAG accessibility.
+5. **R4 — Render-based Testing over Source Scraping (G6)**:
+   - Deleted all brittle `readFileSync(*.tsx)` assertions in favor of render-based Testing Library tests in `render_motion.test.tsx`.
+6. **R5 — Documentation and Style Separation (G8)**:
+   - `AGENTS.md` tracked in repo with full Web Motion conventions.
+   - `Field.tsx` border/blur visual adjustments are isolated from motion commits and scheduled for the styling/typography pass.
