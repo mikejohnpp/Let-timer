@@ -64,12 +64,11 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [dateSlideDir, setDateSlideDir] = useState<'prev' | 'next' | null>(null);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<number | null>(null);
-  const [deletingTaskIds, setDeletingTaskIds] = useState<Set<number>>(new Set());
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const isFirstLoadRef = useRef(true);
 
-  const registerFlip = useFlip([tasks, overdueTasks, filterStatus, filterPriority, deletingTaskIds, completingTaskId, doneCollapsed], listContainerRef);
+  const registerFlip = useFlip([tasks, overdueTasks, filterStatus, filterPriority, completingTaskId, doneCollapsed], listContainerRef);
 
   const { showToast } = useToast();
   const confirm = useConfirm();
@@ -259,8 +258,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
       });
       if (!ok) return;
 
-      setDeletingTaskIds((prev) => new Set(prev).add(task.id));
-      await new Promise((r) => setTimeout(r, 200));
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      setOverdueTasks((prev) => prev.filter((t) => t.id !== task.id));
     } else if (action === 'done' || action === 'mark_done_force') {
       setDoneCollapsed(false);
       setCompletingTaskId(task.id);
@@ -317,13 +316,6 @@ export const TodayView: React.FC<TodayViewProps> = ({
       showToast(msg, 'danger');
       await loadTasks();
     } finally {
-      if (action === 'delete') {
-        setDeletingTaskIds((prev) => {
-          const next = new Set(prev);
-          next.delete(task.id);
-          return next;
-        });
-      }
       setCompletingTaskId(null);
     }
   };
@@ -362,7 +354,6 @@ export const TodayView: React.FC<TodayViewProps> = ({
     const isCompleted = effectiveStatus === 'completed';
     const isCancelled = effectiveStatus === 'cancelled';
     const isNewlyAdded = newlyAddedTaskId === t.id;
-    const isDeleting = deletingTaskIds.has(t.id);
 
     return (
       <div
@@ -370,7 +361,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
         ref={registerFlip(String(t.id))}
         className={`min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] group rounded-[var(--radius-control)] select-none ${
           isNewlyAdded ? 'task-row-add' : ''
-        } ${isDeleting ? 'task-row-delete' : ''}`}
+        }`}
       >
         {/* Left: status glyph button, title, description, priority */}
         <div className="flex items-center gap-3 min-w-0 flex-1">

@@ -109,6 +109,8 @@ export const WorkspacesView: React.FC = () => {
     });
     if (!ok) return;
 
+    setWorkspaces((prev) => prev.filter((w) => w.id !== id));
+
     try {
       const res = await apiFetch(`/api/v1/workspaces/${id}`, {
         method: 'DELETE',

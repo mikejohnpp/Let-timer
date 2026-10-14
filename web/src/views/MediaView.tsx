@@ -73,11 +73,8 @@ export const MediaView: React.FC = () => {
 
   // Animation tracking states
   const [newlyAddedListId, setNewlyAddedListId] = useState<number | null>(null);
-  const [deletingListIds, setDeletingListIds] = useState<Set<number>>(new Set());
   const [newlyAddedItemId, setNewlyAddedItemId] = useState<number | null>(null);
-  const [deletingItemIds, setDeletingItemIds] = useState<Set<number>>(new Set());
   const [newlyAttachedItemId, setNewlyAttachedItemId] = useState<number | null>(null);
-  const [deletingAttachedItemIds, setDeletingAttachedItemIds] = useState<Set<number>>(new Set());
   const isFirstLoadRef = useRef(true);
 
   // Animated list refs
@@ -296,8 +293,6 @@ export const MediaView: React.FC = () => {
   };
 
   const handleRemoveItemFromList = async (listId: number, mediaId: number) => {
-    setDeletingAttachedItemIds((prev) => new Set(prev).add(mediaId));
-    await new Promise((r) => setTimeout(r, 200));
     setSelectedList((prev) =>
       prev ? { ...prev, items: prev.items.filter((i) => i.id !== mediaId) } : prev
     );
@@ -316,12 +311,6 @@ export const MediaView: React.FC = () => {
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Failed to detach item', 'danger');
       loadListDetail(listId);
-    } finally {
-      setDeletingAttachedItemIds((prev) => {
-        const next = new Set(prev);
-        next.delete(mediaId);
-        return next;
-      });
     }
   };
 
@@ -334,8 +323,6 @@ export const MediaView: React.FC = () => {
     });
     if (!ok) return;
 
-    setDeletingListIds((prev) => new Set(prev).add(id));
-    await new Promise((r) => setTimeout(r, 200));
     setLists((prev) => prev.filter((l) => l.id !== id));
     if (selectedList?.list.id === id) {
       setSelectedList(null);
@@ -352,12 +339,6 @@ export const MediaView: React.FC = () => {
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Failed to delete list', 'danger');
       loadData();
-    } finally {
-      setDeletingListIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
     }
   };
 
@@ -369,8 +350,6 @@ export const MediaView: React.FC = () => {
     });
     if (!ok) return;
 
-    setDeletingItemIds((prev) => new Set(prev).add(id));
-    await new Promise((r) => setTimeout(r, 200));
     setItems((prev) => prev.filter((i) => i.id !== id));
 
     try {
@@ -384,12 +363,6 @@ export const MediaView: React.FC = () => {
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Failed to delete item', 'danger');
       loadData();
-    } finally {
-      setDeletingItemIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
     }
   };
 
@@ -685,7 +658,6 @@ export const MediaView: React.FC = () => {
                 {lists.map((l) => {
                   const isSelected = selectedList?.list.id === l.id;
                   const isNewlyAdded = newlyAddedListId === l.id;
-                  const isDeleting = deletingListIds.has(l.id);
 
                   return (
                     <div
@@ -693,7 +665,7 @@ export const MediaView: React.FC = () => {
                       onClick={() => loadListDetail(l.id)}
                       className={`p-2.5 rounded-lg cursor-pointer transition flex items-center justify-between gap-2 select-none group ${
                         isNewlyAdded ? 'task-row-add' : ''
-                      } ${isDeleting ? 'task-row-delete' : ''} ${
+                      } ${
                         isSelected
                           ? 'bg-[var(--accent)]/10 text-[var(--accent-text)] font-semibold'
                           : 'hover:bg-[var(--surface-hover)]/50 text-[var(--text)]'
@@ -752,7 +724,7 @@ export const MediaView: React.FC = () => {
                         key={item.id}
                         className={`py-2 px-1.5 flex items-center justify-between gap-3 text-xs group rounded-md transition-colors ${
                           newlyAttachedItemId === item.id ? 'task-row-add' : ''
-                        } ${deletingAttachedItemIds.has(item.id) ? 'task-row-delete' : ''} ${
+                        } ${
                           currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10 text-[var(--accent-text)]' : 'hover:bg-[var(--surface-hover)]/30'
                         }`}
                       >
@@ -867,14 +839,13 @@ export const MediaView: React.FC = () => {
             <div ref={libraryItemsRef} className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
               {items.map((item) => {
                 const isNewlyAdded = newlyAddedItemId === item.id;
-                const isDeleting = deletingItemIds.has(item.id);
 
                 return (
                   <div
                     key={item.id}
                     className={`py-3 px-2 flex items-center justify-between gap-4 rounded-lg hover:bg-[var(--surface-hover)]/40 transition group select-none ${
                       isNewlyAdded ? 'task-row-add' : ''
-                    } ${isDeleting ? 'task-row-delete' : ''} ${
+                    } ${
                       currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10' : ''
                     }`}
                   >
