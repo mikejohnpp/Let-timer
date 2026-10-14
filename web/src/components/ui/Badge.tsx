@@ -52,8 +52,7 @@ export const Dot: React.FC<DotProps> = ({ color = 'accent', pulse = false, class
       {pulse && (
         <span
           className={twMerge(
-            // motion-allow: pending T5 infinite loop fix
-            clsx('animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', colors[color])
+            clsx('ring-pulse absolute inline-flex h-full w-full rounded-full opacity-75', colors[color])
           )}
         />
       )}

@@ -773,8 +773,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             {runningTasks.length > 0 && (
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--accent-text)] mb-2 flex items-center gap-1.5">
-                  {/* motion-allow: pending T5 infinite loop fix */}
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] animate-ping" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] dot-running" />
                   <span>Now Running</span>
                 </div>
                 <div className="flex flex-col divide-y divide-[var(--border)]/40 border-y border-[var(--accent)]/30 bg-[var(--accent)]/5 rounded-[var(--radius-control)]">

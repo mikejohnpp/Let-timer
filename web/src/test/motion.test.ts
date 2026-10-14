@@ -268,6 +268,17 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(badgeCode).not.toContain('animate-pulse');
       expect(badgeCode).toContain("label: 'Live'");
     });
+
+    it('enforces calm budget: no infinite Tailwind animations (animate-ping/pulse/bounce) in UI components', () => {
+      const todayCode = fs.readFileSync(path.resolve(__dirname, '../views/TodayView.tsx'), 'utf8');
+      const badgeCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/Badge.tsx'), 'utf8');
+
+      expect(todayCode).not.toContain('animate-ping');
+      expect(todayCode).toContain('dot-running');
+
+      expect(badgeCode).not.toContain('animate-ping');
+      expect(badgeCode).toContain('ring-pulse');
+    });
   });
 
   describe('View Transitions and Polish (Phase M5)', () => {
