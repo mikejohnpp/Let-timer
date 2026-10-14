@@ -5,11 +5,12 @@ import {
   Check,
   Plus,
   Music,
+  ChevronDown,
 } from 'lucide-react';
 import type { TimerSnapshot } from '../hooks/useEventStream';
 import { computeTimerDisplay, type FormattedTimer } from '../utils/timer';
 import { apiFetch } from '../api/client';
-import { useToast, TimerDigits } from '../components/ui';
+import { useToast, TimerDigits, Popover, PopoverTrigger, PopoverContent } from '../components/ui';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { FloatingPlayerIsland } from '../components/FloatingPlayerIsland';
 
@@ -30,6 +31,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
   const [controlsVisible, setControlsVisible] = useState(true);
   const [mediaLists, setMediaLists] = useState<{ id: number; name: string }[]>([]);
   const [selectedMediaListId, setSelectedMediaListId] = useState<number | null>(null);
+  const [playlistPopoverOpen, setPlaylistPopoverOpen] = useState(false);
 
   const { showToast } = useToast();
   const hideTimerRef = useRef<number | null>(null);
@@ -152,13 +154,13 @@ export const FocusView: React.FC<FocusViewProps> = ({
 
   // Check auto-rotate setting
   const [autoRotateBg, setAutoRotateBg] = useState<boolean>(() => {
-    const val = typeof window !== 'undefined' ? localStorage.getItem('let_timer_auto_rotate_bg') : null;
+    const val = typeof localStorage !== 'undefined' ? localStorage.getItem('let_timer_auto_rotate_bg') : null;
     return val === null ? true : val === 'true';
   });
 
   useEffect(() => {
     const handleSync = () => {
-      const val = localStorage.getItem('let_timer_auto_rotate_bg');
+      const val = typeof localStorage !== 'undefined' ? localStorage.getItem('let_timer_auto_rotate_bg') : null;
       setAutoRotateBg(val === null ? true : val === 'true');
     };
     window.addEventListener('let-timer-settings-changed', handleSync);
@@ -174,7 +176,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
     return () => clearInterval(interval);
   }, [images.length, autoRotateBg]);
 
-  const appWallpaper = typeof window !== 'undefined' ? localStorage.getItem('let_timer_wallpaper') : null;
+  const appWallpaper = typeof localStorage !== 'undefined' ? localStorage.getItem('let_timer_wallpaper') : null;
   const hasImageBg = images.length > 0;
   const effectiveBg = hasImageBg ? (images[currentImageIndex]?.url || null) : appWallpaper;
   const hasAnyBg = Boolean(effectiveBg);
@@ -293,34 +295,85 @@ export const FocusView: React.FC<FocusViewProps> = ({
               controlsVisible ? 'opacity-100' : 'opacity-0'
             }`}
           >
-            <div
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs backdrop-blur-md shadow-xs ${
-                hasAnyBg
-                  ? 'bg-black/35 border-white/20 text-[var(--imm-text)]'
-                  : 'bg-[var(--surface)]/90 border-[var(--border)] text-[var(--text)]'
-              }`}
-            >
-              <Music className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
-              <select
-                value={selectedMediaListId || ''}
-                onChange={(e) => {
-                  const val = e.target.value ? Number(e.target.value) : null;
-                  setSelectedMediaListId(val);
-                  loadMediaListForTask(val);
-                }}
-                className="bg-transparent outline-none cursor-pointer text-xs font-medium max-w-[200px] truncate"
-                aria-label="Select focus playlist"
+            <Popover open={playlistPopoverOpen} onOpenChange={setPlaylistPopoverOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  disabled={mediaLists.length === 0}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs backdrop-blur-md shadow-xs transition select-none ${
+                    mediaLists.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                  } ${
+                    hasAnyBg
+                      ? 'bg-black/35 border-white/20 text-[var(--imm-text)] hover:bg-black/45'
+                      : 'bg-[var(--surface)]/90 border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-hover)]'
+                  }`}
+                  aria-label="Select focus playlist"
+                  aria-haspopup="listbox"
+                >
+                  <Music className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
+                  <span className="font-medium max-w-[160px] sm:max-w-[220px] truncate">
+                    {mediaLists.length === 0
+                      ? 'No playlists available'
+                      : mediaLists.find((l) => l.id === selectedMediaListId)?.name || 'Choose focus playlist…'}
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-[var(--muted)] opacity-70 shrink-0" />
+                </button>
+              </PopoverTrigger>
+
+              <PopoverContent
+                side="top"
+                align="center"
+                sideOffset={8}
+                className="w-64 p-2 flex flex-col gap-1.5 max-h-60 overflow-y-auto"
               >
-                <option value="" className="text-black bg-white dark:text-white dark:bg-neutral-900">
-                  {mediaLists.length === 0 ? 'No playlists available' : 'Choose focus playlist…'}
-                </option>
-                {mediaLists.map((l) => (
-                  <option key={l.id} value={l.id} className="text-black bg-white dark:text-white dark:bg-neutral-900">
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div className="text-xs font-semibold uppercase tracking-wider leading-tight text-[var(--muted)] px-2 py-1">
+                  Focus Playlists
+                </div>
+
+                <div role="listbox" aria-label="Focus playlists" className="flex flex-col gap-0.5">
+                  {selectedMediaListId && (
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={false}
+                      onClick={() => {
+                        setSelectedMediaListId(null);
+                        clearPlayer();
+                        setPlaylistPopoverOpen(false);
+                      }}
+                      className="py-1.5 px-2 text-xs text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] rounded flex items-center justify-between transition cursor-pointer"
+                    >
+                      <span>None</span>
+                    </button>
+                  )}
+
+                  {mediaLists.map((l) => {
+                    const isSelected = l.id === selectedMediaListId;
+                    return (
+                      <button
+                        key={l.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => {
+                          setSelectedMediaListId(l.id);
+                          loadMediaListForTask(l.id);
+                          setPlaylistPopoverOpen(false);
+                        }}
+                        className={`py-1.5 px-2 text-xs rounded flex items-center justify-between gap-2 transition cursor-pointer text-left ${
+                          isSelected
+                            ? 'bg-[var(--accent)]/10 text-[var(--accent-text)] font-semibold'
+                            : 'text-[var(--text)] hover:bg-[var(--surface-hover)]'
+                        }`}
+                      >
+                        <span className="truncate">{l.name}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         )}
 
