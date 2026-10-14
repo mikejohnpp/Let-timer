@@ -193,15 +193,15 @@ export const AppContent: React.FC = () => {
         </ViewHost>
       </main>
 
-      {/* Floating Bottom Island (TimerBar if task active, or FloatingPlayerIsland if idle & music playing) */}
+      {/* Floating Bottom Island: Owned by App dock (ViewHost owns view/tab transitions exclusively) */}
       {!isFocusView && (
         <AnimatePresence>
           {Boolean(snapshot && snapshot.state !== 'idle') && (
             <motion.div
               key="timer-bar"
-              initial={{ opacity: 0, y: tokens.isReduced ? 0 : 16 }}
+              initial={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS * 2 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: tokens.isReduced ? 0 : 16 }}
+              exit={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS * 2 }}
               transition={floatingTransition}
               className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw]"
             >
@@ -218,9 +218,9 @@ export const AppContent: React.FC = () => {
           {Boolean((!snapshot || snapshot.state === 'idle') && currentTrack) && (
             <motion.div
               key="floating-player-island"
-              initial={{ opacity: 0, y: tokens.isReduced ? 0 : 16 }}
+              initial={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS * 2 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: tokens.isReduced ? 0 : 16 }}
+              exit={{ opacity: 0, y: tokens.isReduced ? 0 : tokens.travelS * 2 }}
               transition={floatingTransition}
               className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw]"
             >
