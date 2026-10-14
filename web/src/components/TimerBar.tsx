@@ -56,6 +56,14 @@ export const TimerBar: React.FC<TimerBarProps> = ({
   const prevModeRef = useRef<string>('idle');
   const { currentTrack, isPlaying: isAudioPlaying, togglePlay: toggleAudio, nextTrack } = useAudioPlayer();
 
+  const lastActiveSnapshotRef = useRef<TimerSnapshot | null>(
+    snapshot && snapshot.state !== 'idle' ? snapshot : null
+  );
+  if (snapshot && snapshot.state !== 'idle') {
+    lastActiveSnapshotRef.current = snapshot;
+  }
+  const activeSnapshot = snapshot && snapshot.state !== 'idle' ? snapshot : lastActiveSnapshotRef.current;
+
   // Live 1-second ticking
   useEffect(() => {
     const timer = setInterval(() => {
@@ -64,7 +72,7 @@ export const TimerBar: React.FC<TimerBarProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const timerInfo: FormattedTimer = computeTimerDisplay(snapshot, receivedAt, now);
+  const timerInfo: FormattedTimer = computeTimerDisplay(activeSnapshot, receivedAt, now);
 
   // Announce minute change or state change in LiveRegion
   useEffect(() => {
@@ -156,7 +164,7 @@ export const TimerBar: React.FC<TimerBarProps> = ({
     }
   };
 
-  if (!snapshot || snapshot.state === 'idle') {
+  if (!activeSnapshot || activeSnapshot.state === 'idle') {
     return (
       <div className="sr-only" aria-hidden="true">
         <span>Nothing running</span>
@@ -165,8 +173,8 @@ export const TimerBar: React.FC<TimerBarProps> = ({
     );
   }
 
-  const isRunning = snapshot.state === 'running';
-  const isPaused = snapshot.state === 'paused';
+  const isRunning = activeSnapshot.state === 'running';
+  const isPaused = activeSnapshot.state === 'paused';
   const isOvertime = timerInfo.mode === 'overtime';
 
   return (
@@ -218,9 +226,9 @@ export const TimerBar: React.FC<TimerBarProps> = ({
       {/* Task name & status metadata (fixed width flex-1 with crossfade) */}
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
         <span className="text-xs font-semibold truncate text-[var(--text)] transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)]">
-          {snapshot.task.name}
+          {activeSnapshot.task.name}
         </span>
-        <span className="sr-only">{snapshot.workspace_name}</span>
+        <span className="sr-only">{activeSnapshot.workspace_name}</span>
         <span className="sr-only">
           {isOvertime ? "Time's up" : isPaused ? 'Paused' : 'In progress'}
         </span>

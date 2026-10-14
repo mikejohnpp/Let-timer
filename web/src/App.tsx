@@ -171,15 +171,13 @@ export const AppContent: React.FC = () => {
             enterAnimation="animate-[rise-in_var(--dur-base)_var(--ease-out)]"
             exitAnimation="animate-[rise-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]"
           >
-            {snapshot && snapshot.state !== 'idle' && (
-              <TimerBar
-                snapshot={snapshot}
-                receivedAt={receivedAt}
-                onOpenFocus={() => navigate('focus')}
-                onOpenStartPicker={() => setIsStartPickerOpen(true)}
-                onActionComplete={refetchSnapshot}
-              />
-            )}
+            <TimerBar
+              snapshot={snapshot}
+              receivedAt={receivedAt}
+              onOpenFocus={() => navigate('focus')}
+              onOpenStartPicker={() => setIsStartPickerOpen(true)}
+              onActionComplete={refetchSnapshot}
+            />
           </Presence>
 
           <Presence

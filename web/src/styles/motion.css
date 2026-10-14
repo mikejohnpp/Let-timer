@@ -331,14 +331,6 @@
   view-transition-name: none;
 }
 
-::view-transition-old(root) {
-  animation: 90ms var(--ease-out) both fade-out;
-}
-
-::view-transition-new(root) {
-  animation: 180ms var(--ease-out) both fade-in;
-}
-
 :root[data-motion="reduced"] .view-enter {
   animation: view-enter 100ms var(--ease-out);
 }

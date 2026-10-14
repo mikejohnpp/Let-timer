@@ -27,14 +27,7 @@ export function useHashRoute(): [RouteState, (view: AppView, params?: Record<str
 
   useEffect(() => {
     const handleHashChange = () => {
-      const next = parseHash();
-      if (typeof document !== 'undefined' && 'startViewTransition' in document) {
-        (document as unknown as { startViewTransition: (cb: () => void) => void }).startViewTransition(() => {
-          setRoute(next);
-        });
-      } else {
-        setRoute(next);
-      }
+      setRoute(parseHash());
     };
 
     window.addEventListener('hashchange', handleHashChange);

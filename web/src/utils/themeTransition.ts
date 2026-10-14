@@ -17,3 +17,4 @@ export function withThemeTransition(fn: () => void): void {
     root.classList.remove('theme-transition');
   }, 300);
 }
+

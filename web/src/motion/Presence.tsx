@@ -25,7 +25,7 @@ export const Presence: React.FC<PresenceProps> = ({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastChildrenRef = useRef<React.ReactNode>(children);
 
-  if (present) {
+  if (present && children) {
     lastChildrenRef.current = children;
   }
 
@@ -50,11 +50,14 @@ export const Presence: React.FC<PresenceProps> = ({
   if (!isMounted) return null;
 
   return (
-    <div
-      data-state={animState}
-      className={`${className} ${animState === 'open' ? enterAnimation : exitAnimation}`}
-    >
-      {present ? children : lastChildrenRef.current}
+    <div className={className}>
+      <div
+        data-state={animState}
+        className={animState === 'open' ? enterAnimation : exitAnimation}
+      >
+        {present ? children : lastChildrenRef.current}
+      </div>
     </div>
   );
 };
+

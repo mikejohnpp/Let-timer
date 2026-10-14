@@ -278,23 +278,23 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(cssContent).toContain(':root[data-motion="off"] .view-enter {\n  animation: none !important;\n}');
     });
 
-    it('defines progressive View Transitions API pseudo-element styling with wallpaper isolation', () => {
-      expect(cssContent).toContain('::view-transition-old(root) {\n  animation: 90ms var(--ease-out) both fade-out;\n}');
-      expect(cssContent).toContain('::view-transition-new(root) {\n  animation: 180ms var(--ease-out) both fade-in;\n}');
+    it('isolates wallpaper with view-transition-name: none and applies view-enter to tab views', () => {
       expect(cssContent).toContain('.wallpaper-layers {\n  view-transition-name: none;\n}');
 
       const wallCode = fs.readFileSync(path.resolve(__dirname, '../components/WallpaperLayers.tsx'), 'utf8');
       expect(wallCode).toContain("viewTransitionName: 'none'");
     });
 
-    it('wraps current view in App.tsx with view-enter and key for tab transitions', () => {
+    it('wraps current view in App.tsx with view-enter and key for smooth flicker-free tab transitions', () => {
       const appCode = fs.readFileSync(path.resolve(__dirname, '../App.tsx'), 'utf8');
       expect(appCode).toContain('<div key={currentView} className="view-enter h-full">');
     });
 
-    it('uses document.startViewTransition enhancement in useHashRoute', () => {
-      const routeCode = fs.readFileSync(path.resolve(__dirname, '../hooks/useHashRoute.ts'), 'utf8');
-      expect(routeCode).toContain('startViewTransition');
+    it('nests animated container inside positioned container in Presence for rock-solid centering', () => {
+      const presenceCode = fs.readFileSync(path.resolve(__dirname, '../motion/Presence.tsx'), 'utf8');
+      expect(presenceCode).toContain('<div className={className}>');
+      expect(presenceCode).toContain('data-state={animState}');
+      expect(presenceCode).toContain('className={animState === \'open\' ? enterAnimation : exitAnimation}');
     });
 
     it('enforces calm budget: no raw durations or easings outside motion.css and tokens.ts', () => {

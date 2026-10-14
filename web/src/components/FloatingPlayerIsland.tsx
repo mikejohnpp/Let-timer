@@ -58,6 +58,12 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
   const poems = mediaListDetail?.items.filter((i) => i.media_type === 'poem') || [];
   const tracks = playlist.length > 0 ? playlist : mediaListDetail?.items.filter((i) => i.media_type === 'music') || [];
 
+  const lastActiveTrackRef = useRef(currentTrack);
+  if (currentTrack) {
+    lastActiveTrackRef.current = currentTrack;
+  }
+  const track = currentTrack || lastActiveTrackRef.current;
+
   // Desktop hover detection helper
   const canHover = () => {
     return typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -147,7 +153,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
   }, [isExpanded]);
 
   // If there's no track and no poems, nothing to show
-  if (!currentTrack && tracks.length === 0 && poems.length === 0) {
+  if (!track && tracks.length === 0 && poems.length === 0) {
     return null;
   }
 
@@ -222,17 +228,17 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
           {activeTab === 'music' && (
             <div className="flex flex-col gap-3.5">
               {/* Now Playing Header */}
-              {currentTrack ? (
+              {track ? (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)]/50 flex items-center justify-center shrink-0 text-[var(--accent-text)]">
                     <SoundWave isPlaying={isPlaying} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold text-[var(--text)] truncate">
-                      {currentTrack.name}
+                      {track.name}
                     </div>
                     <div className="text-xs text-[var(--muted)] truncate mt-0.5">
-                      {currentTrack.description || mediaListDetail?.list.name || 'Focus Audio'}
+                      {track.description || mediaListDetail?.list.name || 'Focus Audio'}
                     </div>
                   </div>
                 </div>
@@ -426,7 +432,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
 
             {/* Track Name */}
             <span className="text-xs font-semibold truncate max-w-[120px] sm:max-w-[200px] text-[var(--text)]">
-              {currentTrack ? currentTrack.name : 'Focus media'}
+              {track ? track.name : 'Focus media'}
             </span>
 
             {/* Time */}
