@@ -136,7 +136,12 @@ async fn static_or_spa_handler(req: axum::extract::Request) -> axum::response::R
             if !clean_subpath.contains("..") {
                 let file_path = media_root.join(clean_subpath);
                 if file_path.is_file() {
-                    return serve_file_from_disk(&file_path, req).await;
+                    let mut resp = serve_file_from_disk(&file_path, req).await;
+                    resp.headers_mut().insert(
+                        axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                        axum::http::HeaderValue::from_static("*"),
+                    );
+                    return resp;
                 }
             }
         }

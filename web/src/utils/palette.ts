@@ -196,30 +196,109 @@ export function generateDynamicPalette(hexColor: string, isDark: boolean): Dynam
   }
 }
 
+async function loadImageForCanvas(imageUrl: string): Promise<{ img: HTMLImageElement; cleanup: () => void }> {
+  // If data: or blob: URL, load directly
+  if (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ img, cleanup: () => {} });
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = imageUrl;
+    });
+  }
+
+  // Attempt fetch as blob for relative / local endpoints:
+  // - Handles authenticated relative endpoints (/api/v1/media/files/...) seamlessly
+  // - Converts into a local blob URL that NEVER taints canvas or fails CORS
+  const isRelativeOrLocal = imageUrl.startsWith('/') || !imageUrl.startsWith('http');
+  if (isRelativeOrLocal) {
+    try {
+      const headers = new Headers();
+      if (typeof localStorage !== 'undefined') {
+        const token = localStorage.getItem('let_timer_token');
+        if (token) headers.set('Authorization', `Bearer ${token}`);
+        const ws = localStorage.getItem('let_timer_active_workspace');
+        if (ws) headers.set('X-Let-Timer-Workspace', ws);
+      }
+      headers.set('X-Let-Timer-Protocol', '1');
+
+      const res = await fetch(imageUrl, { headers }).catch(() => null);
+      if (res && res.ok) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve({ img, cleanup: () => URL.revokeObjectURL(blobUrl) });
+          img.onerror = () => {
+            URL.revokeObjectURL(blobUrl);
+            const directImg = new Image();
+            directImg.crossOrigin = 'anonymous';
+            directImg.onload = () => resolve({ img: directImg, cleanup: () => {} });
+            directImg.onerror = () => resolve({ img: directImg, cleanup: () => {} });
+            directImg.src = imageUrl;
+          };
+          img.src = blobUrl;
+        });
+      }
+    } catch {
+      // Ignore fetch error and fall back to Image crossOrigin
+    }
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve({ img, cleanup: () => {} });
+    img.onerror = () => {
+      // Fallback without crossOrigin
+      const noCorsImg = new Image();
+      noCorsImg.onload = () => resolve({ img: noCorsImg, cleanup: () => {} });
+      noCorsImg.onerror = () => resolve({ img: noCorsImg, cleanup: () => {} });
+      noCorsImg.src = imageUrl;
+    };
+    img.src = imageUrl;
+  });
+}
+
 /**
  * Extract dominant vibrant color from an image URL using offscreen canvas.
  */
 export async function extractDominantColor(imageUrl: string): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
+  try {
+    const { img, cleanup } = await loadImageForCanvas(imageUrl);
+    try {
+      if (!img.naturalWidth || !img.naturalHeight) {
+        return '#4f46e5';
+      }
 
-    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return '#4f46e5';
+
+      const size = 64;
+      canvas.width = size;
+      canvas.height = size;
+      ctx.drawImage(img, 0, 0, size, size);
+
+      let imageData: Uint8ClampedArray;
       try {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve('#4f46e5');
-          return;
-        }
+        imageData = ctx.getImageData(0, 0, size, size).data;
+      } catch {
+        // Tainted canvas security error
+        return '#4f46e5';
+      }
 
-        const size = 64;
-        canvas.width = size;
-        canvas.height = size;
-        ctx.drawImage(img, 0, 0, size, size);
-
-        const imageData = ctx.getImageData(0, 0, size, size).data;
-        const colorBuckets: { [key: string]: { r: number; g: number; b: number; count: number; score: number } } = {};
+      // Helper to group pixels into color clusters
+      const extractWithThresholds = (minL: number, maxL: number, minS: number) => {
+        const buckets: {
+          [key: string]: {
+            rSum: number;
+            gSum: number;
+            bSum: number;
+            count: number;
+            score: number;
+          };
+        } = {};
 
         for (let i = 0; i < imageData.length; i += 16) { // sample every 4th pixel
           const r = imageData[i];
@@ -230,48 +309,58 @@ export async function extractDominantColor(imageUrl: string): Promise<string> {
           if (a < 128) continue; // ignore transparent pixels
 
           const [, s, l] = rgbToHsl(r, g, b);
-
-          // Skip nearly black or nearly white pixels
-          if (l < 15 || l > 88) continue;
+          if (l < minL || l > maxL || s < minS) continue;
 
           // Bucket by rounding to 32
           const bucketKey = `${Math.round(r / 32) * 32},${Math.round(g / 32) * 32},${Math.round(b / 32) * 32}`;
 
-          if (!colorBuckets[bucketKey]) {
-            colorBuckets[bucketKey] = { r, g, b, count: 0, score: 0 };
+          if (!buckets[bucketKey]) {
+            buckets[bucketKey] = { rSum: 0, gSum: 0, bSum: 0, count: 0, score: 0 };
           }
 
-          colorBuckets[bucketKey].count++;
-          // Score prioritizes saturation (vibrancy) over pure frequency
-          colorBuckets[bucketKey].score += (s / 100) * 2 + 1;
+          buckets[bucketKey].rSum += r;
+          buckets[bucketKey].gSum += g;
+          buckets[bucketKey].bSum += b;
+          buckets[bucketKey].count++;
+          // Score prioritizes saturation (vibrancy) while retaining high-frequency representative colors
+          buckets[bucketKey].score += (s / 100) * 2.5 + 1;
         }
 
-        let bestBucket = null;
+        let best = null;
         let maxScore = -1;
 
-        for (const key in colorBuckets) {
-          if (colorBuckets[key].score > maxScore) {
-            maxScore = colorBuckets[key].score;
-            bestBucket = colorBuckets[key];
+        for (const key in buckets) {
+          if (buckets[key].score > maxScore) {
+            maxScore = buckets[key].score;
+            best = buckets[key];
           }
         }
 
-        if (bestBucket) {
-          resolve(hslToHex(...rgbToHsl(bestBucket.r, bestBucket.g, bestBucket.b)));
-        } else {
-          resolve('#4f46e5');
-        }
-      } catch {
-        resolve('#4f46e5');
+        return best;
+      };
+
+      // Pass 1: standard filter (preserves vibrant colors, skips extreme blacks/whites)
+      let bestBucket = extractWithThresholds(10, 92, 10);
+
+      // Pass 2: if image is dark or monochromatic (e.g. moody dark forest, night city, pale beige)
+      if (!bestBucket) {
+        bestBucket = extractWithThresholds(3, 97, 0);
       }
-    };
 
-    img.onerror = () => {
-      resolve('#4f46e5');
-    };
+      if (bestBucket && bestBucket.count > 0) {
+        const avgR = Math.round(bestBucket.rSum / bestBucket.count);
+        const avgG = Math.round(bestBucket.gSum / bestBucket.count);
+        const avgB = Math.round(bestBucket.bSum / bestBucket.count);
+        return hslToHex(...rgbToHsl(avgR, avgG, avgB));
+      }
 
-    img.src = imageUrl;
-  });
+      return '#4f46e5';
+    } finally {
+      cleanup();
+    }
+  } catch {
+    return '#4f46e5';
+  }
 }
 
 const DYNAMIC_CSS_VARS = [

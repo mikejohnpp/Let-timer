@@ -145,14 +145,24 @@ export function useWallpaper(): WallpaperState {
       setDynamicColorState(enabled);
       safeSetItem('let_timer_dynamic_color', String(enabled));
 
-      if (enabled && extractedColor) {
-        applyDynamicPalette(extractedColor);
+      if (enabled) {
+        if (wallpaperUrl) {
+          extractDominantColor(wallpaperUrl).then((color) => {
+            safeSetItem('let_timer_extracted_color', color);
+            setExtractedColor(color);
+            applyDynamicPalette(color);
+            window.dispatchEvent(new CustomEvent('let-timer-wallpaper-changed'));
+          });
+        } else if (extractedColor) {
+          applyDynamicPalette(extractedColor);
+          window.dispatchEvent(new CustomEvent('let-timer-wallpaper-changed'));
+        }
       } else {
         applyDynamicPalette(null);
+        window.dispatchEvent(new CustomEvent('let-timer-wallpaper-changed'));
       }
-      window.dispatchEvent(new CustomEvent('let-timer-wallpaper-changed'));
     },
-    [extractedColor]
+    [wallpaperUrl, extractedColor]
   );
 
   const clearWallpaper = useCallback(() => {
