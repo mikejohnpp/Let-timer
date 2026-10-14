@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useId } from 'react';
 import * as ToggleGroupPrimitive from '@radix-ui/react-toggle-group';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { motion } from 'motion/react';
 
 export interface SegmentItem {
   value: string;
@@ -21,6 +22,8 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   items,
   className,
 }) => {
+  const instanceId = useId();
+
   return (
     <ToggleGroupPrimitive.Root
       type="single"
@@ -30,20 +33,30 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
       }}
       className={twMerge(
         clsx(
-          'inline-flex p-0.5 rounded-[var(--radius-control)] bg-[var(--surface-hover)] border border-[var(--border-strong)]',
+          'inline-flex p-0.5 rounded-[var(--radius-control)] bg-[var(--surface-hover)] border border-[var(--border-strong)] relative',
           className
         )
       )}
     >
-      {items.map((item) => (
-        <ToggleGroupPrimitive.Item
-          key={item.value}
-          value={item.value}
-          className="px-3 py-1 text-xs font-medium rounded-[calc(var(--radius-control)-2px)] transition-[background-color,color,transform] duration-[var(--dur-base)] ease-[var(--ease-out)] select-none cursor-pointer data-[state=on]:bg-[var(--accent)] data-[state=on]:text-[var(--on-accent)] data-[state=off]:text-[var(--muted)] data-[state=off]:hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--accent-text)]"
-        >
-          {item.label}
-        </ToggleGroupPrimitive.Item>
-      ))}
+      {items.map((item) => {
+        const isSelected = item.value === value;
+        return (
+          <ToggleGroupPrimitive.Item
+            key={item.value}
+            value={item.value}
+            className="relative px-3 py-1 text-xs font-medium rounded-[calc(var(--radius-control)-2px)] transition-[color,transform] duration-[var(--dur-base)] ease-[var(--ease-out)] select-none cursor-pointer focus-visible:outline-2 focus-visible:outline-[var(--accent-text)] data-[state=on]:text-[var(--on-accent)] data-[state=off]:text-[var(--muted)] data-[state=off]:hover:text-[var(--text)]"
+          >
+            {isSelected && (
+              <motion.span
+                layoutId={`segmented-thumb-${instanceId}`}
+                className="absolute inset-0 bg-[var(--accent)] rounded-[calc(var(--radius-control)-2px)] shadow-xs"
+                transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+              />
+            )}
+            <span className="relative z-10">{item.label}</span>
+          </ToggleGroupPrimitive.Item>
+        );
+      })}
     </ToggleGroupPrimitive.Root>
   );
 };

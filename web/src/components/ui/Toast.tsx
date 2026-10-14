@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import * as ToastPrimitive from '@radix-ui/react-toast';
 import { X, AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { clsx } from 'clsx';
+import { motion, AnimatePresence } from 'motion/react';
 
 export interface ToastItem {
   id: string;
@@ -28,20 +29,29 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <ToastContext.Provider value={{ showToast }}>
       <ToastPrimitive.Provider swipeDirection="right" duration={4000}>
         {children}
-        {toasts.map((t) => (
-          <ToastPrimitive.Root
-            key={t.id}
-            onOpenChange={(open) => {
-              if (!open) setToasts((prev) => prev.filter((item) => item.id !== t.id));
-            }}
-            className={clsx(
-              'flex items-center justify-between gap-3 p-3.5 rounded-[var(--radius-control)] border shadow-[var(--shadow-popover)] text-xs',
-              'data-[state=open]:animate-[rise-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
-              t.tone === 'danger' && 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger)]/30',
-              t.tone === 'success' && 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success)]/20',
-              (!t.tone || t.tone === 'info') && 'bg-[var(--surface)] text-[var(--text)] border-[var(--border)]'
-            )}
-          >
+        <AnimatePresence initial={false}>
+          {toasts.map((t) => (
+            <motion.div
+              key={t.id}
+              layout
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95, height: 0, overflow: 'hidden' }}
+              transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            >
+              <ToastPrimitive.Root
+                key={t.id}
+                onOpenChange={(open) => {
+                  if (!open) setToasts((prev) => prev.filter((item) => item.id !== t.id));
+                }}
+                className={clsx(
+                  'flex items-center justify-between gap-3 p-3.5 rounded-[var(--radius-control)] border shadow-[var(--shadow-popover)] text-xs',
+                  'data-[state=open]:animate-[rise-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[fade-out_calc(var(--dur-base)*var(--exit-ratio))_var(--ease-out)_forwards]',
+                  t.tone === 'danger' && 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger)]/30',
+                  t.tone === 'success' && 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success)]/20',
+                  (!t.tone || t.tone === 'info') && 'bg-[var(--surface)] text-[var(--text)] border-[var(--border)]'
+                )}
+              >
             <div className="flex items-center gap-2">
               {t.tone === 'danger' && <AlertCircle className="w-4 h-4 text-[var(--danger)] shrink-0" />}
               {t.tone === 'success' && <CheckCircle className="w-4 h-4 text-[var(--success)] shrink-0" />}
@@ -54,8 +64,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               </button>
             </ToastPrimitive.Close>
           </ToastPrimitive.Root>
-        ))}
-        <ToastPrimitive.Viewport className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-full max-w-sm outline-none" />
+        </motion.div>
+      ))}
+    </AnimatePresence>
+    <ToastPrimitive.Viewport className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-full max-w-sm outline-none" />
       </ToastPrimitive.Provider>
     </ToastContext.Provider>
   );
