@@ -125,9 +125,9 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 #[folder = "../../web/dist"]
 struct WebAssets;
 
-async fn static_or_spa_handler(uri: axum::http::Uri) -> axum::response::Response {
+async fn static_or_spa_handler(req: axum::extract::Request) -> axum::response::Response {
     use axum::response::IntoResponse;
-    let path = uri.path().trim_start_matches('/');
+    let path = req.uri().path().trim_start_matches('/').to_string();
 
     // 0. Managed Media Assets: /api/v1/media/files/*
     if let Some(media_subpath) = path.strip_prefix("api/v1/media/files/") {
@@ -136,7 +136,7 @@ async fn static_or_spa_handler(uri: axum::http::Uri) -> axum::response::Response
             if !clean_subpath.contains("..") {
                 let file_path = media_root.join(clean_subpath);
                 if file_path.is_file() {
-                    return serve_file_from_disk(&file_path).await;
+                    return serve_file_from_disk(&file_path, req).await;
                 }
             }
         }
@@ -149,24 +149,24 @@ async fn static_or_spa_handler(uri: axum::http::Uri) -> axum::response::Response
         let file_path = if path.is_empty() {
             dir_path.join("index.html")
         } else {
-            dir_path.join(path)
+            dir_path.join(&path)
         };
 
         if file_path.is_file() {
-            return serve_file_from_disk(&file_path).await;
+            return serve_file_from_disk(&file_path, req).await;
         }
 
         // SPA fallback: index.html
         let index_path = dir_path.join("index.html");
         if index_path.is_file() {
-            return serve_file_from_disk(&index_path).await;
+            return serve_file_from_disk(&index_path, req).await;
         }
     }
 
     // 2. Embedded assets
     #[cfg(feature = "embed-web")]
     {
-        let asset_path = if path.is_empty() { "index.html" } else { path };
+        let asset_path = if path.is_empty() { "index.html" } else { &path };
 
         if let Some(file) = WebAssets::get(asset_path) {
             return serve_embedded_file(asset_path, file);
@@ -181,13 +181,18 @@ async fn static_or_spa_handler(uri: axum::http::Uri) -> axum::response::Response
     (axum::http::StatusCode::NOT_FOUND, "Not Found").into_response()
 }
 
-async fn serve_file_from_disk(path: &std::path::Path) -> axum::response::Response {
+async fn serve_file_from_disk(
+    path: &std::path::Path,
+    req: axum::extract::Request,
+) -> axum::response::Response {
     use axum::response::IntoResponse;
-    match std::fs::read(path) {
-        Ok(bytes) => {
-            let mime = mime_guess::from_path(path).first_or_octet_stream();
-            ([(axum::http::header::CONTENT_TYPE, mime.as_ref())], bytes).into_response()
-        }
+    use tower::ServiceExt;
+
+    match tower_http::services::ServeFile::new(path)
+        .oneshot(req)
+        .await
+    {
+        Ok(res) => res.into_response(),
         Err(_) => (axum::http::StatusCode::NOT_FOUND, "Not Found").into_response(),
     }
 }

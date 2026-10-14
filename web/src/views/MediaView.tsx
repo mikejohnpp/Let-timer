@@ -123,11 +123,13 @@ export const MediaView: React.FC = () => {
       });
 
       if (res.ok) {
+        const created: MediaList = await res.json();
         setNewListName('');
         setNewListDesc('');
         setIsCreatingList(false);
         showToast('Created media list', 'success');
-        loadData();
+        setLists((prev) => [created, ...prev]);
+        loadListDetail(created.id);
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.message || 'Failed to create list', 'danger');
@@ -176,6 +178,7 @@ export const MediaView: React.FC = () => {
         });
 
         if (res.ok) {
+          const created: MediaItem = await res.json();
           setNewItemName('');
           setNewItemUrl('');
           setNewItemDesc('');
@@ -184,7 +187,7 @@ export const MediaView: React.FC = () => {
           if (itemFileInputRef.current) itemFileInputRef.current.value = '';
           setIsCreatingItem(false);
           showToast('Media uploaded and saved to library', 'success');
-          loadData();
+          setItems((prev) => [created, ...prev]);
         } else {
           const err = await res.json().catch(() => ({}));
           showToast(err.message || 'Failed to upload media', 'danger');
@@ -215,6 +218,7 @@ export const MediaView: React.FC = () => {
       });
 
       if (res.ok) {
+        const created: MediaItem = await res.json();
         setNewItemName('');
         setNewItemUrl('');
         setNewItemDesc('');
@@ -222,7 +226,7 @@ export const MediaView: React.FC = () => {
         setSelectedUploadFile(null);
         setIsCreatingItem(false);
         showToast('Created media item', 'success');
-        loadData();
+        setItems((prev) => [created, ...prev]);
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.message || 'Failed to create item', 'danger');
@@ -235,10 +239,12 @@ export const MediaView: React.FC = () => {
   const handleAddItemToList = async (listId: number, mediaId: number) => {
     const itemToAttach = items.find((i) => i.id === mediaId);
     if (itemToAttach && selectedList && selectedList.list.id === listId) {
-      setSelectedList({
-        ...selectedList,
-        items: [...selectedList.items, itemToAttach],
-      });
+      if (!selectedList.items.some((i) => i.id === mediaId)) {
+        setSelectedList({
+          ...selectedList,
+          items: [...selectedList.items, itemToAttach],
+        });
+      }
     }
 
     try {
@@ -252,7 +258,6 @@ export const MediaView: React.FC = () => {
 
       if (res.ok) {
         showToast('Item attached to list', 'success');
-        loadListDetail(listId);
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.message || 'Failed to attach item', 'danger');
@@ -276,7 +281,6 @@ export const MediaView: React.FC = () => {
 
       if (res.ok) {
         showToast('Item detached from list', 'info');
-        loadListDetail(listId);
       } else {
         loadListDetail(listId);
       }
@@ -304,7 +308,6 @@ export const MediaView: React.FC = () => {
       const res = await apiFetch(`/api/v1/media-lists/${id}`, { method: 'DELETE' });
       if (res.ok) {
         showToast('List deleted', 'success');
-        loadData();
       } else {
         loadData();
       }
@@ -328,7 +331,6 @@ export const MediaView: React.FC = () => {
       const res = await apiFetch(`/api/v1/medias/${id}`, { method: 'DELETE' });
       if (res.ok) {
         showToast('Item deleted', 'success');
-        loadData();
       } else {
         loadData();
       }
@@ -394,7 +396,7 @@ export const MediaView: React.FC = () => {
             key="new-list-form"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
             transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
             className="overflow-hidden mb-2"
           >
@@ -443,7 +445,7 @@ export const MediaView: React.FC = () => {
             key="new-item-form"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
             transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
             className="overflow-hidden mb-2"
           >
@@ -655,7 +657,16 @@ export const MediaView: React.FC = () => {
                         layout
                         initial={{ opacity: 0, y: 6, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
+                        exit={{
+                          opacity: 0,
+                          height: 0,
+                          paddingTop: 0,
+                          paddingBottom: 0,
+                          marginTop: 0,
+                          marginBottom: 0,
+                          scale: 0.95,
+                          overflow: 'hidden',
+                        }}
                         transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
                         onClick={() => loadListDetail(l.id)}
                         className={`p-2.5 rounded-lg cursor-pointer transition flex items-center justify-between gap-2 select-none group ${
@@ -720,7 +731,16 @@ export const MediaView: React.FC = () => {
                           layout
                           initial={{ opacity: 0, y: 6, scale: 0.98 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
+                          exit={{
+                            opacity: 0,
+                            height: 0,
+                            paddingTop: 0,
+                            paddingBottom: 0,
+                            marginTop: 0,
+                            marginBottom: 0,
+                            scale: 0.95,
+                            overflow: 'hidden',
+                          }}
                           transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
                           className={`py-2 px-1.5 flex items-center justify-between gap-3 text-xs group rounded-md transition-colors ${
                             currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10 text-[var(--accent-text)]' : 'hover:bg-[var(--surface-hover)]/30'
@@ -844,7 +864,16 @@ export const MediaView: React.FC = () => {
                       layout
                       initial={{ opacity: 0, y: 6, scale: 0.98 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
+                      exit={{
+                        opacity: 0,
+                        height: 0,
+                        paddingTop: 0,
+                        paddingBottom: 0,
+                        marginTop: 0,
+                        marginBottom: 0,
+                        scale: 0.95,
+                        overflow: 'hidden',
+                      }}
                       transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
                       className={`py-3 px-2 flex items-center justify-between gap-4 rounded-lg hover:bg-[var(--surface-hover)]/40 transition group select-none ${
                         currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10' : ''

@@ -17,7 +17,7 @@ rusqlite = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
 axum = { workspace = true }
-tower = { workspace = true }
+tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true }
 utoipa = { workspace = true }
 utoipa-swagger-ui = { workspace = true }

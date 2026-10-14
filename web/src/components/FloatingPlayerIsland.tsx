@@ -52,6 +52,9 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'music' | 'poetry'>('music');
+  const [scrubTime, setScrubTime] = useState<number | null>(null);
+  const scrubTimeRef = useRef<number | null>(null);
+  const isScrubbingRef = useRef<boolean>(false);
   const islandRef = useRef<HTMLDivElement | null>(null);
   const hoverCloseTimerRef = useRef<number | null>(null);
   const mobileInactivityTimerRef = useRef<number | null>(null);
@@ -158,7 +161,8 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
     return null;
   }
 
-  const progressPercent = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
+  const displayTime = scrubTime !== null ? scrubTime : currentTime;
+  const progressPercent = duration > 0 ? Math.min(100, (displayTime / duration) * 100) : 0;
 
   return (
     <div
@@ -263,9 +267,43 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                     min={0}
                     max={duration || 100}
                     step={0.5}
-                    value={currentTime}
+                    value={displayTime}
                     disabled={!currentTrack || duration <= 0}
-                    onChange={(e) => seek(parseFloat(e.target.value))}
+                    onPointerDown={(e) => {
+                      isScrubbingRef.current = true;
+                      try {
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                      } catch {}
+                      const val = parseFloat(e.currentTarget.value);
+                      scrubTimeRef.current = val;
+                      setScrubTime(val);
+                    }}
+                    onPointerUp={(e) => {
+                      try {
+                        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                          e.currentTarget.releasePointerCapture(e.pointerId);
+                        }
+                      } catch {}
+                      if (isScrubbingRef.current) {
+                        isScrubbingRef.current = false;
+                        if (scrubTimeRef.current !== null) {
+                          seek(scrubTimeRef.current);
+                        }
+                        setScrubTime(null);
+                      }
+                    }}
+                    onPointerCancel={() => {
+                      isScrubbingRef.current = false;
+                      setScrubTime(null);
+                    }}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      scrubTimeRef.current = val;
+                      setScrubTime(val);
+                      if (!isScrubbingRef.current) {
+                        seek(val);
+                      }
+                    }}
                     className="w-full h-1.5 bg-[var(--border)]/60 rounded-full appearance-none cursor-pointer outline-none accent-[var(--accent)]"
                     style={{
                       background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${progressPercent}%, var(--border) ${progressPercent}%, var(--border) 100%)`,
@@ -274,7 +312,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                   />
                 </div>
                 <div className="flex justify-between items-center text-[10px] font-mono text-[var(--muted)] tabular-nums px-0.5">
-                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(displayTime)}</span>
                   <span>{formatTime(duration)}</span>
                 </div>
               </div>
