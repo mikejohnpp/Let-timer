@@ -66,6 +66,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const tokens = useMotionTokens();
   const isReduced = tokens.isReduced;
   const rowTransition = useMotionTransition('base');
+  const highlightTransition = useMotionTransition('slow');
   const [dateSlideDir, setDateSlideDir] = useState<'prev' | 'next' | null>(null);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<number | null>(null);
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
@@ -379,9 +380,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
         key={t.id}
         layout={isReduced ? false : 'position'}
         layoutId={`task-${t.id}`}
-        initial={{ opacity: 0, y: isReduced ? 0 : 4 }}
+        initial={{ opacity: 0, y: isReduced ? 0 : tokens.travelS }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, scale: isReduced ? 1 : 0.98 }}
+        exit={removingIds.has(t.id) ? { opacity: 0, height: 0, overflow: 'hidden' } : undefined}
         transition={rowTransition}
         data-task-id={t.id}
         className="relative min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] group rounded-[var(--radius-control)] select-none"
@@ -393,7 +394,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             className="absolute inset-0 rounded-[var(--radius-control)] pointer-events-none bg-[var(--accent-glow)]"
             initial={{ opacity: 0.6 }}
             animate={{ opacity: 0 }}
-            transition={{ duration: tokens.mode === 'off' ? 0 : tokens.durSlow / 1000, ease: 'easeOut' }}
+            transition={highlightTransition}
           />
         )}
         {/* Left: status glyph button, title, description, priority */}
