@@ -1,6 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { MotionConfig } from 'motion/react';
-import { readMotionTokens } from './tokens';
+import { readMotionTokens, parseBezier, type MotionTokens } from './tokens';
+
+const MotionTokensContext = createContext<MotionTokens>(readMotionTokens());
+
+export function useMotionTokens(): MotionTokens {
+  return useContext(MotionTokensContext);
+}
 
 export const MotionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tokens, setTokens] = useState(() => readMotionTokens());
@@ -10,25 +16,39 @@ export const MotionProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setTokens(readMotionTokens(true));
     };
     window.addEventListener('let-timer-motion-changed', handleUpdate);
-    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
-    mql.addEventListener('change', handleUpdate);
+    const mql =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)')
+        : null;
+    if (mql && typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', handleUpdate);
+    }
     return () => {
       window.removeEventListener('let-timer-motion-changed', handleUpdate);
-      mql.removeEventListener('change', handleUpdate);
+      if (mql && typeof mql.removeEventListener === 'function') {
+        mql.removeEventListener('change', handleUpdate);
+      }
     };
   }, []);
 
-  const reducedMotionSetting = tokens.isReduced || tokens.isOff ? 'always' : 'user';
+  const reducedMotion =
+    tokens.mode === 'off' || tokens.mode === 'reduced'
+      ? 'always'
+      : tokens.mode === 'full'
+      ? 'never'
+      : 'user'; // system: follow the OS
 
   return (
-    <MotionConfig
-      reducedMotion={reducedMotionSetting}
-      transition={{
-        duration: tokens.isOff ? 0 : tokens.durBase / 1000,
-        ease: [0.2, 0, 0, 1],
-      }}
-    >
-      {children}
-    </MotionConfig>
+    <MotionTokensContext.Provider value={tokens}>
+      <MotionConfig
+        reducedMotion={reducedMotion}
+        transition={{
+          duration: tokens.mode === 'off' ? 0 : tokens.durBase / 1000,
+          ease: parseBezier(tokens.easeOut),
+        }}
+      >
+        {children}
+      </MotionConfig>
+    </MotionTokensContext.Provider>
   );
 };

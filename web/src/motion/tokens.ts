@@ -4,7 +4,10 @@
  * Ref: docs/motion_plan.md §5 and §8
  */
 
+export type MotionMode = 'system' | 'reduced' | 'full' | 'off';
+
 export interface MotionTokens {
+  mode: MotionMode;
   durInstant: number;
   durFast: number;
   durBase: number;
@@ -19,6 +22,23 @@ export interface MotionTokens {
   exitRatio: number;
   isReduced: boolean;
   isOff: boolean;
+}
+
+export type BezierDefinition = [number, number, number, number];
+
+export function parseBezier(str: string): BezierDefinition {
+  if (!str) return [0.2, 0, 0, 1];
+  const match = str.match(/cubic-bezier\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/i);
+  if (match) {
+    const x1 = parseFloat(match[1]);
+    const y1 = parseFloat(match[2]);
+    const x2 = parseFloat(match[3]);
+    const y2 = parseFloat(match[4]);
+    if (!isNaN(x1) && !isNaN(y1) && !isNaN(x2) && !isNaN(y2)) {
+      return [x1, y1, x2, y2];
+    }
+  }
+  return [0.2, 0, 0, 1];
 }
 
 let cachedTokens: MotionTokens | null = null;
@@ -47,6 +67,7 @@ export function readMotionTokens(forceRefresh = false): MotionTokens {
 
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return {
+      mode: 'system',
       durInstant: 80,
       durFast: 120,
       durBase: 200,
@@ -70,10 +91,16 @@ export function readMotionTokens(forceRefresh = false): MotionTokens {
     ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
     : false;
 
-  const isOff = dataMotion === 'off';
-  const isReduced = isOff || dataMotion === 'reduced' || (dataMotion !== 'full' && prefersReduced);
+  const mode: MotionMode =
+    dataMotion === 'reduced' || dataMotion === 'full' || dataMotion === 'off'
+      ? dataMotion
+      : 'system';
+
+  const isOff = mode === 'off';
+  const isReduced = isOff || mode === 'reduced' || (mode === 'system' && prefersReduced);
 
   cachedTokens = {
+    mode,
     durInstant: parseMs(computed.getPropertyValue('--dur-instant'), 80),
     durFast: parseMs(computed.getPropertyValue('--dur-fast'), 120),
     durBase: parseMs(computed.getPropertyValue('--dur-base'), 200),

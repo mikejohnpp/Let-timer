@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import type { components } from '../api/schema';
 import { getStoredWorkspace, setStoredWorkspace, apiFetch } from '../api/client';
 import { motion, AnimatePresence } from 'motion/react';
+import { useMotionTransition } from '../motion';
 import {
   Button,
   IconButton,
@@ -19,6 +20,7 @@ type Workspace = components['schemas']['WorkspaceDto'];
 
 export const WorkspacesView: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const baseTransition = useMotionTransition('base');
   const [activeWsId, setActiveWsId] = useState<string>(getStoredWorkspace() || '');
   const [newWsName, setNewWsName] = useState('');
   const [newWsDesc, setNewWsDesc] = useState('');
@@ -157,7 +159,7 @@ export const WorkspacesView: React.FC = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            transition={baseTransition}
             className="overflow-hidden mb-6"
           >
             <div className="p-4 border border-[var(--border)] rounded-[var(--radius-control)] bg-[var(--surface-hover)]/40">
@@ -230,7 +232,7 @@ export const WorkspacesView: React.FC = () => {
                   initial={{ opacity: 0, y: 6, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, height: 0, scale: 0.95, overflow: 'hidden' }}
-                  transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                  transition={baseTransition}
                   className={`py-3 px-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)]/60 transition group cursor-pointer ${
                     isActive ? 'bg-[var(--accent)]/5' : ''
                   }`}

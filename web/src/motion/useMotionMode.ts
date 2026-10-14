@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { invalidateMotionTokenCache } from './tokens';
+import { invalidateMotionTokenCache, type MotionMode } from './tokens';
 
-export type MotionMode = 'system' | 'reduced' | 'full';
+export type { MotionMode };
 
 const STORAGE_KEY = 'let_timer_motion';
 

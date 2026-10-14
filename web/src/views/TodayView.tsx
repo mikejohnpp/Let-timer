@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useFlip } from '../motion';
+import { useFlip, useMotionTransition } from '../motion';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   ChevronLeft,
@@ -63,6 +63,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const [doneCollapsed, setDoneCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const rowTransition = useMotionTransition('base');
   const [dateSlideDir, setDateSlideDir] = useState<'prev' | 'next' | null>(null);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<number | null>(null);
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
@@ -373,7 +374,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
         initial={{ opacity: 0, y: 8, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, height: 0, scale: 0.95 }}
-        transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+        transition={rowTransition}
         data-task-id={t.id}
         className={`min-h-[44px] px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] group rounded-[var(--radius-control)] select-none ${
           isNewlyAdded ? 'task-row-add' : ''
@@ -756,6 +757,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           {runningTasks.length > 0 && (
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--accent-text)] mb-2 flex items-center gap-1.5">
+                {/* motion-allow: pending T5 infinite loop fix */}
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-text)] animate-ping" />
                 <span>Now Running</span>
               </div>
@@ -811,7 +813,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                    transition={rowTransition}
                     className="flex flex-col divide-y divide-[var(--border)]/30 border-y border-[var(--border)]/40 opacity-70 overflow-hidden"
                   >
                     <AnimatePresence initial={false}>

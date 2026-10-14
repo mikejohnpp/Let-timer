@@ -17,8 +17,11 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | null>(null);
 
+import { useMotionTransition } from '../../motion';
+
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastTransition = useMotionTransition('base');
 
   const showToast = useCallback((description: string, tone: 'info' | 'success' | 'danger' = 'info') => {
     const id = Math.random().toString(36).slice(2);
@@ -37,7 +40,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               initial={{ opacity: 0, y: 12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95, height: 0, overflow: 'hidden' }}
-              transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+              transition={toastTransition}
             >
               <ToastPrimitive.Root
                 key={t.id}

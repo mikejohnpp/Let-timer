@@ -4,6 +4,8 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion } from 'motion/react';
 
+import { useMotionTransition } from '../../motion';
+
 export interface SegmentItem {
   value: string;
   label: React.ReactNode;
@@ -23,6 +25,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   className,
 }) => {
   const instanceId = useId();
+  const thumbTransition = useMotionTransition('base');
 
   return (
     <ToggleGroupPrimitive.Root
@@ -50,7 +53,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
               <motion.span
                 layoutId={`segmented-thumb-${instanceId}`}
                 className="absolute inset-0 bg-[var(--accent)] rounded-[calc(var(--radius-control)-2px)] shadow-xs"
-                transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+                transition={thumbTransition}
               />
             )}
             <span className="relative z-10">{item.label}</span>

@@ -14,6 +14,7 @@ import type { components } from '../api/schema';
 import { apiFetch } from '../api/client';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { useMotionTransition } from '../motion';
 import {
   Button,
   IconButton,
@@ -45,6 +46,7 @@ function getDisplayHost(url: string) {
 
 export const MediaView: React.FC = () => {
   const { currentTrack, isPlaying, playTrack, togglePlay } = useAudioPlayer();
+  const mediaTransition = useMotionTransition('base');
   const [tab, setTab] = useState<'lists' | 'items'>('lists');
   const [lists, setLists] = useState<MediaList[]>([]);
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -395,7 +397,7 @@ export const MediaView: React.FC = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            transition={mediaTransition}
             className="overflow-hidden mb-2"
           >
             <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5">
@@ -444,7 +446,7 @@ export const MediaView: React.FC = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            transition={mediaTransition}
             className="overflow-hidden mb-2"
           >
             <div className="backdrop-blur-md bg-[var(--surface)]/50 border border-[var(--border)]/40 rounded-xl p-4 sm:p-5">
@@ -675,7 +677,7 @@ export const MediaView: React.FC = () => {
                           scale: 0.95,
                           overflow: 'hidden',
                         }}
-                        transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                        transition={mediaTransition}
                         onClick={() => loadListDetail(l.id)}
                         className={`p-2.5 rounded-lg cursor-pointer transition flex items-center justify-between gap-2 select-none group ${
                           isSelected
@@ -749,7 +751,7 @@ export const MediaView: React.FC = () => {
                             scale: 0.95,
                             overflow: 'hidden',
                           }}
-                          transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                          transition={mediaTransition}
                           className={`py-2 px-1.5 flex items-center justify-between gap-3 text-xs group rounded-md transition-colors ${
                             currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10 text-[var(--accent-text)]' : 'hover:bg-[var(--surface-hover)]/30'
                           }`}
@@ -883,7 +885,7 @@ export const MediaView: React.FC = () => {
                         scale: 0.95,
                         overflow: 'hidden',
                       }}
-                      transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                      transition={mediaTransition}
                       className={`py-3 px-2 flex items-center justify-between gap-4 rounded-lg hover:bg-[var(--surface-hover)]/40 transition group select-none ${
                         currentTrack?.id === item.id && isPlaying ? 'bg-[var(--accent)]/10' : ''
                       }`}

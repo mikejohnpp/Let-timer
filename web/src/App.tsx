@@ -20,7 +20,7 @@ import { ToastProvider, ConfirmProvider, ErrorState } from './components/ui';
 import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
 import { FloatingPlayerIsland } from './components/FloatingPlayerIsland';
 import { WallpaperLayers } from './components/WallpaperLayers';
-import { Presence, MotionProvider } from './motion';
+import { Presence, MotionProvider, useMotionTransition } from './motion';
 import { AnimatePresence, motion } from 'motion/react';
 
 type AuthStatus = 'checking' | 'login' | 'unreachable' | 'ok';
@@ -33,6 +33,7 @@ export const AppContent: React.FC = () => {
   const focusControlsVisible = useIdleTimer(3000, isFocusView);
   const [isStartPickerOpen, setIsStartPickerOpen] = useState(false);
   const { wallpaperUrl } = useWallpaper();
+  const tabTransition = useMotionTransition('base');
 
   const { connectionStatus, snapshot, receivedAt, refetchSnapshot } = useEventStream();
   const { currentTrack, pause, clearPlayer, loadMediaListForTask } = useAudioPlayer();
@@ -147,7 +148,7 @@ export const AppContent: React.FC = () => {
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
+              transition={tabTransition}
             >
               {currentView === 'today' && (
                 <TodayView

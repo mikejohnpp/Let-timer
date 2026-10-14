@@ -15,6 +15,7 @@ import {
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { SoundWave } from './SoundWave';
 import { motion, AnimatePresence } from 'motion/react';
+import { useMotionTransition } from '../motion';
 
 function formatTime(secs: number): string {
   if (isNaN(secs) || secs < 0) return '0:00';
@@ -51,6 +52,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
   } = useAudioPlayer();
 
   const [isExpanded, setIsExpanded] = useState(false);
+  const islandTransition = useMotionTransition('fast');
   const [activeTab, setActiveTab] = useState<'music' | 'poetry'>('music');
   const [scrubTime, setScrubTime] = useState<number | null>(null);
   const scrubTimeRef = useRef<number | null>(null);
@@ -186,7 +188,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
             initial={{ opacity: 0, scale: 0.95, y: 6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -4 }}
-            transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+            transition={islandTransition}
             className={`island-card origin-bottom w-[92vw] max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl border flex flex-col gap-4 ${
               hasBackgroundPhoto
                 ? 'bg-[var(--surface)]/95 backdrop-blur-2xl border-[var(--border-strong)]/40 text-[var(--text)]'
@@ -469,7 +471,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
           initial={{ opacity: 0, scale: 0.96, y: -4 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 6 }}
-          transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+          transition={islandTransition}
           className={`island-pill origin-bottom shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border select-none shadow-xl backdrop-blur-xl ${
             hasBackgroundPhoto
               ? 'bg-[var(--surface)]/90 border-[var(--border-strong)]/40 text-[var(--text)] shadow-black/40'
