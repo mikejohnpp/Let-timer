@@ -31,11 +31,13 @@ function formatTime(secs: number): string {
 interface FloatingPlayerIslandProps {
   className?: string;
   hasBackgroundPhoto?: boolean;
+  layoutScope?: string;
 }
 
 export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
   className = '',
   hasBackgroundPhoto = false,
+  layoutScope,
 }) => {
   const {
     currentTrack,
@@ -60,6 +62,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const tokens = useMotionTokens();
   const isReduced = tokens.isReduced;
+  const islandLayoutId = isReduced ? undefined : layoutScope ? `${layoutScope}-floating-island` : 'floating-island';
   const islandTransition = useMotionTransition('fast');
   const [activeTab, setActiveTab] = useState<'music' | 'background' | 'poetry'>('music');
   const [showQueue, setShowQueue] = useState(false);
@@ -203,7 +206,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
         {isExpanded ? (
           <motion.div
             key="card"
-            layoutId={isReduced ? undefined : 'floating-island'}
+            layoutId={islandLayoutId}
             initial={{ opacity: 0, scale: isReduced ? 1 : 0.96 }} // motion-allow: island expansion morph (A26)
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }} // motion-allow: island expansion morph (A26)
@@ -574,7 +577,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
         /* ─── COLLAPSED FLOATING ISLAND PILL ─────────────────────────────────── */
         <motion.div
           key="pill"
-          layoutId={isReduced ? undefined : 'floating-island'}
+          layoutId={islandLayoutId}
           initial={{ opacity: 0, scale: isReduced ? 1 : 0.96 }} // motion-allow: island expansion morph (A26)
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: isReduced ? 1 : 0.96 }} // motion-allow: island expansion morph (A26)
@@ -590,17 +593,19 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
           {/* Sound wave / Music indicator */}
           <div
             onClick={() => setIsExpanded(true)}
-            className="flex items-center gap-2 cursor-pointer min-w-0"
+            className="flex items-center gap-2 cursor-pointer min-w-0 h-6"
             title="Expand player"
           >
-            {isPlaying ? (
-              <SoundWave isPlaying={true} />
-            ) : (
-              <Music className="w-3.5 h-3.5 text-[var(--muted)]" />
-            )}
+            <div className="w-6 h-6 grid place-items-center shrink-0">
+              {isPlaying ? (
+                <SoundWave isPlaying={true} />
+              ) : (
+                <Music className="w-3.5 h-3.5 text-[var(--muted)]" />
+              )}
+            </div>
 
             {/* Track Name */}
-            <span className="text-xs font-semibold truncate max-w-[120px] sm:max-w-[200px] text-[var(--text)]">
+            <span className="text-xs font-semibold truncate max-w-[120px] sm:max-w-[200px] text-[var(--text)] leading-none">
               {track ? track.name : 'Focus media'}
             </span>
 
@@ -610,7 +615,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
                 digits={formatTime(currentTime)}
                 mode="idle"
                 size="inline"
-                className="hidden sm:inline"
+                className="hidden sm:inline leading-none"
               />
             )}
           </div>
@@ -629,7 +634,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
             {isPlaying ? (
               <Pause className="w-2.5 h-2.5 fill-current" />
             ) : (
-              <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+              <Play className="w-2.5 h-2.5 fill-current" />
             )}
           </button>
 
@@ -637,7 +642,7 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
           <button
             type="button"
             onClick={() => setIsExpanded(true)}
-            className="p-0.5 text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer shrink-0"
+            className="w-6 h-6 grid place-items-center text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer shrink-0"
             aria-label="Expand player"
             title="Expand player"
           >

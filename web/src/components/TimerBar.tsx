@@ -258,7 +258,7 @@ export const TimerBar: React.FC<TimerBarProps> = ({
               {isAudioPlaying ? (
                 <Pause className="w-2.5 h-2.5 fill-current" />
               ) : (
-                <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+                <Play className="w-2.5 h-2.5 fill-current" />
               )}
             </button>
             <button

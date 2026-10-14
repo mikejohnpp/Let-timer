@@ -111,4 +111,38 @@ describe('T4: FloatingPlayerIsland single Motion engine', () => {
     expect(document.querySelector('.island-pill')).toBeNull();
     expect(document.querySelector('.island-card')).toBeNull();
   });
+
+  it('unifies in-pill rhythm: fixed icon box, leading-none typography, symmetric play button', () => {
+    const { container } = render(
+      <MotionProvider>
+        <AudioPlayerContext.Provider value={mockAudioContext}>
+          <FloatingPlayerIsland layoutScope="focus" />
+        </AudioPlayerContext.Provider>
+      </MotionProvider>
+    );
+
+    const trackName = screen.getByText('Ambient Rain');
+    expect(trackName.classList.contains('leading-none')).toBe(true);
+
+    const playPauseBtn = screen.getByRole('button', { name: 'Pause music' });
+    expect(playPauseBtn.classList.contains('w-6')).toBe(true);
+    expect(playPauseBtn.classList.contains('h-6')).toBe(true);
+
+    // Icon container has fixed w-6 h-6 grid place-items-center
+    const iconContainer = container.querySelector('.w-6.h-6.grid.place-items-center');
+    expect(iconContainer).toBeTruthy();
+
+    // Play icon when paused does not have ml-0.5
+    const pausedContext = { ...mockAudioContext, isPlaying: false };
+    render(
+      <MotionProvider>
+        <AudioPlayerContext.Provider value={pausedContext}>
+          <FloatingPlayerIsland />
+        </AudioPlayerContext.Provider>
+      </MotionProvider>
+    );
+    const playBtn = screen.getByRole('button', { name: 'Play music' });
+    const playSvg = playBtn.querySelector('svg');
+    expect(playSvg?.classList.contains('ml-0.5')).toBe(false);
+  });
 });

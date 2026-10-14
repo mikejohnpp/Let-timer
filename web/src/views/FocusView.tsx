@@ -248,7 +248,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
   };
 
   return (
-    <div className="relative h-[calc(100vh-var(--header-h))] min-h-[500px] w-full overflow-hidden flex flex-col justify-between p-6 sm:p-10 pb-8 sm:pb-10 pt-2 sm:pt-4 select-none">
+    <div className="relative h-[calc(100vh-var(--header-h))] min-h-[500px] w-full overflow-hidden flex flex-col justify-between p-6 sm:p-10 pb-20 lg:pb-10 pt-2 sm:pt-4 select-none">
       {/* Layer 2: Main Timer Center Stage */}
       <div className="relative z-2 my-auto text-center flex flex-col items-center">
         {/* Workspace label right above timer digits */}
@@ -459,19 +459,17 @@ export const FocusView: React.FC<FocusViewProps> = ({
       </div>
 
       {/* Layer 3: Bottom Floating Island & hints */}
-      <div className="relative z-3 h-10 flex items-center justify-between gap-4">
-        <div className="w-24 hidden sm:block" />
-
+      <div className="relative z-3 h-10 flex items-center justify-center">
         {/* Center Stage: Floating Player Island (always visible in collapsed or expanded form) */}
-        <div className="relative flex items-center justify-center h-10">
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-auto">
           <FloatingPlayerIsland
             hasBackgroundPhoto={hasAnyBg}
-            className="absolute bottom-0 left-1/2 -translate-x-1/2"
+            layoutScope="focus"
           />
         </div>
 
         <div
-          className={`text-xs w-28 text-right hidden sm:block transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-within:opacity-100 ${
+          className={`absolute right-0 text-xs text-right hidden sm:block transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-within:opacity-100 ${
             controlsVisible ? 'opacity-100' : 'opacity-0'
           } ${hasAnyBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'}`}
         >

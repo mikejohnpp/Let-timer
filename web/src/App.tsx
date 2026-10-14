@@ -66,7 +66,7 @@ export const AppContent: React.FC = () => {
     prevSnapshotStateRef.current = currentState;
     prevTaskIdRef.current = currentTaskId;
 
-    if (currentState === 'idle') {
+    if (prevState && prevState !== 'idle' && currentState === 'idle') {
       clearPlayer();
       return;
     }
@@ -224,7 +224,7 @@ export const AppContent: React.FC = () => {
               transition={floatingTransition}
               className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw]"
             >
-              <FloatingPlayerIsland />
+              <FloatingPlayerIsland layoutScope="dock" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -238,7 +238,7 @@ export const AppContent: React.FC = () => {
             ? `transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-within:opacity-100 ${
                 focusControlsVisible
                   ? 'opacity-100'
-                  : 'opacity-0'
+                  : 'opacity-0 pointer-events-none'
               }`
             : ''
         }
