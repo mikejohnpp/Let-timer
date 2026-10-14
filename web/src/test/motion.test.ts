@@ -213,4 +213,60 @@ describe('Motion Foundations (Phase M0)', () => {
       expect(glyphCode).toContain('task-check-tick');
     });
   });
+
+  describe('Focus and Ambience (Phase M4)', () => {
+    it('uses WallpaperLayers with img.decode and dur-scenic in App and FocusView', () => {
+      const appCode = fs.readFileSync(path.resolve(__dirname, '../App.tsx'), 'utf8');
+      const focusCode = fs.readFileSync(path.resolve(__dirname, '../views/FocusView.tsx'), 'utf8');
+      const wallCode = fs.readFileSync(path.resolve(__dirname, '../components/WallpaperLayers.tsx'), 'utf8');
+
+      expect(appCode).toContain('<WallpaperLayers');
+      expect(focusCode).toContain('<WallpaperLayers');
+      expect(wallCode).toContain('img.decode');
+      expect(wallCode).toContain('duration-[var(--dur-scenic)]');
+    });
+
+    it('attaches theme-transition class during theme/palette change (A28)', () => {
+      expect(cssContent).toContain('.theme-transition');
+      expect(cssContent).toContain('transition: background-color 250ms var(--ease-out)');
+      expect(cssContent).toContain(':root[data-motion="reduced"] .theme-transition');
+    });
+
+    it('declares 900ms equalizer bars in motion.css and uses eq-playing in SoundWave (A29)', () => {
+      expect(cssContent).toContain('@keyframes eq-bar-1');
+      expect(cssContent).toContain('animation: eq-bar-1 900ms var(--ease-inout) infinite;');
+      expect(cssContent).toContain(':root[data-motion="reduced"] .eq-bar-1');
+
+      const soundCode = fs.readFileSync(path.resolve(__dirname, '../components/SoundWave.tsx'), 'utf8');
+      expect(soundCode).toContain('eq-playing');
+      expect(soundCode).toContain('eq-bar-1');
+      expect(soundCode).not.toContain('style={{ animationDuration');
+    });
+
+    it('declares 1.6s skeleton-shimmer with 300ms delay in Skeleton component (A31)', () => {
+      expect(cssContent).toContain('@keyframes shimmer');
+      expect(cssContent).toContain('animation: shimmer 1.6s var(--ease-inout) infinite;');
+      expect(cssContent).toContain(':root[data-motion="reduced"] .skeleton-shimmer');
+
+      const skelCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/Skeleton.tsx'), 'utf8');
+      expect(skelCode).toContain('skeleton-shimmer');
+      expect(skelCode).toContain('delayMs = 300');
+    });
+
+    it('hides focus controls via opacity-only and duration-fast with focus-within:opacity-100 (A25)', () => {
+      const focusCode = fs.readFileSync(path.resolve(__dirname, '../views/FocusView.tsx'), 'utf8');
+      const headerCode = fs.readFileSync(path.resolve(__dirname, '../components/Header.tsx'), 'utf8');
+
+      expect(focusCode).toContain('duration-[var(--dur-fast)]');
+      expect(focusCode).toContain('focus-within:opacity-100');
+      expect(headerCode).toContain('duration-[var(--dur-fast)]');
+      expect(headerCode).toContain('focus-within:opacity-100');
+    });
+
+    it('renders static Live dot in ConnectionBadge without pulse (A30/DM4)', () => {
+      const badgeCode = fs.readFileSync(path.resolve(__dirname, '../components/ui/ConnectionBadge.tsx'), 'utf8');
+      expect(badgeCode).not.toContain('animate-pulse');
+      expect(badgeCode).toContain("label: 'Live'");
+    });
+  });
 });

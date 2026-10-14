@@ -215,11 +215,83 @@
   transition: none !important;
 }
 
+/* ─── Skeleton Shimmer (A31) ──────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+}
+
+.skeleton-shimmer {
+  animation: shimmer 1.6s var(--ease-inout) infinite;
+}
+
+/* ─── Equalizer Soundwave (A29) ───────────────────────────────────────────── */
+@keyframes eq-bar-1 {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+@keyframes eq-bar-2 {
+  0%, 100% { transform: scaleY(0.9); }
+  50% { transform: scaleY(0.3); }
+}
+@keyframes eq-bar-3 {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(0.85); }
+}
+
+.eq-playing .eq-bar-1 {
+  animation: eq-bar-1 900ms var(--ease-inout) infinite;
+}
+.eq-playing .eq-bar-2 {
+  animation: eq-bar-2 900ms var(--ease-inout) infinite 150ms;
+}
+.eq-playing .eq-bar-3 {
+  animation: eq-bar-3 900ms var(--ease-inout) infinite 300ms;
+}
+
+/* ─── Theme & Palette Transition (A28) ────────────────────────────────────── */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 250ms var(--ease-out),
+              border-color 250ms var(--ease-out),
+              color 250ms var(--ease-out),
+              fill 250ms var(--ease-out),
+              stroke 250ms var(--ease-out) !important;
+  transition-delay: 0s !important;
+}
+
+:root[data-motion="reduced"] .skeleton-shimmer,
+:root[data-motion="reduced"] .eq-bar-1,
+:root[data-motion="reduced"] .eq-bar-2,
+:root[data-motion="reduced"] .eq-bar-3,
+:root[data-motion="reduced"] .animate-spin,
+:root[data-motion="reduced"] .theme-transition,
+:root[data-motion="reduced"] .theme-transition *,
+:root[data-motion="off"] .skeleton-shimmer,
+:root[data-motion="off"] .eq-bar-1,
+:root[data-motion="off"] .eq-bar-2,
+:root[data-motion="off"] .eq-bar-3,
+:root[data-motion="off"] .animate-spin,
+:root[data-motion="off"] .theme-transition,
+:root[data-motion="off"] .theme-transition * {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) .dot-running,
   :root:not([data-motion="full"]) .ring-pulse,
-  :root:not([data-motion="full"]) .task-check-tick {
+  :root:not([data-motion="full"]) .task-check-tick,
+  :root:not([data-motion="full"]) .skeleton-shimmer,
+  :root:not([data-motion="full"]) .eq-bar-1,
+  :root:not([data-motion="full"]) .eq-bar-2,
+  :root:not([data-motion="full"]) .eq-bar-3,
+  :root:not([data-motion="full"]) .animate-spin {
     animation: none !important;
+    transform: none !important;
   }
 
   :root:not([data-motion="full"]) button:active,
@@ -228,7 +300,9 @@
   }
 
   :root:not([data-motion="full"]) .progress-bar-fill,
-  :root:not([data-motion="full"]) .progress-line-indicator {
+  :root:not([data-motion="full"]) .progress-line-indicator,
+  :root:not([data-motion="full"]) .theme-transition,
+  :root:not([data-motion="full"]) .theme-transition * {
     transition: none !important;
   }
 }

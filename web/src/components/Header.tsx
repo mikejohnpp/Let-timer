@@ -3,6 +3,7 @@ import { Clock, Moon, Sun, Monitor, ChevronDown, Plus, Trash2 } from 'lucide-rea
 import type { components } from '../api/schema';
 import type { AppView } from '../hooks/useHashRoute';
 import { getStoredWorkspace, setStoredWorkspace, apiFetch } from '../api/client';
+import { withThemeTransition } from '../utils/themeTransition';
 import {
   ConnectionBadge,
   IconButton,
@@ -132,11 +133,13 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const applyTheme = (t: 'light' | 'dark' | 'system') => {
-    if (t === 'system') {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', t);
-    }
+    withThemeTransition(() => {
+      if (t === 'system') {
+        document.documentElement.removeAttribute('data-theme');
+      } else {
+        document.documentElement.setAttribute('data-theme', t);
+      }
+    });
   };
 
   const cycleTheme = () => {
@@ -231,14 +234,14 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header
-      className={`w-full border-none transition-all duration-300 h-[var(--header-h)] ${
+      className={`w-full border-none transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] h-[var(--header-h)] ${
         isFocusView
-          ? `fixed top-0 inset-x-0 z-50 bg-transparent ${
+          ? `fixed top-0 inset-x-0 z-50 bg-transparent focus-within:opacity-100 ${
               focusVisible
-                ? 'opacity-100 translate-y-0 pointer-events-auto'
-                : 'opacity-0 -translate-y-2 pointer-events-none'
+                ? 'opacity-100'
+                : 'opacity-0'
             }`
-          : 'sticky top-0 z-40 bg-[var(--bg)]/80 backdrop-blur-md opacity-100 translate-y-0 pointer-events-auto'
+          : 'sticky top-0 z-40 bg-[var(--bg)]/80 backdrop-blur-md opacity-100'
       } ${className || ''}`}
     >
       <div className="relative w-full px-4 sm:px-8 h-full flex items-center justify-between gap-4">

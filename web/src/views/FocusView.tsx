@@ -12,6 +12,7 @@ import { apiFetch } from '../api/client';
 import { useToast } from '../components/ui';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { FloatingPlayerIsland } from '../components/FloatingPlayerIsland';
+import { WallpaperLayers } from '../components/WallpaperLayers';
 
 interface FocusViewProps {
   snapshot: TimerSnapshot | null;
@@ -78,11 +79,15 @@ export const FocusView: React.FC<FocusViewProps> = ({
 
   const timerInfo: FormattedTimer = computeTimerDisplay(snapshot, receivedAt, now);
 
-  // Activity detection for auto-hiding controls after 3s
+  // Activity detection for auto-hiding controls after 3s (A25)
   const resetHideTimer = () => {
     setControlsVisible(true);
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
     hideTimerRef.current = window.setTimeout(() => {
+      // Never hide while a menu, drawer, sheet or popover is open (A25)
+      if (document.querySelector('[role="dialog"], [role="menu"], [data-radix-popper-content-wrapper], [data-state="open"]')) {
+        return;
+      }
       setControlsVisible(false);
     }, 3000);
   };
@@ -92,12 +97,14 @@ export const FocusView: React.FC<FocusViewProps> = ({
     window.addEventListener('mousemove', handleActivity);
     window.addEventListener('keydown', handleActivity);
     window.addEventListener('touchstart', handleActivity);
+    window.addEventListener('focusin', handleActivity);
     resetHideTimer();
 
     return () => {
       window.removeEventListener('mousemove', handleActivity);
       window.removeEventListener('keydown', handleActivity);
       window.removeEventListener('touchstart', handleActivity);
+      window.removeEventListener('focusin', handleActivity);
       if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
     };
   }, []);
@@ -187,17 +194,13 @@ export const FocusView: React.FC<FocusViewProps> = ({
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden flex flex-col justify-between p-6 sm:p-12 pb-24 sm:pb-12 pt-14 sm:pt-16 select-none">
-      {/* Layer 0: Background Photo */}
-      {hasAnyBg && effectiveBg && (
-        <div
-          className="absolute inset-0 bg-cover bg-center transition-all duration-1000 z-0"
-          style={{ backgroundImage: `url(${effectiveBg})` }}
-        />
-      )}
-
-      {/* Layer 1: 65% Black Overlay (when image is present) */}
+      {/* Layer 0: Background Photo with two stacked layers & decode (A27) */}
       {hasAnyBg && (
-        <div className="absolute inset-0 bg-[var(--imm-overlay)] z-1 pointer-events-none" />
+        <WallpaperLayers
+          url={effectiveBg}
+          className="absolute inset-0 bg-cover bg-center"
+          overlayClassName="absolute inset-0 bg-[var(--imm-overlay)] pointer-events-none"
+        />
       )}
 
       {/* Layer 2: Top Space & Workspace label (always visible) */}
@@ -243,8 +246,8 @@ export const FocusView: React.FC<FocusViewProps> = ({
 
         {isIdle && (
           <div
-            className={`flex items-center justify-center gap-2 mt-3 transition-opacity duration-200 ${
-              controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            className={`flex items-center justify-center gap-2 mt-3 transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-within:opacity-100 ${
+              controlsVisible ? 'opacity-100' : 'opacity-0'
             }`}
           >
             <div
@@ -280,14 +283,14 @@ export const FocusView: React.FC<FocusViewProps> = ({
 
         {/* Action Controls (Fade out when idle) */}
         <div
-          className={`flex items-center justify-center gap-3 mt-8 transition-opacity duration-200 ${
-            controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          className={`flex items-center justify-center gap-3 mt-8 transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-within:opacity-100 ${
+            controlsVisible ? 'opacity-100' : 'opacity-0'
           }`}
         >
           {isIdle ? (
             <button
               onClick={onOpenStartPicker}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-95 ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-[0.98] ${
                 hasAnyBg
                   ? 'bg-white/10 hover:bg-white/20 text-[var(--imm-text)] border border-white/15'
                   : 'bg-[var(--surface-hover)] hover:bg-[var(--surface)] text-[var(--text)] border border-[var(--border)]'
@@ -302,7 +305,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
               {isOvertime && (
                 <button
                   onClick={handleAddFiveMinutes}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-95 ${
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-[0.98] ${
                     hasAnyBg
                       ? 'bg-[var(--timer-over)]/25 hover:bg-[var(--timer-over)]/35 text-[var(--on-over)] border border-[var(--timer-over)]/40'
                       : 'bg-[var(--timer-over)]/15 hover:bg-[var(--timer-over)]/25 text-[var(--over-text)] border border-[var(--timer-over)]/30'
@@ -317,7 +320,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
               {isRunning ? (
                 <button
                   onClick={() => handleLifecycle('pause')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-95 ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-[0.98] ${
                     hasAnyBg
                       ? 'bg-white/10 hover:bg-white/20 text-[var(--imm-text)] border border-white/15'
                       : 'bg-[var(--surface-hover)] hover:bg-[var(--surface)] text-[var(--text)] border border-[var(--border)]'
@@ -330,7 +333,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
               ) : (
                 <button
                   onClick={() => handleLifecycle('resume')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-95 ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-[0.98] ${
                     hasAnyBg
                       ? 'bg-white/10 hover:bg-white/20 text-[var(--imm-text)] border border-white/15'
                       : 'bg-[var(--surface-hover)] hover:bg-[var(--surface)] text-[var(--text)] border border-[var(--border)]'
@@ -344,7 +347,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
 
               <button
                 onClick={() => handleLifecycle('done')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-95 ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-[0.98] ${
                   hasAnyBg
                     ? 'bg-white/10 hover:bg-white/20 text-[var(--imm-text)] border border-white/15'
                     : 'bg-[var(--surface-hover)] hover:bg-[var(--surface)] text-[var(--text)] border border-[var(--border)]'
@@ -370,8 +373,8 @@ export const FocusView: React.FC<FocusViewProps> = ({
         />
 
         <div
-          className={`text-[11px] w-24 text-right hidden sm:block transition-opacity duration-200 ${
-            controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          className={`text-[11px] w-24 text-right hidden sm:block transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-within:opacity-100 ${
+            controlsVisible ? 'opacity-100' : 'opacity-0'
           } ${hasAnyBg ? 'text-[var(--imm-muted)]' : 'text-[var(--muted)]'}`}
         >
           {isIdle ? 'S: start' : 'Space: pause'}

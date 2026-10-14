@@ -11,6 +11,7 @@ import type { components } from '../api/schema';
 import { setStoredToken, apiFetch } from '../api/client';
 import { useWallpaper } from '../hooks/useWallpaper';
 import { useMotionMode, type MotionMode } from '../motion/useMotionMode';
+import { withThemeTransition } from '../utils/themeTransition';
 import {
   Button,
   IconButton,
@@ -90,22 +91,26 @@ export const SettingsView: React.FC = () => {
     const next = t as 'light' | 'dark' | 'system';
     setTheme(next);
     localStorage.setItem('let_timer_theme', next);
-    if (next === 'system') {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', next);
-    }
+    withThemeTransition(() => {
+      if (next === 'system') {
+        document.documentElement.removeAttribute('data-theme');
+      } else {
+        document.documentElement.setAttribute('data-theme', next);
+      }
+    });
   };
 
   const handlePaletteChange = (p: string) => {
     const next = p as 'default' | 'forest';
     setPalette(next);
     localStorage.setItem('let_timer_palette', next);
-    if (next === 'default') {
-      document.documentElement.removeAttribute('data-palette');
-    } else {
-      document.documentElement.setAttribute('data-palette', next);
-    }
+    withThemeTransition(() => {
+      if (next === 'default') {
+        document.documentElement.removeAttribute('data-palette');
+      } else {
+        document.documentElement.setAttribute('data-palette', next);
+      }
+    });
     showToast(`Switched palette to ${next === 'forest' ? 'Forest & Moss' : 'Default (Indigo)'}`, 'info');
   };
 

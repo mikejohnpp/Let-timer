@@ -19,6 +19,7 @@ import { apiFetch } from './api/client';
 import { ToastProvider, ConfirmProvider, ErrorState } from './components/ui';
 import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
 import { FloatingPlayerIsland } from './components/FloatingPlayerIsland';
+import { WallpaperLayers } from './components/WallpaperLayers';
 import { Presence } from './motion';
 
 type AuthStatus = 'checking' | 'login' | 'unreachable' | 'ok';
@@ -124,12 +125,11 @@ export const AppContent: React.FC = () => {
   return (
     <div className="relative min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] transition-colors">
       {wallpaperUrl && (
-        <div
-          className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center transition-all duration-700"
-          style={{ backgroundImage: `url(${wallpaperUrl})` }}
-        >
-          <div className="absolute inset-0 bg-[var(--bg-glass-overlay)] backdrop-blur-[2px]" />
-        </div>
+        <WallpaperLayers
+          url={wallpaperUrl}
+          className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center"
+          overlayClassName="absolute inset-0 bg-[var(--bg-glass-overlay)] backdrop-blur-[2px]"
+        />
       )}
 
       <Header
@@ -196,10 +196,10 @@ export const AppContent: React.FC = () => {
         onNavigate={navigate}
         className={
           isFocusView
-            ? `transition-all duration-300 ${
+            ? `transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-within:opacity-100 ${
                 focusControlsVisible
-                  ? 'opacity-100 translate-y-0 pointer-events-auto'
-                  : 'opacity-0 translate-y-2 pointer-events-none'
+                  ? 'opacity-100'
+                  : 'opacity-0'
               }`
             : ''
         }
