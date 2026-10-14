@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, AlertCircle } from 'lucide-react';
+import { Clock, AlertCircle, Plus } from 'lucide-react';
 import { Button } from './Button';
 
 export interface EmptyStateProps {
@@ -9,6 +9,7 @@ export interface EmptyStateProps {
   action?: {
     label: string;
     onClick: () => void;
+    icon?: React.ReactNode;
   };
 }
 
@@ -19,14 +20,19 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   action,
 }) => {
   return (
-    <div className="flex flex-col items-center justify-center p-8 text-center rounded-[var(--radius-card)] border border-dashed border-[var(--border-strong)] bg-[var(--surface)]/50 gap-2">
-      <div className="p-2 rounded-full bg-[var(--surface-hover)] mb-1">{icon}</div>
+    <div className="flex flex-col items-center justify-center p-8 text-center rounded-[var(--radius-card)] border border-dashed border-[var(--border)]/60 bg-[var(--surface)]/40 backdrop-blur-sm gap-2">
+      <div className="p-2 rounded-full bg-[var(--surface-hover)]/70 mb-1">{icon}</div>
       <h3 className="text-sm font-semibold text-[var(--text)]">{title}</h3>
       {description && <p className="text-xs text-[var(--muted)] max-w-sm">{description}</p>}
       {action && (
-        <Button variant="primary" size="sm" onClick={action.onClick} className="mt-3">
-          {action.label}
-        </Button>
+        <button
+          type="button"
+          onClick={action.onClick}
+          className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer backdrop-blur-md shadow-xs active:scale-[0.98] bg-[var(--surface-hover)]/70 hover:bg-[var(--surface)] text-[var(--text)] border border-[var(--border)]/60 hover:border-[var(--border-strong)]"
+        >
+          {action.icon ?? <Plus className="w-3.5 h-3.5 text-[var(--accent-text)]" />}
+          <span>{action.label}</span>
+        </button>
       )}
     </div>
   );

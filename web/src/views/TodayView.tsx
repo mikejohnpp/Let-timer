@@ -709,13 +709,14 @@ export const TodayView: React.FC<TodayViewProps> = ({
         </Popover>
 
         <button
+          type="button"
           onClick={() => {
             setTaskToEdit(null);
             setDrawerOpen(true);
           }}
-          className="flex items-center gap-1 text-[var(--muted)] hover:text-[var(--accent-text)] transition cursor-pointer font-medium"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md transition cursor-pointer active:scale-[0.98] bg-[var(--surface-hover)]/60 hover:bg-[var(--surface-hover)] text-[var(--text)] border border-[var(--border)]/50 hover:border-[var(--border)]"
         >
-          <Plus className="w-3.5 h-3.5" />
+          <Plus className="w-3.5 h-3.5 text-[var(--accent-text)]" />
           <span>New task</span>
         </button>
       </div>

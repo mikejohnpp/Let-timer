@@ -33,7 +33,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
       }}
       className={twMerge(
         clsx(
-          'inline-flex p-0.5 rounded-[var(--radius-control)] bg-[var(--surface-hover)] border border-[var(--border-strong)] relative',
+          'inline-flex p-0.5 rounded-[var(--radius-control)] bg-[var(--surface-hover)]/40 backdrop-blur-md border border-[var(--border)]/40 relative',
           className
         )
       )}

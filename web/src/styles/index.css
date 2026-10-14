@@ -18,6 +18,11 @@ html, body {
   min-height: 100vh;
 }
 
+select option {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
 /* ─── Calm & Minimal Scrollbar ─────────────────────────────────────────── */
 * {
   scrollbar-width: thin;

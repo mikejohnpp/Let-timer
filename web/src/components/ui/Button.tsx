@@ -3,7 +3,7 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-solid';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-solid' | 'pill' | 'pill-primary';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
 }
@@ -18,6 +18,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       ghost: 'bg-transparent text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] rounded-[var(--radius-control)]',
       danger: 'bg-transparent text-[var(--danger-text)] hover:bg-[var(--danger-bg)] rounded-[var(--radius-control)]',
       'danger-solid': 'bg-[var(--danger)] text-[var(--on-danger)] hover:opacity-90 rounded-[var(--radius-control)] shadow-sm',
+      pill: 'bg-[var(--surface-hover)]/70 hover:bg-[var(--surface)] text-[var(--text)] border border-[var(--border)]/60 rounded-full backdrop-blur-md shadow-xs',
+      'pill-primary': 'bg-[var(--accent)]/85 hover:bg-[var(--accent)] text-[var(--on-accent)] border border-white/20 rounded-full backdrop-blur-md shadow-sm',
     };
 
     const sizes = {

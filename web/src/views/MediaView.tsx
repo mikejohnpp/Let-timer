@@ -365,25 +365,23 @@ export const MediaView: React.FC = () => {
           />
 
           {tab === 'lists' ? (
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
+              type="button"
               onClick={() => setIsCreatingList(true)}
-              className="text-xs font-semibold text-[var(--accent-text)] h-8 px-2.5"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md transition cursor-pointer active:scale-[0.98] bg-[var(--surface-hover)]/60 hover:bg-[var(--surface-hover)] text-[var(--accent-text)] border border-[var(--border)]/50 hover:border-[var(--border)]"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>New list</span>
-            </Button>
+            </button>
           ) : (
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
+              type="button"
               onClick={() => setIsCreatingItem(true)}
-              className="text-xs font-semibold text-[var(--accent-text)] h-8 px-2.5"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md transition cursor-pointer active:scale-[0.98] bg-[var(--surface-hover)]/60 hover:bg-[var(--surface-hover)] text-[var(--accent-text)] border border-[var(--border)]/50 hover:border-[var(--border)]"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>New item</span>
-            </Button>
+            </button>
           )}
         </div>
       </div>
@@ -644,7 +642,17 @@ export const MediaView: React.FC = () => {
                 <Skeleton height="40px" />
               </div>
             ) : lists.length === 0 ? (
-              <div className="text-xs text-[var(--muted)] py-4 px-1">No playlists yet.</div>
+              <div className="py-8 text-center text-xs text-[var(--muted)] flex flex-col items-center gap-3">
+                <span>No playlists yet.</span>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingList(true)}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium backdrop-blur-md transition cursor-pointer active:scale-[0.98] bg-[var(--surface-hover)]/70 hover:bg-[var(--surface)] text-[var(--text)] border border-[var(--border)]/60 hover:border-[var(--border-strong)]"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[var(--accent-text)]" />
+                  <span>Create first playlist</span>
+                </button>
+              </div>
             ) : (
               <div className="flex flex-col divide-y divide-[var(--border)]/20 border-y border-[var(--border)]/20">
                 <AnimatePresence initial={false}>
@@ -802,7 +810,7 @@ export const MediaView: React.FC = () => {
                   <div className="flex items-center gap-2 min-w-0">
                     <select
                       id="attach-select"
-                      className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)]/70 border border-[var(--border)]/50 text-xs outline-none text-[var(--text)] truncate"
+                      className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)]/40 backdrop-blur-sm border border-[var(--border)]/40 text-xs outline-none text-[var(--text)] truncate focus:border-[var(--accent-text)] focus:ring-2 focus:ring-[var(--accent-text)]/20"
                     >
                       {items
                         .filter((i) => !selectedList.items.some((si) => si.id === i.id))
@@ -812,17 +820,16 @@ export const MediaView: React.FC = () => {
                           </option>
                         ))}
                     </select>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs font-semibold text-[var(--accent-text)] h-7 px-2.5 shrink-0"
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md transition cursor-pointer active:scale-[0.98] bg-[var(--surface-hover)]/60 hover:bg-[var(--surface-hover)] text-[var(--accent-text)] border border-[var(--border)]/50 hover:border-[var(--border)] shrink-0"
                       onClick={() => {
                         const sel = document.getElementById('attach-select') as HTMLSelectElement;
                         if (sel && sel.value) handleAddItemToList(selectedList.list.id, parseInt(sel.value, 10));
                       }}
                     >
                       Attach
-                    </Button>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -848,10 +855,12 @@ export const MediaView: React.FC = () => {
             <div className="py-16 text-center text-xs text-[var(--muted)] flex flex-col items-center gap-3">
               <span>No media items in library yet.</span>
               <button
+                type="button"
                 onClick={() => setIsCreatingItem(true)}
-                className="text-xs text-[var(--accent-text)] hover:underline font-medium cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium backdrop-blur-md transition cursor-pointer active:scale-[0.98] bg-[var(--surface-hover)]/70 hover:bg-[var(--surface)] text-[var(--text)] border border-[var(--border)]/60 hover:border-[var(--border-strong)] mt-1"
               >
-                + Add your first item
+                <Plus className="w-3.5 h-3.5 text-[var(--accent-text)]" />
+                <span>Add first item</span>
               </button>
             </div>
           ) : (
