@@ -36,7 +36,7 @@ jobs:
           git diff --exit-code web/openapi.json || (echo "web/openapi.json has uncommitted changes. Run 'cargo run -p let-timer-http --bin gen-openapi' and commit the result." && exit 1)
 
   web-check:
-    name: Web App (Lint, Test, Build)
+    name: Web App (Lint, Test, Build, Audit)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: NPM Security Audit
+        run: npm audit --omit=dev --audit-level=high
+
       - name: TypeScript Lint
         run: npm run lint
 
@@ -62,3 +65,20 @@ jobs:
 
       - name: Production Build
         run: npm run build
+
+  security-audit:
+    name: Security & Supply Chain Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust Security Advisory Audit
+        uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cargo Deny (Licenses, Bans, Advisories, Sources)
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features
