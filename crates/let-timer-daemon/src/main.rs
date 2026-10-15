@@ -177,6 +177,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let app = let_timer_http::build_router(app_state);
         tracing::info!("starting HTTP server on {}", bind_addr);
+        if let Ok(cors_origins) = std::env::var("LET_TIMER_CORS_ORIGINS") {
+            tracing::info!("CORS allowed origins: {}", cors_origins);
+        } else if std::env::var("LET_TIMER_DEV")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
+        {
+            tracing::info!("CORS enabled for dev Vite origins (LET_TIMER_DEV=1)");
+        } else {
+            tracing::info!("CORS restricted to same-origin only");
+        }
         let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
         Some(tokio::spawn(async move {
             if let Err(e) = axum::serve(listener, app).await {

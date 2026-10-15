@@ -3,7 +3,7 @@ use axum::routing::{delete, get, post};
 use let_timer_core::{Command, Database, EventBus, RequestContext, Response};
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -35,12 +35,72 @@ pub struct AppState {
     pub events: Option<Arc<EventBus>>,
 }
 
+/// Build CORS layer with allow-list from LET_TIMER_CORS_ORIGINS or dev defaults.
+pub fn build_cors_layer() -> CorsLayer {
+    let mut allowed_origins: Vec<axum::http::HeaderValue> = Vec::new();
+
+    // 1. From environment variable LET_TIMER_CORS_ORIGINS (comma-separated)
+    if let Ok(origins_env) = std::env::var("LET_TIMER_CORS_ORIGINS") {
+        for origin in origins_env.split(',') {
+            let trimmed = origin.trim();
+            if !trimmed.is_empty()
+                && let Ok(val) = axum::http::HeaderValue::from_str(trimmed)
+            {
+                allowed_origins.push(val);
+            }
+        }
+    }
+
+    // 2. In dev mode (LET_TIMER_DEV=1), include Vite origins
+    if std::env::var("LET_TIMER_DEV")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+    {
+        let dev_origins = [
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+        ];
+        for origin in dev_origins {
+            if let Ok(val) = axum::http::HeaderValue::from_str(origin)
+                && !allowed_origins.contains(&val)
+            {
+                allowed_origins.push(val);
+            }
+        }
+    }
+
+    let cors = CorsLayer::new()
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::PATCH,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::RANGE,
+            axum::http::HeaderName::from_static("x-let-timer-protocol"),
+            axum::http::HeaderName::from_static("x-let-timer-workspace"),
+            axum::http::HeaderName::from_static("x-let-timer-timezone"),
+            axum::http::HeaderName::from_static("x-let-timer-token"),
+            axum::http::HeaderName::from_static("x-let-timer-client"),
+        ]);
+
+    if allowed_origins.is_empty() {
+        cors.allow_origin(AllowOrigin::list([]))
+    } else {
+        cors.allow_origin(AllowOrigin::list(allowed_origins))
+    }
+}
+
 /// Build the Axum router for let-timer-http.
 pub fn build_router(state: Arc<AppState>) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let cors = build_cors_layer();
 
     let openapi = ApiDoc::openapi();
 

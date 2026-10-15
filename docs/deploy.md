@@ -156,4 +156,5 @@ systemctl --user enable --now let-timer-daemon
 - [x] **Read-only rootfs**: All state is confined to `/data`.
 - [x] **Tokens hashed at rest**: Tokens are salted and hashed (SHA-256) in the SQLite database and shown only once.
 - [x] **Minimal firewall surface**: Only ports 80/443 exposed publicly; daemon port 8765 is internal to the Docker network.
+- [x] **CORS restricted**: Same-origin only by default. Override with `LET_TIMER_CORS_ORIGINS=https://app.example.com` if hosting frontend on a separate domain. Set `LET_TIMER_DEV=1` for Vite dev server.
 - [x] **SSE connection flush**: Caddy proxy config flushes chunks immediately (`flush_interval -1`).

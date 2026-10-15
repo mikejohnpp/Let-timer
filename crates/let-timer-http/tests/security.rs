@@ -68,7 +68,11 @@ async fn sec_1_rpc_rejects_import_file_with_403_and_creates_no_file() {
         .unwrap()
         .filter_map(|e| e.ok())
         .collect();
-    assert_eq!(entries.len(), 0, "No files should appear in media directory");
+    assert_eq!(
+        entries.len(),
+        0,
+        "No files should appear in media directory"
+    );
 
     let _ = std::fs::remove_dir_all(temp_media_dir);
 }
@@ -174,4 +178,77 @@ fn sec_1_validate_remote_exhaustive_policy_guard() {
         validate_remote(&unsafe_cmd),
         Err(PolicyError::ForbiddenRemoteCommand(_))
     ));
+}
+
+#[tokio::test]
+async fn sec_3a_cors_untrusted_origin_rejected() {
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .method("OPTIONS")
+        .uri("/api/v1/health")
+        .header("origin", "https://evil.example")
+        .header("access-control-request-method", "GET")
+        .body(Body::empty())
+        .unwrap();
+
+    let res = app.oneshot(req).await.unwrap();
+    assert!(
+        res.headers().get("access-control-allow-origin").is_none(),
+        "untrusted origin should not receive Access-Control-Allow-Origin header"
+    );
+}
+
+#[tokio::test]
+async fn sec_3a_cors_allowed_origin_succeeds() {
+    unsafe {
+        std::env::set_var(
+            "LET_TIMER_CORS_ORIGINS",
+            "https://app.example.com,http://localhost:3000",
+        );
+    }
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .method("OPTIONS")
+        .uri("/api/v1/health")
+        .header("origin", "https://app.example.com")
+        .header("access-control-request-method", "GET")
+        .body(Body::empty())
+        .unwrap();
+
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(
+        res.headers()
+            .get("access-control-allow-origin")
+            .and_then(|v| v.to_str().ok()),
+        Some("https://app.example.com")
+    );
+
+    unsafe {
+        std::env::remove_var("LET_TIMER_CORS_ORIGINS");
+    }
 }

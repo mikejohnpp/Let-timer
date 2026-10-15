@@ -32,3 +32,13 @@ Even on the local Unix socket, `copy_local` enforces defense-in-depth:
 - Refuses paths inside the daemon's own data directory (e.g., SQLite DB and WAL files), except from within the media directory.
 - Enforces an upload/import size cap (default 200 MB, configurable via `LET_TIMER_MAX_UPLOAD_MB`).
 
+---
+
+## 4. Browser-Origin Defenses (CORS)
+
+- **Default policy**: Same-origin only. No cross-origin `Access-Control-Allow-Origin` headers are emitted by default, shielding the daemon against drive-by web requests.
+- **Configurable allow-list**: Setting `LET_TIMER_CORS_ORIGINS=https://app1.com,https://app2.com` permits specific trusted domains.
+- **Development mode**: `LET_TIMER_DEV=1` automatically allows Vite dev server origins (`http://localhost:5173`, `http://localhost:5174`, `http://127.0.0.1:5173`, `http://127.0.0.1:5174`).
+- **Restricted headers**: Allowed request headers are restricted to `Authorization`, `Content-Type`, `Range`, and `X-Let-Timer-*` variants.
+
+
