@@ -123,6 +123,47 @@ pub enum Command {
     SetTimezone(String),
 }
 
+impl Command {
+    /// Returns the static variant name of the command without any parameters or payloads (SEC-7).
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Create(_) => "tasks.create",
+            Self::Delete { .. } => "tasks.delete",
+            Self::Edit { .. } => "tasks.edit",
+            Self::Find { .. } => "tasks.find",
+            Self::List(_) => "tasks.list",
+            Self::Current => "tasks.current",
+            Self::Start { .. } => "tasks.start",
+            Self::StartCandidates { .. } => "tasks.start_candidates",
+            Self::Pause { .. } => "tasks.pause",
+            Self::Resume { .. } => "tasks.resume",
+            Self::Stop { .. } => "tasks.stop",
+            Self::Restart { .. } => "tasks.restart",
+            Self::Done { .. } => "tasks.done",
+            Self::Cancel { .. } => "tasks.cancel",
+            Self::Reopen { .. } => "tasks.reopen",
+            Self::Ping => "ping",
+            Self::ListWorkspaces => "workspaces.list",
+            Self::CreateWorkspace(_) => "workspaces.create",
+            Self::SwitchWorkspace { .. } => "workspaces.switch",
+            Self::CurrentWorkspace => "workspaces.current",
+            Self::DeleteWorkspace { .. } => "workspaces.delete",
+            Self::ListMediaLists => "media_lists.list",
+            Self::CreateMediaList(_) => "media_lists.create",
+            Self::GetMediaList { .. } => "media_lists.get",
+            Self::DeleteMediaList { .. } => "media_lists.delete",
+            Self::AddMediaToList { .. } => "media_lists.add_media",
+            Self::RemoveMediaFromList { .. } => "media_lists.remove_media",
+            Self::ListMedias { .. } => "medias.list",
+            Self::CreateMedia { .. } => "medias.create",
+            Self::DeleteMedia { .. } => "medias.delete",
+            Self::DaemonStatus => "daemon.status",
+            Self::GetTimezone => "timezone.get",
+            Self::SetTimezone(_) => "timezone.set",
+        }
+    }
+}
+
 /// Target identifier when switching workspaces (by ID or exact/fuzzy name).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkspaceTarget {
@@ -148,6 +189,14 @@ pub enum Response {
         socket_path: String,
         db_path: String,
         running_task: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        auth_mode: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bind_address: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cors_origins: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs_enabled: Option<bool>,
     },
     WorkspaceList(Vec<Workspace>),
     Workspace(Workspace),

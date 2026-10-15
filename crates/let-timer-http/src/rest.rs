@@ -46,6 +46,13 @@ pub fn map_core_error(err_msg: &str) -> (StatusCode, &'static str) {
         || err_msg.contains("invalid")
     {
         (StatusCode::BAD_REQUEST, "invalid_transition")
+    } else if err_msg.contains("database")
+        || err_msg.contains("rusqlite")
+        || err_msg.contains("sqlite")
+        || err_msg.contains("SQLITE_")
+        || err_msg.contains("disk I/O")
+    {
+        (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
     } else {
         (StatusCode::BAD_REQUEST, "bad_request")
     }
@@ -375,7 +382,10 @@ pub async fn get_task(State(state): State<Arc<AppState>>, Path(id): Path<i64>) -
             "not_found",
             format!("task {id} not found"),
         ),
-        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, "db_error", e.to_string()),
+        Err(e) => {
+            tracing::error!("Database error fetching task {id}: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
@@ -1321,6 +1331,15 @@ pub async fn upload_media(
     {
         Ok(CoreResponse::Media(m)) => {
             let secret = get_media_signing_secret(&state);
+            let client_ip = crate::router::extract_client_ip_from_headers(&headers);
+            tracing::info!(
+                target: "audit",
+                media_id = %m.id,
+                size = %total_bytes,
+                mime = %media_type.as_str(),
+                ip = %client_ip,
+                "Media upload succeeded"
+            );
             (
                 StatusCode::CREATED,
                 Json(MediaDto::from(m).with_signed_url(&secret)),

@@ -103,6 +103,42 @@ Media upload and serving are hardened to prevent denial of service (RAM exhausti
 - **Headers-Only Transport**: API tokens are accepted strictly through HTTP headers (`Authorization: Bearer <token>` or `X-Let-Timer-Token`). Query parameter (`?token=...`) and cookie (`let_timer_token=...`) extraction is permanently removed, preventing credential leakage in access logs, browser history, and `Referer` headers.
 - **Fetch-Based Server-Sent Events**: The web client uses a custom `fetch`-based SSE client with a streaming line parser (`SseParser`) instead of native `EventSource`, allowing standard `Authorization: Bearer <token>` headers without URL token exposure.
 
+---
+
+## 10. Headers, Errors, Observability & Posture Visibility
+
+- **Standard Security Headers**:
+  - `X-Content-Type-Options: nosniff` on all responses.
+  - `Referrer-Policy: no-referrer`.
+  - `X-Frame-Options: DENY`.
+  - `Permissions-Policy: camera=(), microphone=(), geolocation=()`.
+  - SPA `Content-Security-Policy`:
+    `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`.
+    (Media routes serve an isolated `Content-Security-Policy: sandbox; default-src 'none'`).
+- **Request Tracing & Error Sanitization**:
+  - Every request is tagged with a unique `X-Request-Id` (preserved from client header if supplied, otherwise generated).
+  - All 500 internal server error responses are intercepted and sanitized into a structured JSON envelope:
+    `{ "error": { "code": "internal_error", "message": "An internal error occurred", "request_id": "<id>" } }`.
+  - Database error details (`rusqlite`, `SQLITE_`), table names, and server filesystem paths are never leaked over the wire. The full error details are logged to server stderr with the associated request ID.
+- **Conditional API Documentation**:
+  - Swagger UI (`/swagger-ui`) and the raw OpenAPI definition (`/api/v1/openapi.json`) are mounted by default only on loopback connections.
+  - On non-loopback interfaces, API documentation is disabled by default and returns 404 unless explicitly enabled via `LET_TIMER_ENABLE_DOCS=1`.
+- **Structured Audit Logging**:
+  - Security and state-altering events are recorded with `tracing::info!(target: "audit", ...)`:
+    - API token created (token name, prefix, request IP).
+    - API token rotated (token name, prefix, request IP).
+    - API token revoked (token name, request IP).
+    - RPC command executed (command name only without argument payload, caller IP).
+    - Media upload succeeded (file ID, size, mime, IP).
+    - Authentication failed (`tracing::warn!(target: "audit", ...)`, path, IP, failure reason).
+  - Raw token secrets are never logged (invariant 11).
+- **Daemon Posture Visibility**:
+  - `let-timer daemon status` inspects and reports current daemon security configuration:
+    - Authentication mode (`token (protected)` vs `no-token (Mode A / local convenience)`).
+    - HTTP bind address.
+    - Configured CORS origins.
+    - API documentation state (enabled / disabled).
+
 
 
 

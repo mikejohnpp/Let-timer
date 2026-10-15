@@ -64,6 +64,9 @@ pub async fn rpc_handler(
             .into_response();
     }
 
+    let cmd_name = cmd.name();
+    let client_ip = crate::router::extract_client_ip_from_headers(&headers);
+
     // 3. Extract workspace override header if present: X-Let-Timer-Workspace
     let ws_header = headers
         .get("x-let-timer-workspace")
@@ -97,16 +100,19 @@ pub async fn rpc_handler(
     })
     .await;
 
+    tracing::info!(
+        target: "audit",
+        command = %cmd_name,
+        ip = %client_ip,
+        "RPC command executed"
+    );
+
     match result {
         Ok(res) => Json(res).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({
-                "error": "task_failed",
-                "message": e.to_string()
-            })),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!("RPC task spawn failed: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
@@ -120,20 +126,42 @@ pub struct CreateTokenReq {
 /// POST /api/v1/auth/tokens
 pub async fn create_token(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<CreateTokenReq>,
 ) -> Response {
+    let client_ip = crate::router::extract_client_ip_from_headers(&headers);
     let db = state.db.lock().unwrap_or_else(|e| e.into_inner());
     let repo = let_timer_core::TokenRepository::new(db.conn());
     match repo.create(&payload.name) {
-        Ok(created) => (StatusCode::CREATED, Json(created)).into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
+        Ok(created) => {
+            let prefix = if created.token.len() >= 7 {
+                &created.token[..7]
+            } else {
+                "lt_"
+            };
+            tracing::info!(
+                target: "audit",
+                token_name = %created.name,
+                token_prefix = %prefix,
+                ip = %client_ip,
+                "API token created"
+            );
+            (StatusCode::CREATED, Json(created)).into_response()
+        }
+        Err(let_timer_core::DbError::AlreadyExists { .. }) => (
+            StatusCode::CONFLICT,
             Json(json!({
-                "error": "create_token_failed",
-                "message": e.to_string()
+                "error": {
+                    "code": "token_already_exists",
+                    "message": format!("Token '{}' already exists", payload.name)
+                }
             })),
         )
             .into_response(),
+        Err(e) => {
+            tracing::error!("Failed to create token: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
@@ -143,14 +171,10 @@ pub async fn list_tokens(State(state): State<Arc<AppState>>) -> Response {
     let repo = let_timer_core::TokenRepository::new(db.conn());
     match repo.list_all() {
         Ok(tokens) => Json(tokens).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({
-                "error": "list_tokens_failed",
-                "message": e.to_string()
-            })),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!("Failed to list tokens: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
@@ -162,28 +186,36 @@ pub struct RevokeTokenReq {
 /// POST /api/v1/auth/tokens/revoke
 pub async fn revoke_token(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<RevokeTokenReq>,
 ) -> Response {
+    let client_ip = crate::router::extract_client_ip_from_headers(&headers);
     let db = state.db.lock().unwrap_or_else(|e| e.into_inner());
     let repo = let_timer_core::TokenRepository::new(db.conn());
     match repo.revoke(&payload.name) {
-        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(true) => {
+            tracing::info!(
+                target: "audit",
+                token_name = %payload.name,
+                ip = %client_ip,
+                "API token revoked"
+            );
+            StatusCode::NO_CONTENT.into_response()
+        }
         Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(json!({
-                "error": "not_found",
-                "message": format!("token '{}' not found or already revoked", payload.name)
+                "error": {
+                    "code": "not_found",
+                    "message": format!("token '{}' not found or already revoked", payload.name)
+                }
             })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({
-                "error": "revoke_failed",
-                "message": e.to_string()
-            })),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!("Failed to revoke token: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
@@ -224,41 +256,55 @@ pub struct RotateTokenReq {
 /// POST /api/v1/auth/tokens/rotate
 pub async fn rotate_token(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<RotateTokenReq>,
 ) -> Response {
+    let client_ip = crate::router::extract_client_ip_from_headers(&headers);
     let db = state.db.lock().unwrap_or_else(|e| e.into_inner());
     let repo = let_timer_core::TokenRepository::new(db.conn());
     match repo.rotate(&payload.name) {
-        Ok(created) => (
-            StatusCode::OK,
+        Ok(created) => {
+            let prefix = if created.token.len() >= 7 {
+                &created.token[..7]
+            } else {
+                "lt_"
+            };
+            tracing::info!(
+                target: "audit",
+                token_name = %created.name,
+                token_prefix = %prefix,
+                ip = %client_ip,
+                "API token rotated"
+            );
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "token": created.token,
+                    "token_info": {
+                        "id": created.id,
+                        "name": created.name,
+                        "created_at": created.created_at,
+                        "last_used_at": null,
+                        "revoked_at": null
+                    }
+                })),
+            )
+                .into_response()
+        }
+        Err(let_timer_core::DbError::NotFound { .. }) => (
+            StatusCode::NOT_FOUND,
             Json(json!({
-                "token": created.token,
-                "token_info": {
-                    "id": created.id,
-                    "name": created.name,
-                    "created_at": created.created_at,
-                    "last_used_at": null,
-                    "revoked_at": null
+                "error": {
+                    "code": "not_found",
+                    "message": format!("token '{}' not found", payload.name)
                 }
             })),
         )
             .into_response(),
-        Err(let_timer_core::DbError::NotFound { .. }) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({
-                "error": "not_found",
-                "message": format!("token '{}' not found", payload.name)
-            })),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({
-                "error": "rotate_failed",
-                "message": e.to_string()
-            })),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!("Failed to rotate token: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 

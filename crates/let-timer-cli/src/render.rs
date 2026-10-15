@@ -190,6 +190,10 @@ pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Resul
             socket_path,
             db_path,
             running_task,
+            auth_mode,
+            bind_address,
+            cors_origins,
+            docs_enabled,
         } => {
             writeln!(out, "let-timer-daemon v{version}")?;
             writeln!(out, "Socket: {socket_path}")?;
@@ -197,6 +201,22 @@ pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Resul
             match running_task {
                 Some(task) => writeln!(out, "Running task: {task}")?,
                 None => writeln!(out, "Running task: none")?,
+            }
+            if let Some(auth) = auth_mode {
+                writeln!(out, "Auth mode: {auth}")?;
+            }
+            if let Some(bind) = bind_address {
+                writeln!(out, "HTTP bind: {bind}")?;
+            }
+            if let Some(cors) = cors_origins {
+                writeln!(out, "CORS origins: {cors}")?;
+            }
+            if let Some(docs) = docs_enabled {
+                writeln!(
+                    out,
+                    "API docs: {}",
+                    if *docs { "enabled" } else { "disabled" }
+                )?;
             }
             Ok(())
         }
@@ -668,6 +688,10 @@ mod tests {
             socket_path: "/tmp/test.sock".into(),
             db_path: "/tmp/test.db".into(),
             running_task: Some("#1 Focus".into()),
+            auth_mode: Some("token (protected)".into()),
+            bind_address: Some("127.0.0.1:8765".into()),
+            cors_origins: Some("https://app.example.com".into()),
+            docs_enabled: Some(true),
         };
         write_humans(&resp, &mut out).unwrap();
         let text = String::from_utf8(out).unwrap();
@@ -675,5 +699,9 @@ mod tests {
         assert!(text.contains("Socket: /tmp/test.sock"));
         assert!(text.contains("Database: /tmp/test.db"));
         assert!(text.contains("Running task: #1 Focus"));
+        assert!(text.contains("Auth mode: token (protected)"));
+        assert!(text.contains("HTTP bind: 127.0.0.1:8765"));
+        assert!(text.contains("CORS origins: https://app.example.com"));
+        assert!(text.contains("API docs: enabled"));
     }
 }

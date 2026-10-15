@@ -1605,3 +1605,225 @@ async fn sec_6_token_transport_headers_only() {
     let res_custom = app.clone().oneshot(req_custom).await.unwrap();
     assert_eq!(res_custom.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn sec_7_1_security_headers_and_request_id_present_on_all_responses() {
+    let _env_guard = ENV_MUTEX.lock().await;
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+    let app = build_router(state);
+
+    // 1. Check on public endpoint /api/v1/health
+    let req = Request::builder()
+        .method("GET")
+        .uri("/api/v1/health")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let headers = res.headers();
+    assert_eq!(headers.get("x-content-type-options").unwrap(), "nosniff");
+    assert_eq!(headers.get("referrer-policy").unwrap(), "no-referrer");
+    assert_eq!(headers.get("x-frame-options").unwrap(), "DENY");
+    assert_eq!(
+        headers.get("permissions-policy").unwrap(),
+        "camera=(), microphone=(), geolocation=()"
+    );
+    assert!(headers.contains_key("content-security-policy"));
+    assert!(headers.contains_key("x-request-id"));
+
+    // 2. Check that custom x-request-id is preserved
+    let custom_id = "test-custom-req-id-98765";
+    let req = Request::builder()
+        .method("GET")
+        .uri("/api/v1/health")
+        .header("x-request-id", custom_id)
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get("x-request-id").unwrap(), custom_id);
+
+    // 3. Check on 404 response
+    let req = Request::builder()
+        .method("GET")
+        .uri("/api/v1/nonexistent")
+        .header("host", "127.0.0.1:8080")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        res.headers().get("x-content-type-options").unwrap(),
+        "nosniff"
+    );
+    assert_eq!(res.headers().get("referrer-policy").unwrap(), "no-referrer");
+    assert_eq!(res.headers().get("x-frame-options").unwrap(), "DENY");
+    assert!(res.headers().contains_key("x-request-id"));
+}
+
+#[tokio::test]
+async fn sec_7_2_sanitized_500_internal_errors_never_leak_db_or_paths() {
+    let _env_guard = ENV_MUTEX.lock().await;
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    // Handler that simulates an internal DB error leaking paths/syntax
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|_cmd, _conn, _ctx, _notify, _events| {
+            let_timer_core::Response::Error {
+                message:
+                    "rusqlite::Error: no such table: secret_table at /home/user/app/src/db.sqlite"
+                        .to_string(),
+            }
+        }),
+        timer_notify: None,
+        events: None,
+    });
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+    let req_id = res
+        .headers()
+        .get("x-request-id")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    let body_bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+    let json: Value = serde_json::from_str(&body_str).unwrap();
+
+    // Verify sanitized structure
+    assert_eq!(json["error"]["code"], "internal_error");
+    assert_eq!(json["error"]["message"], "An internal error occurred");
+    assert_eq!(json["error"]["request_id"], req_id);
+
+    // Verify leaks are NOT present
+    assert!(!body_str.contains("rusqlite"));
+    assert!(!body_str.contains("secret_table"));
+    assert!(!body_str.contains("/home/user"));
+    assert!(!body_str.contains(".sqlite"));
+}
+
+#[tokio::test]
+async fn sec_7_3_conditional_swagger_docs_mounting() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    // Case A: Loopback with no LET_TIMER_ENABLE_DOCS set -> docs enabled
+    unsafe {
+        std::env::remove_var("LET_TIMER_ENABLE_DOCS");
+    }
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state_loopback = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+    let app_loopback = build_router(state_loopback);
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/swagger-ui/")
+        .header("host", "127.0.0.1:8080")
+        .body(Body::empty())
+        .unwrap();
+    let res = app_loopback.oneshot(req).await.unwrap();
+    assert!(res.status().is_success() || res.status().is_redirection());
+
+    // Case B: Non-loopback with LET_TIMER_ENABLE_DOCS=0 -> docs disabled (404)
+    unsafe {
+        std::env::set_var("LET_TIMER_ENABLE_DOCS", "0");
+        std::env::set_var("LET_TIMER_ALLOWED_HOSTS", "192.168.1.100:8080");
+    }
+    let state_remote = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: false,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+    let app_remote = build_router(state_remote);
+
+    let req_swagger = Request::builder()
+        .method("GET")
+        .uri("/swagger-ui")
+        .header("host", "192.168.1.100:8080")
+        .body(Body::empty())
+        .unwrap();
+    let res_swagger = app_remote.clone().oneshot(req_swagger).await.unwrap();
+    assert_eq!(res_swagger.status(), StatusCode::NOT_FOUND);
+
+    let req_openapi = Request::builder()
+        .method("GET")
+        .uri("/api/v1/openapi.json")
+        .header("host", "192.168.1.100:8080")
+        .body(Body::empty())
+        .unwrap();
+    let res_openapi = app_remote.clone().oneshot(req_openapi).await.unwrap();
+    assert_eq!(res_openapi.status(), StatusCode::NOT_FOUND);
+
+    unsafe {
+        std::env::remove_var("LET_TIMER_ENABLE_DOCS");
+        std::env::remove_var("LET_TIMER_ALLOWED_HOSTS");
+    }
+}
+
+#[tokio::test]
+async fn sec_7_5_daemon_status_reports_security_posture() {
+    let _env_guard = ENV_MUTEX.lock().await;
+    unsafe {
+        std::env::set_var("LET_TIMER_LISTEN", "0.0.0.0:8080");
+        std::env::set_var("LET_TIMER_CORS_ORIGINS", "https://timer.example.com");
+        std::env::set_var("LET_TIMER_ENABLE_DOCS", "1");
+    }
+
+    let db = Database::open_in_memory().unwrap();
+    let resp = let_timer_daemon::daemon_status(db.conn());
+    if let let_timer_core::Response::DaemonStatus {
+        auth_mode,
+        bind_address,
+        cors_origins,
+        docs_enabled,
+        ..
+    } = resp
+    {
+        assert_eq!(
+            auth_mode,
+            Some("no-token (Mode A / local convenience)".to_string())
+        );
+        assert_eq!(bind_address, Some("0.0.0.0:8080".to_string()));
+        assert_eq!(cors_origins, Some("https://timer.example.com".to_string()));
+        assert_eq!(docs_enabled, Some(true));
+    } else {
+        panic!("Expected DaemonStatus response");
+    }
+
+    unsafe {
+        std::env::remove_var("LET_TIMER_LISTEN");
+        std::env::remove_var("LET_TIMER_CORS_ORIGINS");
+        std::env::remove_var("LET_TIMER_ENABLE_DOCS");
+    }
+}

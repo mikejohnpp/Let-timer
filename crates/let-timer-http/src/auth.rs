@@ -106,22 +106,47 @@ where
 
             match check_result {
                 AuthCheckResult::Authorized => inner.call(req).await,
-                AuthCheckResult::Unauthorized(status, msg) => Ok((
-                    status,
-                    Json(json!({
-                        "error": "unauthorized",
-                        "message": msg
-                    })),
-                )
-                    .into_response()),
-                AuthCheckResult::DatabaseError(msg) => Ok((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({
-                        "error": "database_error",
-                        "message": msg
-                    })),
-                )
-                    .into_response()),
+                AuthCheckResult::Unauthorized(status, msg) => {
+                    let client_ip = req
+                        .extensions()
+                        .get::<crate::router::ClientIp>()
+                        .map(|c| c.0.clone())
+                        .unwrap_or_else(|| crate::router::extract_client_ip(&req));
+                    let path = req.uri().path().to_string();
+                    tracing::warn!(
+                        target: "audit",
+                        path = %path,
+                        ip = %client_ip,
+                        reason = %msg,
+                        "Authentication failed"
+                    );
+                    Ok((
+                        status,
+                        Json(json!({
+                            "error": {
+                                "code": "unauthorized",
+                                "message": msg
+                            }
+                        })),
+                    )
+                        .into_response())
+                }
+                AuthCheckResult::DatabaseError(msg) => {
+                    let client_ip = req
+                        .extensions()
+                        .get::<crate::router::ClientIp>()
+                        .map(|c| c.0.clone())
+                        .unwrap_or_else(|| crate::router::extract_client_ip(&req));
+                    let path = req.uri().path().to_string();
+                    tracing::error!(
+                        target: "audit",
+                        path = %path,
+                        ip = %client_ip,
+                        error = %msg,
+                        "Authentication database error"
+                    );
+                    Ok(StatusCode::INTERNAL_SERVER_ERROR.into_response())
+                }
             }
         })
     }

@@ -488,11 +488,31 @@ pub fn daemon_status(conn: &Connection) -> Response {
         Ok(Some(t)) => Some(format!("#{} {}", t.id, t.name)),
         _ => None,
     };
+    let token_repo = let_timer_core::TokenRepository::new(conn);
+    let has_tokens = token_repo.has_active_tokens().unwrap_or(false);
+    let auth_mode = Some(if has_tokens {
+        "token (protected)".to_string()
+    } else {
+        "no-token (Mode A / local convenience)".to_string()
+    });
+    let bind_address = std::env::var("LET_TIMER_LISTEN")
+        .or_else(|_| std::env::var("LET_TIMER_HTTP"))
+        .or_else(|_| std::env::var("LET_TIMER_BIND"))
+        .ok();
+    let cors_origins = std::env::var("LET_TIMER_CORS_ORIGINS").ok();
+    let docs_enabled = std::env::var("LET_TIMER_ENABLE_DOCS")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .ok();
+
     Response::DaemonStatus {
         version,
         socket_path,
         db_path,
         running_task,
+        auth_mode,
+        bind_address,
+        cors_origins,
+        docs_enabled,
     }
 }
 

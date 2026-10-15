@@ -242,6 +242,180 @@ async fn serve_media(
     resp
 }
 
+/// Middleware that injects standard security headers onto all responses (SEC-7).
+pub async fn security_headers(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::http::HeaderName;
+    use axum::http::HeaderValue;
+    use axum::http::header::{CONTENT_SECURITY_POLICY, X_CONTENT_TYPE_OPTIONS};
+
+    let is_media = req.uri().path().starts_with("/api/v1/media/files/");
+    let mut res = next.run(req).await;
+    let headers = res.headers_mut();
+
+    headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    headers.insert(
+        HeaderName::from_static("referrer-policy"),
+        HeaderValue::from_static("no-referrer"),
+    );
+    headers.insert(
+        HeaderName::from_static("x-frame-options"),
+        HeaderValue::from_static("DENY"),
+    );
+    headers.insert(
+        HeaderName::from_static("permissions-policy"),
+        HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
+    );
+
+    // Apply SPA Content-Security-Policy to non-media routes (media uses its own sandbox CSP)
+    if !is_media && !headers.contains_key(CONTENT_SECURITY_POLICY) {
+        headers.insert(
+            CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static(
+                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+            ),
+        );
+    }
+
+    res
+}
+
+/// Context extension storing the resolved client IP (SEC-7, SEC-8).
+#[derive(Clone, Debug)]
+pub struct ClientIp(pub String);
+
+/// Context extension storing the resolved request ID (SEC-7).
+#[derive(Clone, Debug)]
+pub struct RequestId(pub String);
+
+/// Helper to extract client IP from ConnectInfo or headers (when LET_TIMER_TRUSTED_PROXY=1) (SEC-7, SEC-8).
+pub fn extract_client_ip<B>(req: &axum::http::Request<B>) -> String {
+    if std::env::var("LET_TIMER_TRUSTED_PROXY")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+    {
+        if let Some(forwarded) = req
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            && let Some(first) = forwarded.split(',').next()
+        {
+            let s = first.trim();
+            if !s.is_empty() {
+                return s.to_string();
+            }
+        }
+        if let Some(real_ip) = req.headers().get("x-real-ip").and_then(|v| v.to_str().ok()) {
+            let s = real_ip.trim();
+            if !s.is_empty() {
+                return s.to_string();
+            }
+        }
+    }
+    if let Some(connect_info) = req
+        .extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+    {
+        return connect_info.0.ip().to_string();
+    }
+    "127.0.0.1".to_string()
+}
+
+/// Helper to extract client IP from HeaderMap (when LET_TIMER_TRUSTED_PROXY=1) (SEC-7, SEC-8).
+pub fn extract_client_ip_from_headers(headers: &axum::http::HeaderMap) -> String {
+    if std::env::var("LET_TIMER_TRUSTED_PROXY")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+    {
+        if let Some(forwarded) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok())
+            && let Some(first) = forwarded.split(',').next()
+        {
+            let s = first.trim();
+            if !s.is_empty() {
+                return s.to_string();
+            }
+        }
+        if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
+            let s = real_ip.trim();
+            if !s.is_empty() {
+                return s.to_string();
+            }
+        }
+    }
+    "127.0.0.1".to_string()
+}
+
+/// Middleware that attaches and propagates unique request IDs and sanitizes 500 errors (SEC-7).
+pub async fn request_id_middleware(
+    mut req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::http::HeaderName;
+    use axum::http::HeaderValue;
+
+    static REQ_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    let req_id_str = req
+        .headers()
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            let count = REQ_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let nanos = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
+            format!("req_{}_{}_{}", std::process::id(), nanos, count)
+        });
+
+    let client_ip = extract_client_ip(&req);
+
+    if let Ok(val) = HeaderValue::from_str(&req_id_str) {
+        req.headers_mut()
+            .insert(HeaderName::from_static("x-request-id"), val);
+    }
+    req.extensions_mut().insert(RequestId(req_id_str.clone()));
+    req.extensions_mut().insert(ClientIp(client_ip));
+
+    let mut res = next.run(req).await;
+    if let Ok(val) = HeaderValue::from_str(&req_id_str) {
+        res.headers_mut()
+            .insert(HeaderName::from_static("x-request-id"), val);
+    }
+
+    // Sanitize any 500 internal server error response (SEC-7)
+    if res.status() == axum::http::StatusCode::INTERNAL_SERVER_ERROR {
+        let (mut parts, body) = res.into_parts();
+        let bytes = axum::body::to_bytes(body, 64 * 1024)
+            .await
+            .unwrap_or_default();
+        let body_str = String::from_utf8_lossy(&bytes);
+        tracing::error!(
+            request_id = %req_id_str,
+            error = %body_str,
+            "Internal server error"
+        );
+        let sanitized = serde_json::json!({
+            "error": {
+                "code": "internal_error",
+                "message": "An internal error occurred",
+                "request_id": req_id_str
+            }
+        });
+        let new_body = serde_json::to_vec(&sanitized).unwrap_or_default();
+        parts.headers.insert(
+            axum::http::header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        parts.headers.insert(
+            axum::http::header::CONTENT_LENGTH,
+            HeaderValue::from(new_body.len()),
+        );
+        res = axum::response::Response::from_parts(parts, axum::body::Body::from(new_body));
+    }
+
+    res
+}
+
 /// Build the Axum router for let-timer-http.
 pub fn build_router(state: Arc<AppState>) -> Router {
     let cors = build_cors_layer();
@@ -261,8 +435,17 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/media/upload", post(upload_media))
         .layer(axum::extract::DefaultBodyLimit::max(upload_max_bytes));
 
-    let standard_protected = Router::new()
-        .merge(SwaggerUi::new("/swagger-ui").url("/api/v1/openapi.json", openapi))
+    let docs_enabled = std::env::var("LET_TIMER_ENABLE_DOCS")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(state.is_loopback);
+
+    let mut standard_protected = Router::new();
+    if docs_enabled {
+        standard_protected = standard_protected
+            .merge(SwaggerUi::new("/swagger-ui").url("/api/v1/openapi.json", openapi));
+    }
+
+    standard_protected = standard_protected
         // RPC parity endpoint
         .route("/api/v1/rpc", post(rpc_handler))
         // Real-time Event Stream (SSE)
@@ -346,6 +529,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     Router::new()
         .merge(public)
         .merge(guarded)
+        .layer(axum::middleware::from_fn(request_id_middleware))
+        .layer(axum::middleware::from_fn(security_headers))
         .layer(cors)
         .with_state(state)
 }
@@ -359,8 +544,12 @@ async fn static_or_spa_handler(req: axum::extract::Request) -> axum::response::R
     use axum::response::IntoResponse;
     let path = req.uri().path().trim_start_matches('/').to_string();
 
-    // 0. Unknown API requests in fallback must return 404, not the SPA shell
-    if path.starts_with("api/") || path == "api" {
+    // 0. Unknown API requests or docs in fallback must return 404, not the SPA shell
+    if path.starts_with("api/")
+        || path == "api"
+        || path.starts_with("swagger-ui")
+        || path == "swagger-ui"
+    {
         return (axum::http::StatusCode::NOT_FOUND, "Not Found").into_response();
     }
 
