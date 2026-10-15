@@ -96,6 +96,14 @@ Media upload and serving are hardened to prevent denial of service (RAM exhausti
 - **Serving Security Headers**: Media endpoints serve verified `Content-Type` headers from the allow-list table (never guessed from untrusted input), `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, and `Cross-Origin-Resource-Policy: same-origin`.
 - **Startup Audit**: The daemon scans the media directory at startup and logs warnings for any unrecognized or disallowed files without modifying or deleting them.
 
+---
+
+## 9. Secret Hygiene & Token Transport
+
+- **Headers-Only Transport**: API tokens are accepted strictly through HTTP headers (`Authorization: Bearer <token>` or `X-Let-Timer-Token`). Query parameter (`?token=...`) and cookie (`let_timer_token=...`) extraction is permanently removed, preventing credential leakage in access logs, browser history, and `Referer` headers.
+- **Fetch-Based Server-Sent Events**: The web client uses a custom `fetch`-based SSE client with a streaming line parser (`SseParser`) instead of native `EventSource`, allowing standard `Authorization: Bearer <token>` headers without URL token exposure.
+
+
 
 
 

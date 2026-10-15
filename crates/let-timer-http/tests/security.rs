@@ -1536,3 +1536,72 @@ async fn sec_5_upload_valid_files_succeeds_and_serves_security_headers() {
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
+// ─── SEC-6: No Secrets in URLs, One Token Transport Tests ─────────────────────
+
+#[tokio::test]
+async fn sec_6_token_transport_headers_only() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let token = {
+        let conn = db.lock().unwrap();
+        let repo = let_timer_core::TokenRepository::new(conn.conn());
+        repo.create("test-token").unwrap().token
+    };
+
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // 1. Query parameter ?token=... rejected with 401 UNAUTHORIZED
+    let req_query = Request::builder()
+        .method("GET")
+        .uri(format!("/api/v1/tasks?token={token}"))
+        .header("host", "127.0.0.1:8080")
+        .body(Body::empty())
+        .unwrap();
+    let res_query = app.clone().oneshot(req_query).await.unwrap();
+    assert_eq!(res_query.status(), StatusCode::UNAUTHORIZED);
+
+    // 2. Cookie let_timer_token=... rejected with 401 UNAUTHORIZED
+    let req_cookie = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("cookie", format!("let_timer_token={token}"))
+        .body(Body::empty())
+        .unwrap();
+    let res_cookie = app.clone().oneshot(req_cookie).await.unwrap();
+    assert_eq!(res_cookie.status(), StatusCode::UNAUTHORIZED);
+
+    // 3. Authorization: Bearer <token> accepted with 200 OK
+    let req_bearer = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let res_bearer = app.clone().oneshot(req_bearer).await.unwrap();
+    assert_eq!(res_bearer.status(), StatusCode::OK);
+
+    // 4. X-Let-Timer-Token: <token> accepted with 200 OK
+    let req_custom = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("x-let-timer-token", &token)
+        .body(Body::empty())
+        .unwrap();
+    let res_custom = app.clone().oneshot(req_custom).await.unwrap();
+    assert_eq!(res_custom.status(), StatusCode::OK);
+}
