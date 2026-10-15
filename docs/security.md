@@ -41,4 +41,14 @@ Even on the local Unix socket, `copy_local` enforces defense-in-depth:
 - **Development mode**: `LET_TIMER_DEV=1` automatically allows Vite dev server origins (`http://localhost:5173`, `http://localhost:5174`, `http://127.0.0.1:5173`, `http://127.0.0.1:5174`).
 - **Restricted headers**: Allowed request headers are restricted to `Authorization`, `Content-Type`, `Range`, and `X-Let-Timer-*` variants.
 
+---
+
+## 5. Safe Path Resolution (`fsutil::safe_join`)
+
+Any filesystem path serving or storage management code (serving static files via `LET_TIMER_WEB_DIR`, serving managed media assets, or deleting files) MUST use `let_timer_core::fsutil::safe_join`.
+- Rejects directory traversal tokens (`..`), NUL characters (`\0`), and Windows path separators (`\`).
+- Strictly enforces that only `Component::Normal` path segments are permitted.
+- Resolves all symlinks via `canonicalize()` and verifies that the canonical path resides strictly within the configured root directory.
+
+
 

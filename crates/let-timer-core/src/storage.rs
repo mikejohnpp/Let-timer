@@ -114,14 +114,25 @@ impl LocalStorageBackend {
 
 impl StorageBackend for LocalStorageBackend {
     fn put(&self, rel_dir: &str, filename: &str, data: &[u8]) -> Result<String, StorageError> {
-        let target_dir = self.base_dir.join(rel_dir);
+        let clean_dir = rel_dir.trim_start_matches('/');
+        let p = std::path::Path::new(clean_dir);
+        if clean_dir.is_empty()
+            || clean_dir.contains('\0')
+            || clean_dir.contains('\\')
+            || p.components()
+                .any(|c| !matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err(StorageError::InvalidPath(rel_dir.to_string()));
+        }
+
+        let target_dir = self.base_dir.join(clean_dir);
         std::fs::create_dir_all(&target_dir)?;
 
         let final_filename = Self::hashed_filename(filename, data);
         let dest_path = target_dir.join(&final_filename);
         std::fs::write(&dest_path, data)?;
 
-        let rel_path = format!("{}/{}", rel_dir.trim_matches('/'), final_filename);
+        let rel_path = format!("{}/{}", clean_dir.trim_matches('/'), final_filename);
         Ok(self.public_url(&rel_path))
     }
 
@@ -189,14 +200,18 @@ impl StorageBackend for LocalStorageBackend {
     }
 
     fn delete(&self, rel_path: &str) -> Result<(), StorageError> {
-        // Prevent path traversal
-        let clean_rel = rel_path.trim_start_matches('/');
-        if clean_rel.contains("..") {
-            return Err(StorageError::InvalidPath(rel_path.to_string()));
-        }
+        let full_path = match crate::safe_join(&self.base_dir, rel_path) {
+            Some(p) => p,
+            None => {
+                let clean = rel_path.trim_start_matches('/');
+                if clean.contains("..") || clean.contains('\0') || clean.contains('\\') {
+                    return Err(StorageError::InvalidPath(rel_path.to_string()));
+                }
+                return Ok(());
+            }
+        };
 
-        let full_path = self.base_dir.join(clean_rel);
-        if full_path.exists() && full_path.is_file() {
+        if full_path.is_file() {
             let _ = std::fs::remove_file(full_path);
         }
         Ok(())

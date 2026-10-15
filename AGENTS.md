@@ -67,6 +67,8 @@ the CLI can target any configured **server profile** (`let-timer server …`).
 12. **Remote command safety**: No command that carries a filesystem path is
     accepted over HTTP; `policy::validate_remote` classifies every `Command` variant
     via an exhaustive match.
+13. **Safe path joining**: Any file-serving or storage-deletion code must use
+    `safe_join` to prevent path traversal and symlink escapes.
 
 ---
 

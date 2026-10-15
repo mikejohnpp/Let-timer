@@ -191,19 +191,16 @@ async fn static_or_spa_handler(req: axum::extract::Request) -> axum::response::R
 
     // 0. Managed Media Assets: /api/v1/media/files/*
     if let Some(media_subpath) = path.strip_prefix("api/v1/media/files/") {
-        if let Ok(media_root) = let_timer_core::default_media_dir() {
-            let clean_subpath = media_subpath.trim_start_matches('/');
-            if !clean_subpath.contains("..") {
-                let file_path = media_root.join(clean_subpath);
-                if file_path.is_file() {
-                    let mut resp = serve_file_from_disk(&file_path, req).await;
-                    resp.headers_mut().insert(
-                        axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-                        axum::http::HeaderValue::from_static("*"),
-                    );
-                    return resp;
-                }
-            }
+        if let Ok(media_root) = let_timer_core::default_media_dir()
+            && let Some(file_path) = let_timer_core::safe_join(&media_root, media_subpath)
+            && file_path.is_file()
+        {
+            let mut resp = serve_file_from_disk(&file_path, req).await;
+            resp.headers_mut().insert(
+                axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                axum::http::HeaderValue::from_static("*"),
+            );
+            return resp;
         }
         return (axum::http::StatusCode::NOT_FOUND, "Media file not found").into_response();
     }
@@ -211,19 +208,33 @@ async fn static_or_spa_handler(req: axum::extract::Request) -> axum::response::R
     // 1. Check disk directory override if LET_TIMER_WEB_DIR is set
     if let Ok(web_dir) = std::env::var("LET_TIMER_WEB_DIR") {
         let dir_path = std::path::Path::new(&web_dir);
-        let file_path = if path.is_empty() {
-            dir_path.join("index.html")
-        } else {
-            dir_path.join(&path)
-        };
+        let clean = path.trim_start_matches('/');
 
-        if file_path.is_file() {
-            return serve_file_from_disk(&file_path, req).await;
+        // Reject invalid path characters and traversal attempts outright
+        if clean.contains("..") || clean.contains('\0') || clean.contains('\\') {
+            return (axum::http::StatusCode::NOT_FOUND, "Not Found").into_response();
         }
 
-        // SPA fallback: index.html
-        let index_path = dir_path.join("index.html");
-        if index_path.is_file() {
+        // Check if file exists on disk
+        if clean.is_empty() {
+            if let Some(index_path) = let_timer_core::safe_join(dir_path, "index.html")
+                && index_path.is_file()
+            {
+                return serve_file_from_disk(&index_path, req).await;
+            }
+        } else if let Some(file_path) = let_timer_core::safe_join(dir_path, clean) {
+            if file_path.is_file() {
+                return serve_file_from_disk(&file_path, req).await;
+            }
+        } else if dir_path.join(clean).is_symlink() || clean.contains('%') {
+            // Path was a symlink pointing outside root or unhandled % sequence: reject with 404
+            return (axum::http::StatusCode::NOT_FOUND, "Not Found").into_response();
+        }
+
+        // SPA fallback: index.html for client-side navigation routes
+        if let Some(index_path) = let_timer_core::safe_join(dir_path, "index.html")
+            && index_path.is_file()
+        {
             return serve_file_from_disk(&index_path, req).await;
         }
     }

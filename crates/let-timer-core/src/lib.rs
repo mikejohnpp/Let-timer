@@ -2,6 +2,7 @@ pub mod client;
 pub mod context;
 pub mod db;
 pub mod events;
+pub mod fsutil;
 pub mod ipc;
 pub mod notify;
 pub mod parse;
@@ -19,6 +20,7 @@ pub use db::{
     UpdateWorkspace, Workspace, WorkspaceRepository, default_db_path, default_media_dir,
 };
 pub use events::{Event, EventBus};
+pub use fsutil::safe_join;
 pub use ipc::client::IpcClient;
 pub use ipc::server::IpcServer;
 pub use notify::{CompositeNotifier, LogNotifier, Notifier, NotifySend, RecordingNotifier};
