@@ -69,6 +69,9 @@ jobs:
   security-audit:
     name: Security & Supply Chain Audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write # rustsec/audit-check posts results as a check run
     steps:
       - uses: actions/checkout@v4
 
