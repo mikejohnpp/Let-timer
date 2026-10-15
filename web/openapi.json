@@ -283,6 +283,72 @@
         }
       }
     },
+    "/api/v1/media/{id}/url": {
+      "post": {
+        "tags": [
+          "Medias"
+        ],
+        "summary": "POST /api/v1/media/{id}/url",
+        "operationId": "get_signed_media_url",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Media ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "ttl",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed media URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedMediaUrlDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Media not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/medias": {
       "get": {
         "tags": [
@@ -1907,6 +1973,23 @@
         ],
         "properties": {
           "timezone": {
+            "type": "string"
+          }
+        }
+      },
+      "SignedMediaUrlDto": {
+        "type": "object",
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "url": {
             "type": "string"
           }
         }

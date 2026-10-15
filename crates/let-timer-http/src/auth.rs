@@ -63,13 +63,8 @@ where
         Box::pin(async move {
             let path = req.uri().path();
 
-            // 1. Unauthenticated endpoints
-            if path == "/api/v1/health"
-                || path == "/api/v1/auth/login"
-                || path == "/api/v1/openapi.json"
-                || path.starts_with("/swagger-ui")
-                || !path.starts_with("/api")
-            {
+            // 1. Unauthenticated endpoints (only explicit public allow-list)
+            if crate::router::PUBLIC_ROUTES.contains(&path) {
                 return inner.call(req).await;
             }
 
@@ -132,7 +127,7 @@ where
     }
 }
 
-fn extract_token<B>(req: &Request<B>) -> Option<String> {
+pub fn extract_token<B>(req: &Request<B>) -> Option<String> {
     if let Some(auth_val) = req.headers().get("Authorization")
         && let Ok(auth_str) = auth_val.to_str()
         && let Some(token) = auth_str.strip_prefix("Bearer ")

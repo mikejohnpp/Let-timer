@@ -184,6 +184,21 @@ impl From<Media> for MediaDto {
     }
 }
 
+impl MediaDto {
+    pub fn with_signed_url(mut self, secret: &str) -> Self {
+        if !secret.is_empty() {
+            self.url = crate::media_auth::sign_media_url(secret, &self.url, 3600);
+        }
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SignedMediaUrlDto {
+    pub url: String,
+    pub expires_at: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MediaListDto {
     pub id: i64,

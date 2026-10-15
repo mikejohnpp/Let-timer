@@ -112,6 +112,21 @@ impl<'a> SettingsRepository<'a> {
         }
         self.set("timezone", tz)
     }
+
+    /// Get or generate a 32-byte hexadecimal secret for signing media URLs.
+    pub fn get_or_create_media_signing_secret(&self) -> Result<String, DbError> {
+        if let Some(val) = self.get("media_signing_secret")? {
+            let trimmed = val.trim();
+            if !trimmed.is_empty() {
+                return Ok(trimmed.to_string());
+            }
+        }
+
+        let bytes: [u8; 32] = rand::random();
+        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        self.set("media_signing_secret", &hex)?;
+        Ok(hex)
+    }
 }
 
 #[cfg(test)]
@@ -152,5 +167,17 @@ mod tests {
         assert!(repo.set_timezone("Asia/Ho_Chi_Minh").is_ok());
         assert_eq!(repo.get_timezone().unwrap(), "Asia/Ho_Chi_Minh");
         assert!(repo.set_timezone("Invalid/Timezone").is_err());
+    }
+
+    #[test]
+    fn media_signing_secret_generation_and_persistence() {
+        let db = Database::open_in_memory().unwrap();
+        let repo = SettingsRepository::new(db.conn());
+
+        let secret1 = repo.get_or_create_media_signing_secret().unwrap();
+        assert_eq!(secret1.len(), 64);
+
+        let secret2 = repo.get_or_create_media_signing_secret().unwrap();
+        assert_eq!(secret1, secret2);
     }
 }

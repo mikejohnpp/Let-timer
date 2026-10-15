@@ -98,15 +98,136 @@ pub fn build_cors_layer() -> CorsLayer {
     }
 }
 
+/// Publicly accessible routes exempt from authentication.
+pub const PUBLIC_ROUTES: &[&str] = &["/api/v1/health"];
+
+#[derive(Debug, serde::Deserialize)]
+pub struct MediaAuthQuery {
+    pub exp: Option<u64>,
+    pub sig: Option<String>,
+}
+
+async fn serve_media(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    axum::extract::Path(subpath): axum::extract::Path<String>,
+    axum::extract::Query(auth_query): axum::extract::Query<MediaAuthQuery>,
+    req: axum::extract::Request,
+) -> axum::response::Response {
+    use axum::http::StatusCode;
+    use axum::http::header::{
+        CACHE_CONTROL, CONTENT_SECURITY_POLICY, HeaderName, X_CONTENT_TYPE_OPTIONS,
+    };
+    use axum::response::IntoResponse;
+    use serde_json::json;
+
+    let now_unix = chrono::Utc::now().timestamp() as u64;
+
+    // 1. Authorization check: either valid signed URL or authenticated token/loopback
+    let mut authed_by_signature = false;
+    let mut exp_ttl = 3600u64;
+
+    if let (Some(exp), Some(sig)) = (auth_query.exp, auth_query.sig.as_deref()) {
+        let secret = {
+            let db = state.db.lock().unwrap_or_else(|e| e.into_inner());
+            let repo = let_timer_core::SettingsRepository::new(db.conn());
+            repo.get_or_create_media_signing_secret()
+                .unwrap_or_default()
+        };
+
+        if crate::media_auth::verify_media_signature(&secret, &subpath, exp, sig, now_unix) {
+            authed_by_signature = true;
+            exp_ttl = exp.saturating_sub(now_unix);
+        } else {
+            return (
+                StatusCode::UNAUTHORIZED,
+                axum::Json(json!({
+                    "error": "unauthorized",
+                    "message": "invalid or expired media signature"
+                })),
+            )
+                .into_response();
+        }
+    } else {
+        // Fall back to token check (Authorization: Bearer or X-Let-Timer-Token)
+        let token_opt = crate::auth::extract_token(&req);
+        let is_authorized = {
+            let db = state.db.lock().unwrap_or_else(|e| e.into_inner());
+            let repo = let_timer_core::TokenRepository::new(db.conn());
+            if let Some(ref token) = token_opt {
+                matches!(repo.authenticate(token), Ok(Some(_)))
+            } else {
+                let has_tokens = repo.has_active_tokens().unwrap_or(false);
+                state.is_loopback && !has_tokens
+            }
+        };
+
+        if !is_authorized {
+            return (
+                StatusCode::UNAUTHORIZED,
+                axum::Json(json!({
+                    "error": "unauthorized",
+                    "message": "missing API token or valid signed media URL"
+                })),
+            )
+                .into_response();
+        }
+    }
+
+    // 2. Locate file on disk safely
+    let Ok(media_root) = let_timer_core::default_media_dir() else {
+        return (StatusCode::NOT_FOUND, "Media file not found").into_response();
+    };
+
+    let Some(file_path) = let_timer_core::safe_join(&media_root, &subpath) else {
+        return (StatusCode::NOT_FOUND, "Media file not found").into_response();
+    };
+
+    if !file_path.is_file() {
+        return (StatusCode::NOT_FOUND, "Media file not found").into_response();
+    }
+
+    // 3. Serve file with Range support and security headers
+    let mut resp = serve_file_from_disk(&file_path, req).await;
+
+    // Cache-Control: private, max-age=<ttl> (SEC-2.5)
+    let cache_control = if authed_by_signature {
+        format!("private, max-age={exp_ttl}")
+    } else {
+        "private, no-cache".to_string()
+    };
+    if let Ok(cc_val) = axum::http::HeaderValue::from_str(&cache_control) {
+        resp.headers_mut().insert(CACHE_CONTROL, cc_val);
+    }
+
+    // Security headers (SEC-5): nosniff, sandbox CSP, CORP same-origin
+    resp.headers_mut().insert(
+        X_CONTENT_TYPE_OPTIONS,
+        axum::http::HeaderValue::from_static("nosniff"),
+    );
+    resp.headers_mut().insert(
+        CONTENT_SECURITY_POLICY,
+        axum::http::HeaderValue::from_static("sandbox; default-src 'none'"),
+    );
+    resp.headers_mut().insert(
+        HeaderName::from_static("cross-origin-resource-policy"),
+        axum::http::HeaderValue::from_static("same-origin"),
+    );
+
+    // Note: Access-Control-Allow-Origin: * is intentionally omitted (SEC-2.4)
+
+    resp
+}
+
 /// Build the Axum router for let-timer-http.
 pub fn build_router(state: Arc<AppState>) -> Router {
     let cors = build_cors_layer();
-
     let openapi = ApiDoc::openapi();
 
-    Router::new()
-        // Unauthenticated / Doc endpoints
-        .route("/api/v1/health", get(health))
+    let public = Router::new().route("/api/v1/health", get(health));
+
+    let media = Router::new().route("/api/v1/media/files/{*path}", get(serve_media));
+
+    let protected = Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api/v1/openapi.json", openapi))
         // RPC parity endpoint
         .route("/api/v1/rpc", post(rpc_handler))
@@ -152,6 +273,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         // REST: Medias
         .route("/api/v1/medias", get(list_medias).post(create_media))
         .route("/api/v1/media/upload", post(upload_media))
+        .route("/api/v1/media/{id}/url", post(get_signed_media_url))
         .route("/api/v1/medias/{id}", delete(delete_media))
         // REST: Media Lists
         .route(
@@ -172,11 +294,15 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/api/v1/settings/timezone",
             get(get_timezone).put(set_timezone),
         )
-        // Middlewares
-        .layer(axum::extract::DefaultBodyLimit::max(100 * 1024 * 1024))
-        .layer(AuthLayer::new(Arc::clone(&state)))
-        .layer(cors)
+        .layer(AuthLayer::new(Arc::clone(&state)));
+
+    Router::new()
+        .merge(public)
+        .merge(protected)
+        .merge(media)
         .fallback(static_or_spa_handler)
+        .layer(axum::extract::DefaultBodyLimit::max(100 * 1024 * 1024))
+        .layer(cors)
         .with_state(state)
 }
 
@@ -189,20 +315,9 @@ async fn static_or_spa_handler(req: axum::extract::Request) -> axum::response::R
     use axum::response::IntoResponse;
     let path = req.uri().path().trim_start_matches('/').to_string();
 
-    // 0. Managed Media Assets: /api/v1/media/files/*
-    if let Some(media_subpath) = path.strip_prefix("api/v1/media/files/") {
-        if let Ok(media_root) = let_timer_core::default_media_dir()
-            && let Some(file_path) = let_timer_core::safe_join(&media_root, media_subpath)
-            && file_path.is_file()
-        {
-            let mut resp = serve_file_from_disk(&file_path, req).await;
-            resp.headers_mut().insert(
-                axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-                axum::http::HeaderValue::from_static("*"),
-            );
-            return resp;
-        }
-        return (axum::http::StatusCode::NOT_FOUND, "Media file not found").into_response();
+    // 0. Unknown API requests in fallback must return 404, not the SPA shell
+    if path.starts_with("api/") || path == "api" {
+        return (axum::http::StatusCode::NOT_FOUND, "Not Found").into_response();
     }
 
     // 1. Check disk directory override if LET_TIMER_WEB_DIR is set

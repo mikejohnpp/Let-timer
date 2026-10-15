@@ -887,6 +887,13 @@ pub async fn delete_workspace(
 
 // ─── Media & Media Lists ─────────────────────────────────────────────
 
+fn get_media_signing_secret(state: &AppState) -> String {
+    let db = state.db.lock().unwrap_or_else(|e| e.into_inner());
+    let repo = let_timer_core::SettingsRepository::new(db.conn());
+    repo.get_or_create_media_signing_secret()
+        .unwrap_or_default()
+}
+
 /// GET /api/v1/medias
 #[utoipa::path(
     get,
@@ -919,7 +926,11 @@ pub async fn list_medias(
 
     match execute_command(&state, &headers, Command::ListMedias { media_type }).await {
         Ok(CoreResponse::Medias(m)) => {
-            let dtos: Vec<MediaDto> = m.into_iter().map(MediaDto::from).collect();
+            let secret = get_media_signing_secret(&state);
+            let dtos: Vec<MediaDto> = m
+                .into_iter()
+                .map(|item| MediaDto::from(item).with_signed_url(&secret))
+                .collect();
             Json(dtos).into_response()
         }
         Ok(_) => Json(Vec::<MediaDto>::new()).into_response(),
@@ -973,7 +984,12 @@ pub async fn create_media(
     .await
     {
         Ok(CoreResponse::Media(m)) => {
-            (StatusCode::CREATED, Json(MediaDto::from(m))).into_response()
+            let secret = get_media_signing_secret(&state);
+            (
+                StatusCode::CREATED,
+                Json(MediaDto::from(m).with_signed_url(&secret)),
+            )
+                .into_response()
         }
         Ok(res) => (StatusCode::CREATED, Json(res)).into_response(),
         Err((status, code, msg)) => error_response(status, code, msg),
@@ -1131,11 +1147,79 @@ pub async fn upload_media(
     .await
     {
         Ok(CoreResponse::Media(m)) => {
-            (StatusCode::CREATED, Json(MediaDto::from(m))).into_response()
+            let secret = get_media_signing_secret(&state);
+            (
+                StatusCode::CREATED,
+                Json(MediaDto::from(m).with_signed_url(&secret)),
+            )
+                .into_response()
         }
         Ok(res) => (StatusCode::CREATED, Json(res)).into_response(),
         Err((status, code, msg)) => error_response(status, code, msg),
     }
+}
+
+#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
+pub struct MediaUrlQuery {
+    pub ttl: Option<u64>,
+}
+
+/// POST /api/v1/media/{id}/url
+#[utoipa::path(
+    post,
+    path = "/api/v1/media/{id}/url",
+    params(
+        ("id" = i64, Path, description = "Media ID"),
+        MediaUrlQuery,
+    ),
+    responses(
+        (status = 200, description = "Signed media URL", body = SignedMediaUrlDto),
+        (status = 404, description = "Media not found", body = ErrorEnvelopeDto),
+        (status = 500, description = "Internal Server Error", body = ErrorEnvelopeDto),
+    ),
+    tag = "Medias"
+)]
+pub async fn get_signed_media_url(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<i64>,
+    Query(query): Query<MediaUrlQuery>,
+) -> Response {
+    let ttl = query.ttl.unwrap_or(3600);
+    let (url, secret) = {
+        let db = state.db.lock().unwrap_or_else(|e| e.into_inner());
+        let media_repo = let_timer_core::MediaRepository::new(db.conn());
+        let media = match media_repo.get_by_id(id) {
+            Ok(m) => m,
+            Err(let_timer_core::DbError::NotFound { .. }) => {
+                return error_response(
+                    StatusCode::NOT_FOUND,
+                    "not_found",
+                    format!("media {id} not found"),
+                );
+            }
+            Err(e) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "database_error",
+                    e.to_string(),
+                );
+            }
+        };
+        let settings_repo = let_timer_core::SettingsRepository::new(db.conn());
+        let secret = settings_repo
+            .get_or_create_media_signing_secret()
+            .unwrap_or_default();
+        (media.url, secret)
+    };
+
+    let signed_url = crate::media_auth::sign_media_url(&secret, &url, ttl);
+    let expires_at = (chrono::Utc::now().timestamp() as u64) + ttl;
+
+    Json(SignedMediaUrlDto {
+        url: signed_url,
+        expires_at,
+    })
+    .into_response()
 }
 
 /// GET /api/v1/media-lists
@@ -1206,9 +1290,13 @@ pub async fn get_media_list(
 ) -> Response {
     match execute_command(&state, &headers, Command::GetMediaList { id }).await {
         Ok(CoreResponse::MediaListDetail { list, items }) => {
+            let secret = get_media_signing_secret(&state);
             let detail = MediaListDetailDto {
                 list: MediaListDto::from(list),
-                items: items.into_iter().map(MediaDto::from).collect(),
+                items: items
+                    .into_iter()
+                    .map(|item| MediaDto::from(item).with_signed_url(&secret))
+                    .collect(),
             };
             Json(detail).into_response()
         }

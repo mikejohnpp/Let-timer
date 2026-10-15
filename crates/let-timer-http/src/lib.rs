@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod dto;
 pub mod handlers;
+pub mod media_auth;
 pub mod openapi;
 pub mod policy;
 pub mod rest;

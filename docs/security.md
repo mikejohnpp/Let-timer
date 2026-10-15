@@ -50,5 +50,24 @@ Any filesystem path serving or storage management code (serving static files via
 - Strictly enforces that only `Component::Normal` path segments are permitted.
 - Resolves all symlinks via `canonicalize()` and verifies that the canonical path resides strictly within the configured root directory.
 
+---
+
+## 6. Authentication by Construction & Signed Media URLs
+
+### 6.1 Route Protection by Default
+All routes registered in the HTTP server are protected by default:
+- **Public Allow-list**: Controlled strictly by a single constant `PUBLIC_ROUTES = &["/api/v1/health"]`.
+- **Protected Endpoints**: All API endpoints (`/api/v1/...`), `/metrics`, `/swagger-ui/`, and `/api/v1/openapi.json` are wrapped by `AuthLayer`. Requests without a valid API token in token-enabled mode are rejected with `401 Unauthorized`.
+- **SPA Fallback**: Fallback routes serve only static assets / `index.html`. Any unknown path starting with `api/` returns `404 Not Found` and will never serve the SPA HTML shell.
+
+### 6.2 Signed Media URLs (HMAC-SHA256)
+Because browser media elements (`<img>`, `<audio>`, and CSS `background-image`) cannot attach custom authorization headers, media access is protected using short-lived signed URLs:
+- **Signing Scheme**: `sig = HMAC-SHA256(media_signing_secret, "<path>|<exp>")`, where `exp` is a Unix epoch timestamp.
+- **Secret Management**: A cryptographically random 32-byte secret is generated on first startup and persisted in the `settings` database (`media_signing_secret`).
+- **Constant-Time Verification**: Signatures are compared using constant-time byte comparisons to prevent timing side-channels.
+- **Dedicated Endpoint & DTOs**: `POST /api/v1/media/{id}/url` returns a signed URL. Media objects returned by `list_medias`, `create_media`, `upload_media`, and `get_media_list` are pre-signed with a 1-hour TTL.
+- **Range & Audio Playback**: `serve_media` supports HTTP `Range` requests (returning `206 Partial Content`) for smooth audio scrubbing.
+- **Response Headers**: Media responses omit wildcard `Access-Control-Allow-Origin: *` and enforce `Cache-Control: private, max-age=<ttl>`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, and `Cross-Origin-Resource-Policy: same-origin`.
+
 
 

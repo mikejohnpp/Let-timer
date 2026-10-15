@@ -8,8 +8,11 @@ use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use tower::ServiceExt;
 
+static ENV_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 #[tokio::test]
 async fn sec_1_rpc_rejects_import_file_with_403_and_creates_no_file() {
+    let _env_guard = ENV_MUTEX.lock().await;
     let temp_media_dir = std::env::temp_dir().join(format!(
         "let_timer_sec1_media_{}_{}",
         std::process::id(),
@@ -212,6 +215,7 @@ async fn sec_3a_cors_untrusted_origin_rejected() {
 
 #[tokio::test]
 async fn sec_3a_cors_allowed_origin_succeeds() {
+    let _env_guard = ENV_MUTEX.lock().await;
     unsafe {
         std::env::set_var(
             "LET_TIMER_CORS_ORIGINS",
@@ -255,6 +259,7 @@ async fn sec_3a_cors_allowed_origin_succeeds() {
 
 #[tokio::test]
 async fn sec_4_web_dir_traversal_and_symlinks() {
+    let _env_guard = ENV_MUTEX.lock().await;
     let temp_dir = std::env::temp_dir().join(format!(
         "let_timer_sec4_web_{}_{}",
         std::process::id(),
@@ -360,6 +365,7 @@ async fn sec_4_web_dir_traversal_and_symlinks() {
 
 #[tokio::test]
 async fn sec_4_media_symlink_outside_rejected() {
+    let _env_guard = ENV_MUTEX.lock().await;
     let temp_dir = std::env::temp_dir().join(format!(
         "let_timer_sec4_media_{}_{}",
         std::process::id(),
@@ -452,4 +458,439 @@ async fn sec_4_raw_socket_traversal_request_rejected() {
     );
 
     server_task.abort();
+}
+
+#[tokio::test]
+async fn sec_2_0_differential_test() {
+    let _env_guard = ENV_MUTEX.lock().await;
+    let temp_dir = std::env::temp_dir().join(format!(
+        "let_timer_sec2_diff_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let media_root = temp_dir.join("media");
+    std::fs::create_dir_all(&media_root).unwrap();
+    std::fs::write(media_root.join("sample.png"), b"fake png data").unwrap();
+
+    unsafe {
+        std::env::set_var("LET_TIMER_MEDIA_DIR", &media_root);
+    }
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    // Create at least one active API token in DB
+    {
+        let conn = db.lock().unwrap();
+        let repo = let_timer_core::TokenRepository::new(conn.conn());
+        let _ = repo.create("admin").unwrap();
+    }
+
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // (a) Media file with no token
+    let req_media = Request::builder()
+        .method("GET")
+        .uri("/api/v1/media/files/sample.png")
+        .body(Body::empty())
+        .unwrap();
+    let res_media = app.clone().oneshot(req_media).await.unwrap();
+    let status_media = res_media.status();
+
+    // (b) /metrics with no token
+    let req_metrics = Request::builder()
+        .method("GET")
+        .uri("/metrics")
+        .body(Body::empty())
+        .unwrap();
+    let res_metrics = app.clone().oneshot(req_metrics).await.unwrap();
+    let status_metrics = res_metrics.status();
+
+    // (c) /swagger-ui/ with no token
+    let req_swagger = Request::builder()
+        .method("GET")
+        .uri("/swagger-ui/")
+        .body(Body::empty())
+        .unwrap();
+    let res_swagger = app.clone().oneshot(req_swagger).await.unwrap();
+    let status_swagger = res_swagger.status();
+
+    // (d) SPA route with no token
+    let req_spa = Request::builder()
+        .method("GET")
+        .uri("/some/spa/route")
+        .body(Body::empty())
+        .unwrap();
+    let res_spa = app.clone().oneshot(req_spa).await.unwrap();
+    let status_spa = res_spa.status();
+
+    println!("=== SEC-2.0 Differential Test Results ===");
+    println!("(a) Media file status: {}", status_media);
+    println!("(b) /metrics status: {}", status_metrics);
+    println!("(c) /swagger-ui/ status: {}", status_swagger);
+    println!("(d) SPA route status: {}", status_spa);
+
+    unsafe {
+        std::env::remove_var("LET_TIMER_MEDIA_DIR");
+    }
+    let _ = std::fs::remove_dir_all(temp_dir);
+}
+
+#[tokio::test]
+async fn sec_2_unauthenticated_requests_rejected_when_token_exists() {
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    {
+        let conn = db.lock().unwrap();
+        let repo = let_timer_core::TokenRepository::new(conn.conn());
+        let _ = repo.create("admin").unwrap();
+    }
+
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // 1. /api/v1/health is PUBLIC => 200 OK
+    let req_health = Request::builder()
+        .method("GET")
+        .uri("/api/v1/health")
+        .body(Body::empty())
+        .unwrap();
+    let res_health = app.clone().oneshot(req_health).await.unwrap();
+    assert_eq!(res_health.status(), StatusCode::OK);
+
+    // 2. Protected routes with no token => 401 UNAUTHORIZED
+    for path in [
+        "/api/v1/tasks",
+        "/metrics",
+        "/swagger-ui/",
+        "/api/v1/openapi.json",
+        "/api/v1/media/files/test.png",
+    ] {
+        let req = Request::builder()
+            .method("GET")
+            .uri(path)
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(
+            res.status(),
+            StatusCode::UNAUTHORIZED,
+            "Expected 401 for unauthenticated request to {path}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn sec_2_signed_media_url_access_and_range_headers() {
+    let _env_guard = ENV_MUTEX.lock().await;
+    let temp_dir = std::env::temp_dir().join(format!(
+        "let_timer_sec2_media_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+    let file_content = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    std::fs::write(temp_dir.join("track.mp3"), file_content).unwrap();
+
+    unsafe {
+        std::env::set_var("LET_TIMER_MEDIA_DIR", &temp_dir);
+    }
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let secret = {
+        let conn = db.lock().unwrap();
+        let repo = let_timer_core::SettingsRepository::new(conn.conn());
+        repo.get_or_create_media_signing_secret().unwrap()
+    };
+    {
+        let conn = db.lock().unwrap();
+        let token_repo = let_timer_core::TokenRepository::new(conn.conn());
+        let _ = token_repo.create("admin").unwrap();
+    }
+
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    let now_unix = chrono::Utc::now().timestamp() as u64;
+    let exp = now_unix + 3600;
+    let sig = let_timer_http::media_auth::sign_media_path(&secret, "track.mp3", exp);
+
+    // 1. Valid signature: 200 OK with security headers and no ACAO: *
+    let req_valid = Request::builder()
+        .method("GET")
+        .uri(format!("/api/v1/media/files/track.mp3?exp={exp}&sig={sig}"))
+        .body(Body::empty())
+        .unwrap();
+    let res_valid = app.clone().oneshot(req_valid).await.unwrap();
+    assert_eq!(res_valid.status(), StatusCode::OK);
+
+    let headers = res_valid.headers();
+    assert_eq!(headers.get("x-content-type-options").unwrap(), "nosniff");
+    assert_eq!(
+        headers.get("content-security-policy").unwrap(),
+        "sandbox; default-src 'none'"
+    );
+    assert_eq!(
+        headers.get("cross-origin-resource-policy").unwrap(),
+        "same-origin"
+    );
+    let cc = headers.get("cache-control").unwrap().to_str().unwrap();
+    assert!(
+        cc.starts_with("private, max-age="),
+        "cache-control was: {cc}"
+    );
+    assert!(
+        headers.get("access-control-allow-origin").is_none(),
+        "ACAO: * must be omitted from media responses"
+    );
+
+    // 2. Range request: Range: bytes=0-9 with valid signature => 206 Partial Content
+    let req_range = Request::builder()
+        .method("GET")
+        .uri(format!("/api/v1/media/files/track.mp3?exp={exp}&sig={sig}"))
+        .header("range", "bytes=0-9")
+        .body(Body::empty())
+        .unwrap();
+    let res_range = app.clone().oneshot(req_range).await.unwrap();
+    assert_eq!(res_range.status(), StatusCode::PARTIAL_CONTENT);
+    let range_body = res_range.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(range_body.as_ref(), &file_content[0..10]);
+
+    // 3. Expired signature => 401 UNAUTHORIZED
+    let expired_exp = now_unix - 10;
+    let expired_sig =
+        let_timer_http::media_auth::sign_media_path(&secret, "track.mp3", expired_exp);
+    let req_expired = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/api/v1/media/files/track.mp3?exp={expired_exp}&sig={expired_sig}"
+        ))
+        .body(Body::empty())
+        .unwrap();
+    let res_expired = app.clone().oneshot(req_expired).await.unwrap();
+    assert_eq!(res_expired.status(), StatusCode::UNAUTHORIZED);
+
+    // 4. Tampered signature => 401 UNAUTHORIZED
+    let req_tampered = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/api/v1/media/files/track.mp3?exp={exp}&sig=0123456789abcdef"
+        ))
+        .body(Body::empty())
+        .unwrap();
+    let res_tampered = app.clone().oneshot(req_tampered).await.unwrap();
+    assert_eq!(res_tampered.status(), StatusCode::UNAUTHORIZED);
+
+    // 5. Tampered path => 401 UNAUTHORIZED
+    let req_wrong_path = Request::builder()
+        .method("GET")
+        .uri(format!("/api/v1/media/files/other.mp3?exp={exp}&sig={sig}"))
+        .body(Body::empty())
+        .unwrap();
+    let res_wrong_path = app.clone().oneshot(req_wrong_path).await.unwrap();
+    assert_eq!(res_wrong_path.status(), StatusCode::UNAUTHORIZED);
+
+    // 6. Tampered exp => 401 UNAUTHORIZED
+    let req_wrong_exp = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/api/v1/media/files/track.mp3?exp={}&sig={sig}",
+            exp + 100
+        ))
+        .body(Body::empty())
+        .unwrap();
+    let res_wrong_exp = app.clone().oneshot(req_wrong_exp).await.unwrap();
+    assert_eq!(res_wrong_exp.status(), StatusCode::UNAUTHORIZED);
+
+    unsafe {
+        std::env::remove_var("LET_TIMER_MEDIA_DIR");
+    }
+    let _ = std::fs::remove_dir_all(temp_dir);
+}
+
+#[tokio::test]
+async fn sec_2_post_media_url_endpoint_generates_valid_signed_url() {
+    let _env_guard = ENV_MUTEX.lock().await;
+    let temp_dir = std::env::temp_dir().join(format!(
+        "let_timer_sec2_post_url_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+    std::fs::write(temp_dir.join("wallpaper.jpg"), b"fake jpeg bytes").unwrap();
+
+    unsafe {
+        std::env::set_var("LET_TIMER_MEDIA_DIR", &temp_dir);
+    }
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let token = {
+        let conn = db.lock().unwrap();
+        let token_repo = let_timer_core::TokenRepository::new(conn.conn());
+        token_repo.create("admin").unwrap()
+    };
+    let media_id = {
+        let conn = db.lock().unwrap();
+        let media_repo = let_timer_core::MediaRepository::new(conn.conn());
+        let m = media_repo
+            .create(&NewMedia {
+                name: "wallpaper".into(),
+                description: None,
+                url: "/api/v1/media/files/wallpaper.jpg".into(),
+                media_type: MediaType::Image,
+                content: None,
+            })
+            .unwrap();
+        m.id
+    };
+
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // Call POST /api/v1/media/{id}/url with auth token
+    let req_url = Request::builder()
+        .method("POST")
+        .uri(format!("/api/v1/media/{media_id}/url?ttl=1800"))
+        .header("authorization", format!("Bearer {}", token.token))
+        .body(Body::empty())
+        .unwrap();
+    let res_url = app.clone().oneshot(req_url).await.unwrap();
+    assert_eq!(res_url.status(), StatusCode::OK);
+
+    let body = res_url.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&body).unwrap();
+    let signed_url = json["url"].as_str().unwrap();
+    assert!(signed_url.contains("?exp="));
+    assert!(signed_url.contains("&sig="));
+
+    // Request the signed URL without any authorization headers
+    let req_file = Request::builder()
+        .method("GET")
+        .uri(signed_url)
+        .body(Body::empty())
+        .unwrap();
+    let res_file = app.clone().oneshot(req_file).await.unwrap();
+    assert_eq!(res_file.status(), StatusCode::OK);
+
+    unsafe {
+        std::env::remove_var("LET_TIMER_MEDIA_DIR");
+    }
+    let _ = std::fs::remove_dir_all(temp_dir);
+}
+
+#[tokio::test]
+async fn sec_2_route_enumeration_public_allowlist_coverage() {
+    assert_eq!(
+        let_timer_http::router::PUBLIC_ROUTES,
+        &["/api/v1/health"],
+        "Only /api/v1/health must be in the public allow-list"
+    );
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    {
+        let conn = db.lock().unwrap();
+        let token_repo = let_timer_core::TokenRepository::new(conn.conn());
+        let _ = token_repo.create("admin").unwrap();
+    }
+
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    let routes = [
+        ("GET", "/api/v1/health", true),
+        ("GET", "/metrics", false),
+        ("GET", "/swagger-ui/", false),
+        ("GET", "/api/v1/openapi.json", false),
+        ("POST", "/api/v1/rpc", false),
+        ("GET", "/api/v1/events", false),
+        ("GET", "/api/v1/auth/tokens", false),
+        ("GET", "/api/v1/auth/me", false),
+        ("GET", "/api/v1/tasks", false),
+        ("GET", "/api/v1/tasks/current", false),
+        ("GET", "/api/v1/tasks/start-candidates", false),
+        ("GET", "/api/v1/timer", false),
+        ("GET", "/api/v1/workspaces", false),
+        ("GET", "/api/v1/medias", false),
+        ("POST", "/api/v1/media/upload", false),
+        ("POST", "/api/v1/media/1/url", false),
+        ("GET", "/api/v1/media-lists", false),
+        ("GET", "/api/v1/settings/timezone", false),
+        ("GET", "/api/v1/media/files/unauthorized.png", false),
+    ];
+
+    for (method, path, is_public) in routes {
+        let req = Request::builder()
+            .method(method)
+            .uri(path)
+            .header("x-let-timer-protocol", "1")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.clone().oneshot(req).await.unwrap();
+        if is_public {
+            assert_eq!(
+                res.status(),
+                StatusCode::OK,
+                "Expected 200 OK for public route {method} {path}"
+            );
+        } else {
+            assert_eq!(
+                res.status(),
+                StatusCode::UNAUTHORIZED,
+                "Expected 401 UNAUTHORIZED for protected route {method} {path}"
+            );
+        }
+    }
 }
