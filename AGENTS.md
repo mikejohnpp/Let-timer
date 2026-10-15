@@ -69,6 +69,15 @@ the CLI can target any configured **server profile** (`let-timer server …`).
     via an exhaustive match.
 13. **Safe path joining**: Any file-serving or storage-deletion code must use
     `safe_join` to prevent path traversal and symlink escapes.
+14. **Headers-only token transport**: Tokens are accepted only via `Authorization: Bearer <token>`
+    or `X-Let-Timer-Token`. Query parameter (`?token=`) and cookie credentials are never accepted.
+15. **Failed-authentication rate limiting**: Failed auth attempts are rate limited at 10/min per IP
+    with `429 Too Many Requests` and `Retry-After`.
+16. **Bounded request bodies**: JSON and RPC routes enforce a 1 MiB payload limit; uploads enforce
+    `LET_TIMER_MAX_UPLOAD_MB` and stream directly to temporary storage.
+17. **Sanitized errors**: Internal 500 error responses must be sanitized to generic JSON envelopes with
+    request IDs; database details (`rusqlite`, `SQLITE_`), table names, and server paths must never be
+    returned to clients.
 
 ---
 

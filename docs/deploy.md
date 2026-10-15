@@ -150,11 +150,37 @@ systemctl --user enable --now let-timer-daemon
 
 ---
 
-## 5. Security Checklist
+## 5. Environment Variables Reference
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DOMAIN` | `localhost` | Server public domain for automatic HTTPS with Caddy (e.g. `timer.example.com`). |
+| `LET_TIMER_LISTEN` / `LET_TIMER_HTTP` | `0.0.0.0:8765` | Address and port for the HTTP/REST/SSE server. |
+| `LET_TIMER_BOOTSTRAP_TOKEN` | *(none)* | Optional initial token generated at first daemon startup. |
+| `LET_TIMER_ALLOWED_HOSTS` | *(none)* | Comma-separated allow-list of `Host` header values (e.g. `timer.example.com,localhost`). Requests with mismatched hosts receive `421 Misdirected Request` to block DNS rebinding. |
+| `LET_TIMER_CORS_ORIGINS` | *(same-origin)* | Comma-separated list of allowed origins (e.g. `https://timer.example.com`). If unset, only same-origin requests are permitted. |
+| `LET_TIMER_DEV` | `0` | If `1` or `true`, automatically allows Vite dev origins (`http://localhost:5173`, `http://127.0.0.1:5173`). |
+| `LET_TIMER_ENABLE_DOCS` | `0` (remote) / `1` (local) | Set to `1` to expose `/swagger-ui` and `/api/v1/openapi.json` on non-loopback interfaces. Disabled by default on remote networks (returns 404). |
+| `LET_TIMER_TRUSTED_PROXY` | `1` (Docker) | Set to `1` when running behind a trusted reverse proxy (Caddy, Nginx). Enables client IP extraction from `X-Forwarded-For` for audit logs and the failed-auth rate limiter. |
+| `LET_TIMER_MAX_UPLOAD_MB` | `200` | Maximum allowable media upload size in megabytes. |
+| `LET_TIMER_MEDIA_DIR` | `/data/medias` | Filesystem storage path for uploaded images, audio, and poem files. |
+| `LET_TIMER_NOTIFY` | `ntfy` | Notification provider (`desktop`, `log`, `ntfy`, `webhook`). |
+| `LET_TIMER_NTFY_URL` | *(none)* | Topic endpoint for ntfy push notifications. |
+| `LET_TIMER_TIMEZONE` | `UTC` | Server fallback timezone (overridden per-client via header or settings). |
+
+---
+
+## 6. Security Checklist
 
 - [x] **No root execution**: Containers run as non-root user `let-timer (uid 1000)`.
 - [x] **Read-only rootfs**: All state is confined to `/data`.
-- [x] **Tokens hashed at rest**: Tokens are salted and hashed (SHA-256) in the SQLite database and shown only once.
+- [x] **Tokens hashed at rest**: Tokens are SHA-256 hashed in the SQLite database and shown only once.
+- [x] **Headers-only token transport**: No tokens accepted in query params or cookies.
+- [x] **Failed-authentication rate limiter**: 10 failed authentications per minute per IP returns `429 Too Many Requests`.
+- [x] **DNS rebinding & CSRF protection**: `Host` header validation and Origin check for mutating requests.
+- [x] **Per-route body limits**: 1 MiB for JSON / RPC; 200 MiB for uploads with streaming directly to disk.
+- [x] **Strict media validation**: Whitelist of extensions and binary magic bytes; active web content (`html`, `svg`, `js`) rejected.
+- [x] **Sanitized errors**: Internal 500 errors stripped of database syntax, table names, and server paths; mapped to `request_id`.
 - [x] **Minimal firewall surface**: Only ports 80/443 exposed publicly; daemon port 8765 is internal to the Docker network.
-- [x] **CORS restricted**: Same-origin only by default. Override with `LET_TIMER_CORS_ORIGINS=https://app.example.com` if hosting frontend on a separate domain. Set `LET_TIMER_DEV=1` for Vite dev server.
+- [x] **CORS restricted**: Same-origin only by default. Override with `LET_TIMER_CORS_ORIGINS` when hosting frontend on a separate domain.
 - [x] **SSE connection flush**: Caddy proxy config flushes chunks immediately (`flush_interval -1`).
