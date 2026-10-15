@@ -35,18 +35,16 @@ pub struct AppState {
     pub events: Option<Arc<EventBus>>,
 }
 
-/// Build CORS layer with allow-list from LET_TIMER_CORS_ORIGINS or dev defaults.
-pub fn build_cors_layer() -> CorsLayer {
-    let mut allowed_origins: Vec<axum::http::HeaderValue> = Vec::new();
+/// Get list of configured allowed CORS origins.
+pub fn get_allowed_origins() -> Vec<String> {
+    let mut allowed_origins: Vec<String> = Vec::new();
 
     // 1. From environment variable LET_TIMER_CORS_ORIGINS (comma-separated)
     if let Ok(origins_env) = std::env::var("LET_TIMER_CORS_ORIGINS") {
         for origin in origins_env.split(',') {
             let trimmed = origin.trim();
-            if !trimmed.is_empty()
-                && let Ok(val) = axum::http::HeaderValue::from_str(trimmed)
-            {
-                allowed_origins.push(val);
+            if !trimmed.is_empty() && !allowed_origins.iter().any(|o| o == trimmed) {
+                allowed_origins.push(trimmed.to_string());
             }
         }
     }
@@ -63,11 +61,23 @@ pub fn build_cors_layer() -> CorsLayer {
             "http://127.0.0.1:5174",
         ];
         for origin in dev_origins {
-            if let Ok(val) = axum::http::HeaderValue::from_str(origin)
-                && !allowed_origins.contains(&val)
-            {
-                allowed_origins.push(val);
+            if !allowed_origins.iter().any(|o| o == origin) {
+                allowed_origins.push(origin.to_string());
             }
+        }
+    }
+
+    allowed_origins
+}
+
+/// Build CORS layer with allow-list from LET_TIMER_CORS_ORIGINS or dev defaults.
+pub fn build_cors_layer() -> CorsLayer {
+    let origin_strings = get_allowed_origins();
+    let mut allowed_origins: Vec<axum::http::HeaderValue> = Vec::new();
+
+    for origin in origin_strings {
+        if let Ok(val) = axum::http::HeaderValue::from_str(&origin) {
+            allowed_origins.push(val);
         }
     }
 
@@ -296,11 +306,18 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         )
         .layer(AuthLayer::new(Arc::clone(&state)));
 
-    Router::new()
-        .merge(public)
+    let guarded = Router::new()
         .merge(protected)
         .merge(media)
         .fallback(static_or_spa_handler)
+        .layer(axum::middleware::from_fn_with_state(
+            Arc::clone(&state),
+            crate::guard::host_origin_guard,
+        ));
+
+    Router::new()
+        .merge(public)
+        .merge(guarded)
         .layer(axum::extract::DefaultBodyLimit::max(100 * 1024 * 1024))
         .layer(cors)
         .with_state(state)
@@ -474,6 +491,7 @@ mod tests {
             .method("POST")
             .uri("/api/v1/rpc")
             .header("content-type", "application/json")
+            .header("x-let-timer-client", "cli")
             .body(Body::from("\"Ping\""))
             .unwrap();
 
@@ -499,6 +517,7 @@ mod tests {
             .uri("/api/v1/rpc")
             .header("content-type", "application/json")
             .header("x-let-timer-protocol", "1")
+            .header("x-let-timer-client", "cli")
             .body(Body::from("\"Ping\""))
             .unwrap();
 
@@ -579,6 +598,7 @@ mod tests {
             .method("POST")
             .uri("/api/v1/tasks")
             .header("content-type", "application/json")
+            .header("x-let-timer-client", "cli")
             .body(Body::from(serde_json::to_string(&create_body).unwrap()))
             .unwrap();
         let res = app.clone().oneshot(req).await.unwrap();
@@ -593,6 +613,7 @@ mod tests {
         let req = Request::builder()
             .method("POST")
             .uri(format!("/api/v1/tasks/{task_id}/start"))
+            .header("x-let-timer-client", "cli")
             .body(Body::empty())
             .unwrap();
         let res = app.clone().oneshot(req).await.unwrap();
@@ -606,6 +627,7 @@ mod tests {
         let req = Request::builder()
             .method("POST")
             .uri("/api/v1/timer/pause")
+            .header("x-let-timer-client", "cli")
             .body(Body::empty())
             .unwrap();
         let res = app.clone().oneshot(req).await.unwrap();
@@ -618,6 +640,7 @@ mod tests {
         let req = Request::builder()
             .method("POST")
             .uri("/api/v1/timer/resume")
+            .header("x-let-timer-client", "cli")
             .body(Body::empty())
             .unwrap();
         let res = app.clone().oneshot(req).await.unwrap();
@@ -630,6 +653,7 @@ mod tests {
         let req = Request::builder()
             .method("POST")
             .uri(format!("/api/v1/tasks/{task_id}/done"))
+            .header("x-let-timer-client", "cli")
             .body(Body::empty())
             .unwrap();
         let res = app.clone().oneshot(req).await.unwrap();
@@ -659,6 +683,7 @@ mod tests {
             .uri("/api/v1/rpc")
             .header("content-type", "application/json")
             .header("x-let-timer-protocol", "1")
+            .header("x-let-timer-client", "cli")
             .body(Body::from(
                 serde_json::to_string(&Command::List(ListQuery::default())).unwrap(),
             ))
@@ -689,6 +714,7 @@ mod tests {
         let req = Request::builder()
             .method("DELETE")
             .uri("/api/v1/tasks/999999")
+            .header("x-let-timer-client", "cli")
             .body(Body::empty())
             .unwrap();
         let res = app.oneshot(req).await.unwrap();

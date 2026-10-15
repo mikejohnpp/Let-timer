@@ -60,7 +60,8 @@ impl HttpClient {
         let mut req = self
             .client
             .post(&rpc_url)
-            .header("X-Let-Timer-Protocol", "1");
+            .header("X-Let-Timer-Protocol", "1")
+            .header("X-Let-Timer-Client", "cli");
 
         if let Some(ref t) = self.token {
             req = req.header("Authorization", format!("Bearer {t}"));
@@ -151,7 +152,10 @@ impl HttpClient {
             form = form.text("description", d.to_string());
         }
 
-        let mut req = self.client.post(&upload_url);
+        let mut req = self
+            .client
+            .post(&upload_url)
+            .header("X-Let-Timer-Client", "cli");
         if let Some(ref t) = self.token {
             req = req.header("Authorization", format!("Bearer {t}"));
         }

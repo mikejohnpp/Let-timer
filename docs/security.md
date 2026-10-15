@@ -69,5 +69,17 @@ Because browser media elements (`<img>`, `<audio>`, and CSS `background-image`) 
 - **Range & Audio Playback**: `serve_media` supports HTTP `Range` requests (returning `206 Partial Content`) for smooth audio scrubbing.
 - **Response Headers**: Media responses omit wildcard `Access-Control-Allow-Origin: *` and enforce `Cache-Control: private, max-age=<ttl>`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, and `Cross-Origin-Resource-Policy: same-origin`.
 
+---
+
+## 7. Host and Origin Validation (DNS Rebinding & CSRF Guard)
+
+To safeguard local instances (especially in Mode A where no tokens are configured), incoming HTTP requests are validated against DNS rebinding and cross-site request forgery attacks via `guard::host_origin_guard`:
+
+- **Host Header Validation**: Every incoming HTTP request must specify a `Host` header belonging to either loopback addresses (`localhost`, `127.0.0.1`, `[::1]`) or hostnames explicitly listed in `LET_TIMER_ALLOWED_HOSTS`. Any foreign or spoofed host (such as `attacker.example:8080`) is rejected with `421 Misdirected Request`, neutralizing DNS rebinding attacks.
+- **Origin Validation**: On mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) carrying an `Origin` header, the origin must either match the server's own `Host` header (same-origin) or be present in `LET_TIMER_CORS_ORIGINS` (or Vite dev origins when `LET_TIMER_DEV=1`). Foreign origins are rejected with `403 Forbidden`.
+- **Simple-Request CSRF Protection**: Mutating requests (`POST`, `PUT`, `PATCH`) must specify `Content-Type: application/json` or `multipart/form-data`. Simple form submissions (`application/x-www-form-urlencoded`, `text/plain`) that browsers could issue cross-site without preflights are rejected with `415 Unsupported Media Type`.
+- **Mode A Client Header**: In Mode A (`is_loopback` and no active API tokens), mutating requests must include the custom header `X-Let-Timer-Client: web|cli`. Browsers cannot attach custom headers cross-origin without triggering a CORS preflight, which untrusted origins will fail. CLI and web client bindings automatically attach this header on all requests.
+
+
 
 

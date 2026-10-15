@@ -162,9 +162,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| std::env::var("LET_TIMER_BIND").ok());
 
     let http_handle = if let Some(bind_addr) = bind_addr {
-        let is_loopback = bind_addr.starts_with("127.")
-            || bind_addr.starts_with("localhost:")
-            || bind_addr.starts_with("[::1]");
+        let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
+        let local_addr = listener.local_addr()?;
+        let is_loopback = local_addr.ip().is_loopback();
+
+        let has_tokens = {
+            let db = database.lock().unwrap_or_else(|e| e.into_inner());
+            let repo = let_timer_core::TokenRepository::new(db.conn());
+            repo.has_active_tokens().unwrap_or(false)
+        };
+        if is_loopback && !has_tokens {
+            tracing::warn!(
+                "HTTP server running in Mode A (no API tokens). Create a token with `let-timer-daemon token create <name>` for enhanced security."
+            );
+        }
+
         let app_state = Arc::new(let_timer_http::AppState {
             db: Arc::clone(&database),
             is_loopback,
@@ -176,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
 
         let app = let_timer_http::build_router(app_state);
-        tracing::info!("starting HTTP server on {}", bind_addr);
+        tracing::info!("starting HTTP server on {} ({})", bind_addr, local_addr);
         if let Ok(cors_origins) = std::env::var("LET_TIMER_CORS_ORIGINS") {
             tracing::info!("CORS allowed origins: {}", cors_origins);
         } else if std::env::var("LET_TIMER_DEV")
@@ -187,7 +199,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             tracing::info!("CORS restricted to same-origin only");
         }
-        let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
         Some(tokio::spawn(async move {
             if let Err(e) = axum::serve(listener, app).await {
                 tracing::error!("HTTP server error: {}", e);

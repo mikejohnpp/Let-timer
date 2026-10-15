@@ -2,6 +2,7 @@
 
 pub mod auth;
 pub mod dto;
+pub mod guard;
 pub mod handlers;
 pub mod media_auth;
 pub mod openapi;

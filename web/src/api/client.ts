@@ -37,6 +37,9 @@ export function getApiHeaders(extra?: HeadersInit): Headers {
   if (!headers.has('X-Let-Timer-Protocol')) {
     headers.set('X-Let-Timer-Protocol', '1');
   }
+  if (!headers.has('X-Let-Timer-Client')) {
+    headers.set('X-Let-Timer-Client', 'web');
+  }
   const token = getStoredToken();
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
@@ -66,6 +69,7 @@ apiClient.use({
       request.headers.set('Authorization', `Bearer ${token}`);
     }
     request.headers.set('X-Let-Timer-Protocol', '1');
+    request.headers.set('X-Let-Timer-Client', 'web');
 
     const ws = getStoredWorkspace();
     if (ws) {

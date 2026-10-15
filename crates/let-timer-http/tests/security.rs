@@ -56,6 +56,7 @@ async fn sec_1_rpc_rejects_import_file_with_403_and_creates_no_file() {
         .uri("/api/v1/rpc")
         .header("content-type", "application/json")
         .header("x-let-timer-protocol", "1")
+        .header("x-let-timer-client", "cli")
         .body(Body::from(serde_json::to_string(&cmd).unwrap()))
         .unwrap();
 
@@ -111,6 +112,7 @@ async fn sec_1_rpc_allows_create_media_without_import_file() {
         .uri("/api/v1/rpc")
         .header("content-type", "application/json")
         .header("x-let-timer-protocol", "1")
+        .header("x-let-timer-client", "cli")
         .body(Body::from(serde_json::to_string(&cmd).unwrap()))
         .unwrap();
 
@@ -142,6 +144,7 @@ async fn sec_1_rest_create_media_succeeds_without_filesystem_path() {
         .method("POST")
         .uri("/api/v1/medias")
         .header("content-type", "application/json")
+        .header("x-let-timer-client", "cli")
         .body(Body::from(
             serde_json::json!({
                 "name": "rest-image",
@@ -893,4 +896,207 @@ async fn sec_2_route_enumeration_public_allowlist_coverage() {
             );
         }
     }
+}
+
+#[tokio::test]
+async fn sec_3b_host_header_validation_blocks_dns_rebinding() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // 1. Host: attacker.example => 421 Misdirected Request
+    let req_attacker = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "attacker.example")
+        .body(Body::empty())
+        .unwrap();
+    let res_attacker = app.clone().oneshot(req_attacker).await.unwrap();
+    assert_eq!(res_attacker.status(), StatusCode::MISDIRECTED_REQUEST);
+
+    // 2. Host: attacker.example:8080 => 421 Misdirected Request
+    let req_attacker_port = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "attacker.example:8080")
+        .body(Body::empty())
+        .unwrap();
+    let res_attacker_port = app.clone().oneshot(req_attacker_port).await.unwrap();
+    assert_eq!(res_attacker_port.status(), StatusCode::MISDIRECTED_REQUEST);
+
+    // 3. Loopback hosts: localhost, 127.0.0.1, [::1] => allowed past host check
+    for valid_host in [
+        "localhost:8080",
+        "127.0.0.1:8080",
+        "[::1]:8080",
+        "localhost",
+    ] {
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/v1/tasks")
+            .header("host", valid_host)
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_ne!(
+            res.status(),
+            StatusCode::MISDIRECTED_REQUEST,
+            "Host {valid_host} should be permitted"
+        );
+    }
+}
+
+#[tokio::test]
+async fn sec_3b_foreign_origin_rejected_on_mutating_requests() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // POST with foreign Origin => 403 Forbidden
+    let req_foreign = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("origin", "https://evil-attacker.example")
+        .header("content-type", "application/json")
+        .header("x-let-timer-client", "web")
+        .body(Body::from(r#"{"name":"malicious"}"#))
+        .unwrap();
+    let res_foreign = app.clone().oneshot(req_foreign).await.unwrap();
+    assert_eq!(res_foreign.status(), StatusCode::FORBIDDEN);
+
+    // POST with same-origin Origin => allowed past origin check
+    let req_same = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("origin", "http://127.0.0.1:8080")
+        .header("content-type", "application/json")
+        .header("x-let-timer-client", "web")
+        .body(Body::from(r#"{"name":"legitimate"}"#))
+        .unwrap();
+    let res_same = app.clone().oneshot(req_same).await.unwrap();
+    assert_ne!(
+        res_same.status(),
+        StatusCode::FORBIDDEN,
+        "Same-origin request should not be rejected with 403"
+    );
+}
+
+#[tokio::test]
+async fn sec_3b_simple_request_csrf_content_type_rejected() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // Form POST with text/plain => 415 Unsupported Media Type
+    let req_text = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("content-type", "text/plain")
+        .header("x-let-timer-client", "web")
+        .body(Body::from("name=csrf"))
+        .unwrap();
+    let res_text = app.clone().oneshot(req_text).await.unwrap();
+    assert_eq!(res_text.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+
+    // Form POST with application/x-www-form-urlencoded => 415
+    let req_form = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .header("x-let-timer-client", "web")
+        .body(Body::from("name=csrf"))
+        .unwrap();
+    let res_form = app.clone().oneshot(req_form).await.unwrap();
+    assert_eq!(res_form.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+}
+
+#[tokio::test]
+async fn sec_3b_mode_a_requires_client_header_on_mutating_requests() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    // No tokens created in DB + is_loopback => Mode A
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // 1. Mutating POST without X-Let-Timer-Client in Mode A => 403 Forbidden
+    let req_no_header = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"test"}"#))
+        .unwrap();
+    let res_no_header = app.clone().oneshot(req_no_header).await.unwrap();
+    assert_eq!(res_no_header.status(), StatusCode::FORBIDDEN);
+
+    // 2. Mutating POST with X-Let-Timer-Client: web in Mode A => accepted
+    let req_web = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("content-type", "application/json")
+        .header("x-let-timer-client", "web")
+        .body(Body::from(r#"{"name":"task-from-web"}"#))
+        .unwrap();
+    let res_web = app.clone().oneshot(req_web).await.unwrap();
+    assert_eq!(res_web.status(), StatusCode::CREATED);
+
+    // 3. Mutating POST with X-Let-Timer-Client: cli in Mode A => accepted
+    let req_cli = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("content-type", "application/json")
+        .header("x-let-timer-client", "cli")
+        .body(Body::from(r#"{"name":"task-from-cli"}"#))
+        .unwrap();
+    let res_cli = app.clone().oneshot(req_cli).await.unwrap();
+    assert_eq!(res_cli.status(), StatusCode::CREATED);
 }
