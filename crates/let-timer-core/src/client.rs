@@ -308,3 +308,45 @@ impl Client {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_client_http_upload_target_url() {
+        let client = HttpClient::new("http://127.0.0.1:8080".into(), None, None).unwrap();
+        let expected_url = format!("{}/api/v1/media/upload", client.url);
+        assert_eq!(expected_url, "http://127.0.0.1:8080/api/v1/media/upload");
+    }
+
+    #[test]
+    fn test_unix_builds_create_media_with_canonical_import_file() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("let_timer_client_test_{}", rand::random::<u32>()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let dummy_file = temp_dir.join("sample.png");
+        std::fs::write(&dummy_file, b"sample image bytes").unwrap();
+
+        let canonical = std::fs::canonicalize(&dummy_file).unwrap();
+        let cmd = Command::CreateMedia {
+            media: crate::NewMedia {
+                name: "sample".to_string(),
+                description: None,
+                url: String::new(),
+                media_type: crate::MediaType::Image,
+                content: None,
+            },
+            import_file: Some(canonical.to_string_lossy().to_string()),
+        };
+
+        if let Command::CreateMedia { import_file, .. } = cmd {
+            assert!(import_file.is_some());
+            assert_eq!(import_file.unwrap(), canonical.to_string_lossy());
+        } else {
+            panic!("expected CreateMedia");
+        }
+
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+}

@@ -103,6 +103,14 @@ pub enum Command {
     ListMedias {
         media_type: Option<MediaType>,
     },
+    /// Create a new media item.
+    ///
+    /// # Transport Security Policy
+    /// - **Remote (HTTP)**: `import_file` MUST be `None`. Remote requests carrying `Some(...)`
+    ///   are rejected with `403 forbidden_remote_command`. Remote clients upload files via
+    ///   multipart POST to `/api/v1/media/upload`.
+    /// - **Local (Unix socket)**: `import_file: Some(path)` is allowed, subject to `copy_local`
+    ///   hardening (rejecting symlinks, devices, daemon data directory, and oversized files).
     CreateMedia {
         media: NewMedia,
         import_file: Option<String>,

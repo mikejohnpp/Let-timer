@@ -64,6 +64,9 @@ the CLI can target any configured **server profile** (`let-timer server …`).
     `now.date_naive()` / `Utc::now()` inside logic.
 11. **Auth and secrets**: non-loopback HTTP requires an active token; tokens are
     stored hashed, shown once, never logged and never passed as CLI arguments.
+12. **Remote command safety**: No command that carries a filesystem path is
+    accepted over HTTP; `policy::validate_remote` classifies every `Command` variant
+    via an exhaustive match.
 
 ---
 

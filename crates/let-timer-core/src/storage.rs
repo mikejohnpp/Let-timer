@@ -126,15 +126,61 @@ impl StorageBackend for LocalStorageBackend {
     }
 
     fn copy_local(&self, src_path: &Path, rel_dir: &str) -> Result<String, StorageError> {
-        if !src_path.exists() {
+        // 1. Reject non-regular files (symlinks, devices, FIFOs, directories)
+        let sym_meta = std::fs::symlink_metadata(src_path)?;
+        if !sym_meta.is_file() {
             return Err(StorageError::InvalidPath(format!(
-                "source file does not exist: {}",
+                "source file must be a regular file (symlinks, devices, and directories rejected): {}",
                 src_path.display()
             )));
         }
 
-        let data = std::fs::read(src_path)?;
-        let file_name = src_path
+        // 2. Canonicalize first
+        let canonical_src = src_path.canonicalize()?;
+        if !canonical_src.is_file() {
+            return Err(StorageError::InvalidPath(format!(
+                "source file must be a regular file: {}",
+                canonical_src.display()
+            )));
+        }
+
+        // 3. Refuse paths inside daemon's own data directory except the media directory
+        if let Ok(db_path) = crate::default_db_path()
+            && let Some(data_dir) = db_path.parent()
+            && let Ok(canonical_data_dir) = data_dir.canonicalize()
+        {
+            let in_data_dir = canonical_src.starts_with(&canonical_data_dir);
+            let in_media_dir = self
+                .base_dir
+                .canonicalize()
+                .map(|b| canonical_src.starts_with(&b))
+                .unwrap_or(false);
+
+            if in_data_dir && !in_media_dir {
+                return Err(StorageError::InvalidPath(format!(
+                    "cannot import files from daemon data directory: {}",
+                    src_path.display()
+                )));
+            }
+        }
+
+        // 4. Cap size (default 200 MB, configurable via LET_TIMER_MAX_UPLOAD_MB)
+        let max_mb = std::env::var("LET_TIMER_MAX_UPLOAD_MB")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(200);
+        let max_bytes = max_mb * 1024 * 1024;
+
+        let meta = std::fs::metadata(&canonical_src)?;
+        if meta.len() > max_bytes {
+            return Err(StorageError::InvalidPath(format!(
+                "file exceeds maximum size limit ({} MB)",
+                max_mb
+            )));
+        }
+
+        let data = std::fs::read(&canonical_src)?;
+        let file_name = canonical_src
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("media.bin");
@@ -182,6 +228,42 @@ mod tests {
 
         storage.delete(rel).unwrap();
         assert!(!temp_dir.join(rel).exists());
+
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn copy_local_rejects_symlink() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("let_timer_storage_sym_{}", rand::random::<u32>()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let storage = LocalStorageBackend::new(temp_dir.join("media"));
+
+        let target_file = temp_dir.join("target.txt");
+        std::fs::write(&target_file, b"content").unwrap();
+
+        let symlink_file = temp_dir.join("symlink.txt");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&target_file, &symlink_file).unwrap();
+
+        let res = storage.copy_local(&symlink_file, "images");
+        assert!(matches!(res, Err(StorageError::InvalidPath(_))));
+
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn copy_local_rejects_directory() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("let_timer_storage_dir_{}", rand::random::<u32>()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let storage = LocalStorageBackend::new(temp_dir.join("media"));
+
+        let sub_dir = temp_dir.join("somedir");
+        std::fs::create_dir_all(&sub_dir).unwrap();
+
+        let res = storage.copy_local(&sub_dir, "images");
+        assert!(matches!(res, Err(StorageError::InvalidPath(_))));
 
         let _ = std::fs::remove_dir_all(temp_dir);
     }

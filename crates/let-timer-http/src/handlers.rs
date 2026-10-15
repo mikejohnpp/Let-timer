@@ -41,14 +41,30 @@ pub async fn rpc_handler(
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({
-                "error": "invalid_protocol",
-                "message": "missing or unsupported X-Let-Timer-Protocol header (expected '1')"
+                "error": {
+                    "code": "invalid_protocol",
+                    "message": "missing or unsupported X-Let-Timer-Protocol header (expected '1')"
+                }
             })),
         )
             .into_response();
     }
 
-    // 2. Extract workspace override header if present: X-Let-Timer-Workspace
+    // 2. Validate remote command policy (SEC-1)
+    if let Err(err) = crate::policy::validate_remote(&cmd) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({
+                "error": {
+                    "code": "forbidden_remote_command",
+                    "message": err.to_string(),
+                }
+            })),
+        )
+            .into_response();
+    }
+
+    // 3. Extract workspace override header if present: X-Let-Timer-Workspace
     let ws_header = headers
         .get("x-let-timer-workspace")
         .and_then(|v| v.to_str().ok())

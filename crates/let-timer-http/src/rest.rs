@@ -78,6 +78,14 @@ pub async fn execute_command(
     headers: &HeaderMap,
     cmd: Command,
 ) -> Result<CoreResponse, (StatusCode, &'static str, String)> {
+    if let Err(e) = crate::policy::validate_remote(&cmd) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "forbidden_remote_command",
+            e.to_string(),
+        ));
+    }
+
     let state_clone = Arc::clone(state);
     let headers_clone = headers.clone();
 
