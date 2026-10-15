@@ -80,6 +80,23 @@ To safeguard local instances (especially in Mode A where no tokens are configure
 - **Simple-Request CSRF Protection**: Mutating requests (`POST`, `PUT`, `PATCH`) must specify `Content-Type: application/json` or `multipart/form-data`. Simple form submissions (`application/x-www-form-urlencoded`, `text/plain`) that browsers could issue cross-site without preflights are rejected with `415 Unsupported Media Type`.
 - **Mode A Client Header**: In Mode A (`is_loopback` and no active API tokens), mutating requests must include the custom header `X-Let-Timer-Client: web|cli`. Browsers cannot attach custom headers cross-origin without triggering a CORS preflight, which untrusted origins will fail. CLI and web client bindings automatically attach this header on all requests.
 
+---
+
+## 8. Upload and Media Serving Safety
+
+Media upload and serving are hardened to prevent denial of service (RAM exhaustion), arbitrary file upload, and cross-site scripting:
+
+- **Per-Route Body Limits**: All standard JSON API endpoints and `/rpc` are strictly limited to 1 MiB (`DefaultBodyLimit::max(1024 * 1024)`). Oversized payloads immediately return `413 Payload Too Large`. The media upload route alone allows up to `LET_TIMER_MAX_UPLOAD_MB` (default 200 MB, with 25 MB for images and 1 MB for poems).
+- **Streaming Directly to Disk**: Upload chunks are streamed directly into an atomic temporary file in the media directory without buffering into memory. If the upload is aborted or exceeds size limits, the temporary file is deleted immediately by a RAII guard.
+- **Strict Extension & Magic Bytes Validation**: Uploaded files and local imports are validated against strict allow-lists for both extension and binary magic bytes:
+  - **Images**: `png`, `jpg`/`jpeg`, `gif`, `webp`, `avif` with matching magic bytes.
+  - **Audio**: `mp3`, `m4a`, `aac`, `ogg`/`opus`, `wav`, `flac` with container/header inspection.
+  - **Poems**: `txt`, `md` (must be valid UTF-8 and must not contain HTML/XML/SVG/script tags).
+  - Web executables and active content (`html`, `htm`, `svg`, `js`, `xml`, `xhtml`) are strictly rejected (`415 Unsupported Media Type`). Multipart `Content-Type` is never trusted.
+- **Serving Security Headers**: Media endpoints serve verified `Content-Type` headers from the allow-list table (never guessed from untrusted input), `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, and `Cross-Origin-Resource-Policy: same-origin`.
+- **Startup Audit**: The daemon scans the media directory at startup and logs warnings for any unrecognized or disallowed files without modifying or deleting them.
+
+
 
 
 

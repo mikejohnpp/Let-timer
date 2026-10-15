@@ -4,6 +4,7 @@ pub mod db;
 pub mod events;
 pub mod fsutil;
 pub mod ipc;
+pub mod media_validation;
 pub mod notify;
 pub mod parse;
 pub mod protocol;
@@ -23,6 +24,10 @@ pub use events::{Event, EventBus};
 pub use fsutil::safe_join;
 pub use ipc::client::IpcClient;
 pub use ipc::server::IpcServer;
+pub use media_validation::{
+    MediaValidationError, ValidatedMediaInfo, max_size_for_media_type, mime_type_from_path,
+    validate_media,
+};
 pub use notify::{CompositeNotifier, LogNotifier, Notifier, NotifySend, RecordingNotifier};
 pub use parse::{ParseDateError, date_on, weekday_from_alias};
 pub use protocol::{Command, ListQuery, Response, SortOrder, WorkspaceScope, WorkspaceTarget};

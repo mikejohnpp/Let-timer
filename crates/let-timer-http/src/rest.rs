@@ -4,6 +4,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use chrono::{NaiveDate, Utc};
 use serde_json::json;
+use sha2::Digest;
 use std::sync::Arc;
 
 use let_timer_core::{
@@ -1019,6 +1020,19 @@ pub async fn delete_media(
     }
 }
 
+struct TempFileGuard {
+    path: std::path::PathBuf,
+    committed: bool,
+}
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        if !self.committed {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
 /// POST /api/v1/media/upload
 #[utoipa::path(
     post,
@@ -1034,46 +1048,171 @@ pub async fn upload_media(
     headers: HeaderMap,
     mut multipart: axum::extract::Multipart,
 ) -> Response {
-    let mut file_bytes: Option<Vec<u8>> = None;
+    let Ok(media_root) = let_timer_core::default_media_dir() else {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "storage_error",
+            "failed to locate media storage directory",
+        );
+    };
+
+    if let Err(e) = std::fs::create_dir_all(&media_root) {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "storage_error",
+            format!("failed to initialize media storage directory: {e}"),
+        );
+    }
+
+    let mut temp_guard: Option<TempFileGuard> = None;
     let mut file_name: Option<String> = None;
     let mut name: Option<String> = None;
     let mut description: Option<String> = None;
     let mut media_type_str: Option<String> = None;
+    let mut header_buf = Vec::with_capacity(1024);
+    let mut total_bytes = 0u64;
+    let mut hasher = sha2::Sha256::new();
 
-    while let Ok(Some(field)) = multipart.next_field().await {
-        let field_name = field.name().unwrap_or("").to_string();
-        match field_name.as_str() {
-            "file" => {
-                file_name = field.file_name().map(|s| s.to_string());
-                if let Ok(bytes) = field.bytes().await {
-                    file_bytes = Some(bytes.to_vec());
+    let mut multipart_error: Option<axum::extract::multipart::MultipartError> = None;
+
+    loop {
+        match multipart.next_field().await {
+            Ok(Some(mut field)) => {
+                let field_name = field.name().unwrap_or("").to_string();
+                match field_name.as_str() {
+                    "file" => {
+                        file_name = field.file_name().map(|s| s.to_string());
+                        static UPLOAD_COUNTER: std::sync::atomic::AtomicU64 =
+                            std::sync::atomic::AtomicU64::new(1);
+                        let count =
+                            UPLOAD_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let nanos = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
+                        let temp_filename =
+                            format!(".tmp_upload_{}_{}_{}", std::process::id(), nanos, count);
+                        let temp_path = media_root.join(temp_filename);
+                        let file = match std::fs::File::create(&temp_path) {
+                            Ok(f) => f,
+                            Err(e) => {
+                                return error_response(
+                                    StatusCode::INTERNAL_SERVER_ERROR,
+                                    "storage_error",
+                                    format!("failed to create temporary upload file: {e}"),
+                                );
+                            }
+                        };
+                        let mut writer = std::io::BufWriter::new(file);
+                        temp_guard = Some(TempFileGuard {
+                            path: temp_path,
+                            committed: false,
+                        });
+
+                        let global_max_bytes = {
+                            let max_mb = std::env::var("LET_TIMER_MAX_UPLOAD_MB")
+                                .ok()
+                                .and_then(|v| v.parse::<u64>().ok())
+                                .unwrap_or(200);
+                            max_mb * 1024 * 1024
+                        };
+
+                        loop {
+                            match field.chunk().await {
+                                Ok(Some(chunk)) => {
+                                    total_bytes += chunk.len() as u64;
+                                    if total_bytes > global_max_bytes {
+                                        return error_response(
+                                            StatusCode::PAYLOAD_TOO_LARGE,
+                                            "payload_too_large",
+                                            format!(
+                                                "file exceeds maximum upload limit ({global_max_bytes} bytes)"
+                                            ),
+                                        );
+                                    }
+                                    sha2::Digest::update(&mut hasher, &chunk);
+                                    if header_buf.len() < 1024 {
+                                        let to_copy = (1024 - header_buf.len()).min(chunk.len());
+                                        header_buf.extend_from_slice(&chunk[..to_copy]);
+                                    }
+                                    use std::io::Write;
+                                    if let Err(e) = writer.write_all(&chunk) {
+                                        return error_response(
+                                            StatusCode::INTERNAL_SERVER_ERROR,
+                                            "io_error",
+                                            format!("failed to write upload chunk to disk: {e}"),
+                                        );
+                                    }
+                                }
+                                Ok(None) => break,
+                                Err(e) => {
+                                    let status = e.status();
+                                    return error_response(
+                                        status,
+                                        if status == StatusCode::PAYLOAD_TOO_LARGE {
+                                            "payload_too_large"
+                                        } else {
+                                            "upload_failed"
+                                        },
+                                        format!("error reading multipart chunk: {e}"),
+                                    );
+                                }
+                            }
+                        }
+                        use std::io::Write;
+                        if let Err(e) = writer.flush() {
+                            return error_response(
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                "io_error",
+                                format!("failed to flush upload file: {e}"),
+                            );
+                        }
+                    }
+                    "name" => {
+                        if let Ok(text) = field.text().await {
+                            name = Some(text);
+                        }
+                    }
+                    "description" => {
+                        if let Ok(text) = field.text().await {
+                            description = Some(text);
+                        }
+                    }
+                    "media_type" => {
+                        if let Ok(text) = field.text().await {
+                            media_type_str = Some(text);
+                        }
+                    }
+                    _ => {}
                 }
             }
-            "name" => {
-                if let Ok(text) = field.text().await {
-                    name = Some(text);
-                }
+            Ok(None) => break,
+            Err(e) => {
+                multipart_error = Some(e);
+                break;
             }
-            "description" => {
-                if let Ok(text) = field.text().await {
-                    description = Some(text);
-                }
-            }
-            "media_type" => {
-                if let Ok(text) = field.text().await {
-                    media_type_str = Some(text);
-                }
-            }
-            _ => {}
         }
     }
 
-    let Some(data) = file_bytes else {
+    if let Some(e) = multipart_error {
+        let status = e.status();
         return error_response(
-            StatusCode::BAD_REQUEST,
-            "missing_file",
-            "multipart request must include a 'file' field",
+            status,
+            if status == StatusCode::PAYLOAD_TOO_LARGE {
+                "payload_too_large"
+            } else {
+                "upload_failed"
+            },
+            format!("multipart error: {e}"),
         );
+    }
+
+    let mut guard = match temp_guard {
+        Some(g) => g,
+        None => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "missing_file",
+                "multipart request must include a 'file' field",
+            );
+        }
     };
 
     let filename = file_name.unwrap_or_else(|| "media.bin".to_string());
@@ -1092,35 +1231,69 @@ pub async fn upload_media(
         }
     };
 
+    // Validate size and magic bytes against allow-list
+    match let_timer_core::validate_media(media_type, &filename, &header_buf, total_bytes) {
+        Ok(_) => {}
+        Err(let_timer_core::MediaValidationError::Oversized { size, max }) => {
+            return error_response(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "payload_too_large",
+                format!(
+                    "file size ({size} bytes) exceeds maximum limit ({max} bytes) for {media_type:?}"
+                ),
+            );
+        }
+        Err(err) => {
+            return error_response(
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                "unsupported_media_type",
+                format!("{err}"),
+            );
+        }
+    }
+
     let sub_dir = match media_type {
         MediaType::Image => "images",
         MediaType::Music => "audio",
         MediaType::Poem => "poems",
     };
 
-    let storage = match let_timer_core::LocalStorageBackend::default_storage() {
-        Ok(s) => s,
-        Err(e) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "storage_error",
-                format!("failed to initialize storage: {e}"),
-            );
-        }
-    };
+    let hash = sha2::Digest::finalize(hasher);
+    let hash_hex: String = hash.iter().map(|b| format!("{b:02x}")).collect();
+    let short_hash = &hash_hex[..12];
 
-    use let_timer_core::StorageBackend;
-    let stored_url = match storage.put(sub_dir, &filename, &data) {
-        Ok(url) => url,
-        Err(e) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "storage_error",
-                format!("failed to save media file: {e}"),
-            );
-        }
-    };
+    let sanitized: String = filename
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
 
+    let final_filename = format!("{short_hash}_{sanitized}");
+    let target_dir = media_root.join(sub_dir);
+    if let Err(e) = std::fs::create_dir_all(&target_dir) {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "storage_error",
+            format!("failed to create target media directory: {e}"),
+        );
+    }
+
+    let dest_path = target_dir.join(&final_filename);
+    if let Err(e) = std::fs::rename(&guard.path, &dest_path) {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "storage_error",
+            format!("failed to move uploaded file to permanent storage: {e}"),
+        );
+    }
+    guard.committed = true;
+
+    let stored_url = format!("/api/v1/media/files/{sub_dir}/{final_filename}");
     let final_name = name.unwrap_or_else(|| {
         filename
             .rsplit_once('.')
@@ -1155,7 +1328,10 @@ pub async fn upload_media(
                 .into_response()
         }
         Ok(res) => (StatusCode::CREATED, Json(res)).into_response(),
-        Err((status, code, msg)) => error_response(status, code, msg),
+        Err((status, code, msg)) => {
+            let _ = std::fs::remove_file(&dest_path);
+            error_response(status, code, msg)
+        }
     }
 }
 

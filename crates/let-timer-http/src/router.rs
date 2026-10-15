@@ -125,7 +125,7 @@ async fn serve_media(
 ) -> axum::response::Response {
     use axum::http::StatusCode;
     use axum::http::header::{
-        CACHE_CONTROL, CONTENT_SECURITY_POLICY, HeaderName, X_CONTENT_TYPE_OPTIONS,
+        CACHE_CONTROL, CONTENT_SECURITY_POLICY, CONTENT_TYPE, HeaderName, X_CONTENT_TYPE_OPTIONS,
     };
     use axum::response::IntoResponse;
     use serde_json::json;
@@ -196,8 +196,22 @@ async fn serve_media(
         return (StatusCode::NOT_FOUND, "Media file not found").into_response();
     }
 
+    // Validate that the file extension is allowed and get exact Content-Type from allow-list table
+    let Some(content_type) = let_timer_core::mime_type_from_path(&file_path) else {
+        return (
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "Disallowed media file type",
+        )
+            .into_response();
+    };
+
     // 3. Serve file with Range support and security headers
     let mut resp = serve_file_from_disk(&file_path, req).await;
+
+    // Content-Type from verified allow-list table
+    if let Ok(ct_val) = axum::http::HeaderValue::from_str(content_type) {
+        resp.headers_mut().insert(CONTENT_TYPE, ct_val);
+    }
 
     // Cache-Control: private, max-age=<ttl> (SEC-2.5)
     let cache_control = if authed_by_signature {
@@ -237,7 +251,17 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 
     let media = Router::new().route("/api/v1/media/files/{*path}", get(serve_media));
 
-    let protected = Router::new()
+    let upload_max_mb = std::env::var("LET_TIMER_MAX_UPLOAD_MB")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(200);
+    let upload_max_bytes = upload_max_mb * 1024 * 1024;
+
+    let upload_route = Router::new()
+        .route("/api/v1/media/upload", post(upload_media))
+        .layer(axum::extract::DefaultBodyLimit::max(upload_max_bytes));
+
+    let standard_protected = Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api/v1/openapi.json", openapi))
         // RPC parity endpoint
         .route("/api/v1/rpc", post(rpc_handler))
@@ -282,7 +306,6 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/workspaces/{id}", delete(delete_workspace))
         // REST: Medias
         .route("/api/v1/medias", get(list_medias).post(create_media))
-        .route("/api/v1/media/upload", post(upload_media))
         .route("/api/v1/media/{id}/url", post(get_signed_media_url))
         .route("/api/v1/medias/{id}", delete(delete_media))
         // REST: Media Lists
@@ -304,6 +327,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/api/v1/settings/timezone",
             get(get_timezone).put(set_timezone),
         )
+        .layer(axum::extract::DefaultBodyLimit::max(1024 * 1024)); // 1 MiB limit for JSON / RPC
+
+    let protected = Router::new()
+        .merge(upload_route)
+        .merge(standard_protected)
         .layer(AuthLayer::new(Arc::clone(&state)));
 
     let guarded = Router::new()
@@ -318,7 +346,6 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     Router::new()
         .merge(public)
         .merge(guarded)
-        .layer(axum::extract::DefaultBodyLimit::max(100 * 1024 * 1024))
         .layer(cors)
         .with_state(state)
 }

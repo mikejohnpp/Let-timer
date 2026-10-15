@@ -1100,3 +1100,439 @@ async fn sec_3b_mode_a_requires_client_header_on_mutating_requests() {
     let res_cli = app.clone().oneshot(req_cli).await.unwrap();
     assert_eq!(res_cli.status(), StatusCode::CREATED);
 }
+
+// ─── SEC-5: Upload and Media Serving Safety Tests ─────────────────────────────
+
+fn make_multipart_body(
+    boundary: &str,
+    filename: &str,
+    file_bytes: &[u8],
+    media_type: &str,
+) -> Vec<u8> {
+    let mut body = Vec::new();
+    // 1. file field
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(
+        format!("Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n")
+            .as_bytes(),
+    );
+    body.extend_from_slice(b"Content-Type: application/octet-stream\r\n\r\n");
+    body.extend_from_slice(file_bytes);
+    body.extend_from_slice(b"\r\n");
+
+    // 2. media_type field
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(b"Content-Disposition: form-data; name=\"media_type\"\r\n\r\n");
+    body.extend_from_slice(media_type.as_bytes());
+    body.extend_from_slice(b"\r\n");
+
+    // End boundary
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    body
+}
+
+#[tokio::test]
+async fn sec_5_oversized_json_body_returns_413() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // Payload > 1 MiB (e.g. 1.2 MiB)
+    let large_description = "A".repeat(1_200_000);
+    let large_json = serde_json::json!({
+        "name": "Oversized task",
+        "description": large_description
+    })
+    .to_string();
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("content-type", "application/json")
+        .header("x-let-timer-client", "cli")
+        .body(Body::from(large_json))
+        .unwrap();
+
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn sec_5_upload_rejects_disallowed_extensions() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    let temp_dir = std::env::temp_dir().join(format!(
+        "sec5_upload_disallowed_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+    unsafe {
+        std::env::set_var("LET_TIMER_MEDIA_DIR", &temp_dir);
+    }
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    let disallowed_files = [
+        (
+            "evil.html",
+            "image",
+            b"<html><body>hello</body></html>".as_slice(),
+        ),
+        (
+            "evil.svg",
+            "image",
+            b"<svg xmlns='http://www.w3.org/2000/svg'></svg>".as_slice(),
+        ),
+        ("evil.js", "poem", b"console.log('pwned');".as_slice()),
+        (
+            "evil.exe",
+            "music",
+            b"MZ\x90\x00\x03\x00\x00\x00".as_slice(),
+        ),
+    ];
+
+    for (filename, media_type, content) in disallowed_files {
+        let boundary = "boundary123";
+        let body = make_multipart_body(boundary, filename, content, media_type);
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/media/upload")
+            .header("host", "127.0.0.1:8080")
+            .header(
+                "content-type",
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .header("x-let-timer-client", "cli")
+            .body(Body::from(body))
+            .unwrap();
+
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    }
+
+    // Verify nothing stored in media directory
+    let entries: Vec<_> = std::fs::read_dir(&temp_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .collect();
+    assert!(
+        entries.is_empty(),
+        "Expected media dir to be empty, but found {:?}",
+        entries
+    );
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[tokio::test]
+async fn sec_5_upload_rejects_magic_bytes_mismatch() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    let temp_dir = std::env::temp_dir().join(format!(
+        "sec5_upload_magic_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+    unsafe {
+        std::env::set_var("LET_TIMER_MEDIA_DIR", &temp_dir);
+    }
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // Named .png but containing HTML
+    let boundary = "boundary456";
+    let body = make_multipart_body(
+        boundary,
+        "avatar.png",
+        b"<!DOCTYPE html><html><script>alert(1)</script></html>",
+        "image",
+    );
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/media/upload")
+        .header("host", "127.0.0.1:8080")
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .header("x-let-timer-client", "cli")
+        .body(Body::from(body))
+        .unwrap();
+
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+
+    // Verify nothing stored
+    let entries: Vec<_> = std::fs::read_dir(&temp_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .collect();
+    assert!(entries.is_empty());
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[tokio::test]
+async fn sec_5_upload_rejects_oversized_file() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    let temp_dir = std::env::temp_dir().join(format!(
+        "sec5_upload_oversized_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+    unsafe {
+        std::env::set_var("LET_TIMER_MEDIA_DIR", &temp_dir);
+        std::env::set_var("LET_TIMER_MAX_UPLOAD_MB", "1");
+    }
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // Poem limit is 1MB. Send 1.2MB text.
+    let poem_content = "Lines of a long poem.\n".repeat(60_000);
+    let boundary = "boundary789";
+    let body = make_multipart_body(boundary, "poem.txt", poem_content.as_bytes(), "poem");
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/media/upload")
+        .header("host", "127.0.0.1:8080")
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .header("x-let-timer-client", "cli")
+        .body(Body::from(body))
+        .unwrap();
+
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+    // Verify temp files cleaned up
+    let entries: Vec<_> = std::fs::read_dir(&temp_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .collect();
+    assert!(entries.is_empty());
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    unsafe {
+        std::env::remove_var("LET_TIMER_MAX_UPLOAD_MB");
+    }
+}
+
+#[tokio::test]
+async fn sec_5_upload_valid_files_succeeds_and_serves_security_headers() {
+    let _env_guard = ENV_MUTEX.lock().await;
+
+    let temp_dir = std::env::temp_dir().join(format!(
+        "sec5_upload_valid_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+    unsafe {
+        std::env::set_var("LET_TIMER_MEDIA_DIR", &temp_dir);
+    }
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+
+    let app = build_router(state);
+
+    // 1. Valid PNG upload
+    let valid_png_bytes = [
+        0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, b'I', b'H', b'D',
+        b'R',
+    ];
+    let boundary = "boundaryPng";
+    let body = make_multipart_body(boundary, "picture.png", &valid_png_bytes, "image");
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/media/upload")
+        .header("host", "127.0.0.1:8080")
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .header("x-let-timer-client", "cli")
+        .body(Body::from(body))
+        .unwrap();
+
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    let res_body = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&res_body).unwrap();
+    let signed_url = json["url"].as_str().expect("url must exist");
+    assert!(signed_url.starts_with("/api/v1/media/files/images/"));
+
+    // 2. Fetch the uploaded media using signed URL and verify serving headers
+    let req_serve = Request::builder()
+        .method("GET")
+        .uri(signed_url)
+        .header("host", "127.0.0.1:8080")
+        .body(Body::empty())
+        .unwrap();
+
+    let res_serve = app.clone().oneshot(req_serve).await.unwrap();
+    assert_eq!(res_serve.status(), StatusCode::OK);
+
+    let headers = res_serve.headers();
+    assert_eq!(headers.get("x-content-type-options").unwrap(), "nosniff");
+    assert_eq!(
+        headers.get("content-security-policy").unwrap(),
+        "sandbox; default-src 'none'"
+    );
+    assert_eq!(
+        headers.get("cross-origin-resource-policy").unwrap(),
+        "same-origin"
+    );
+    assert_eq!(headers.get("content-type").unwrap(), "image/png");
+    assert!(headers.get("access-control-allow-origin").is_none());
+
+    // 3. Valid MP3 upload
+    let valid_mp3_bytes = b"ID3\x03\x00\x00\x00\x00\x00\x00AudioData...";
+    let boundary_mp3 = "boundaryMp3";
+    let body_mp3 = make_multipart_body(boundary_mp3, "track.mp3", valid_mp3_bytes, "music");
+
+    let req_mp3 = Request::builder()
+        .method("POST")
+        .uri("/api/v1/media/upload")
+        .header("host", "127.0.0.1:8080")
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary_mp3}"),
+        )
+        .header("x-let-timer-client", "cli")
+        .body(Body::from(body_mp3))
+        .unwrap();
+
+    let res_mp3 = app.clone().oneshot(req_mp3).await.unwrap();
+    assert_eq!(res_mp3.status(), StatusCode::CREATED);
+    let body_mp3_res = res_mp3.into_body().collect().await.unwrap().to_bytes();
+    let json_mp3: Value = serde_json::from_slice(&body_mp3_res).unwrap();
+    let mp3_url = json_mp3["url"].as_str().unwrap();
+
+    let req_serve_mp3 = Request::builder()
+        .method("GET")
+        .uri(mp3_url)
+        .header("host", "127.0.0.1:8080")
+        .body(Body::empty())
+        .unwrap();
+    let res_serve_mp3 = app.clone().oneshot(req_serve_mp3).await.unwrap();
+    assert_eq!(res_serve_mp3.status(), StatusCode::OK);
+    assert_eq!(
+        res_serve_mp3.headers().get("content-type").unwrap(),
+        "audio/mpeg"
+    );
+
+    // 4. Valid Poem upload
+    let valid_poem = b"Two roads diverged in a yellow wood,\nAnd sorry I could not travel both";
+    let boundary_poem = "boundaryPoem";
+    let body_poem = make_multipart_body(boundary_poem, "road.txt", valid_poem, "poem");
+
+    let req_poem = Request::builder()
+        .method("POST")
+        .uri("/api/v1/media/upload")
+        .header("host", "127.0.0.1:8080")
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary_poem}"),
+        )
+        .header("x-let-timer-client", "cli")
+        .body(Body::from(body_poem))
+        .unwrap();
+
+    let res_poem = app.clone().oneshot(req_poem).await.unwrap();
+    assert_eq!(res_poem.status(), StatusCode::CREATED);
+    let body_poem_res = res_poem.into_body().collect().await.unwrap().to_bytes();
+    let json_poem: Value = serde_json::from_slice(&body_poem_res).unwrap();
+    let poem_url = json_poem["url"].as_str().unwrap();
+
+    let req_serve_poem = Request::builder()
+        .method("GET")
+        .uri(poem_url)
+        .header("host", "127.0.0.1:8080")
+        .body(Body::empty())
+        .unwrap();
+    let res_serve_poem = app.clone().oneshot(req_serve_poem).await.unwrap();
+    assert_eq!(res_serve_poem.status(), StatusCode::OK);
+    assert_eq!(
+        res_serve_poem.headers().get("content-type").unwrap(),
+        "text/plain; charset=utf-8"
+    );
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}

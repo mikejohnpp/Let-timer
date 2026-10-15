@@ -122,6 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     init_logging();
+    audit_media_directory();
     let path = let_timer_core::ipc::socket_path();
     let path = path.to_string_lossy().into_owned();
     let database = Arc::new(Mutex::new(Database::open_default()?));
@@ -225,4 +226,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     scheduler_handle.abort();
     tracing::info!("daemon exited cleanly");
     Ok(())
+}
+
+fn audit_media_directory() {
+    let Ok(media_dir) = let_timer_core::default_media_dir() else {
+        return;
+    };
+    if !media_dir.exists() {
+        return;
+    }
+    audit_media_dir_recursive(&media_dir);
+}
+
+fn audit_media_dir_recursive(dir: &std::path::Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            audit_media_dir_recursive(&path);
+        } else if path.is_file() {
+            let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if filename.starts_with('.') {
+                continue;
+            }
+            if let_timer_core::mime_type_from_path(&path).is_none() {
+                tracing::warn!(
+                    "Unrecognized or disallowed media file in storage: {}",
+                    path.display()
+                );
+            }
+        }
+    }
 }

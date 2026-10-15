@@ -196,6 +196,22 @@ impl StorageBackend for LocalStorageBackend {
             .and_then(|n| n.to_str())
             .unwrap_or("media.bin");
 
+        let rel_lower = rel_dir.to_lowercase();
+        let media_type = if rel_lower.contains("audio") || rel_lower.contains("music") {
+            crate::db::models::MediaType::Music
+        } else if rel_lower.contains("poem") {
+            crate::db::models::MediaType::Poem
+        } else {
+            crate::db::models::MediaType::Image
+        };
+
+        let header = &data[..data.len().min(1024)];
+        if let Err(e) = crate::validate_media(media_type, file_name, header, data.len() as u64) {
+            return Err(StorageError::InvalidPath(format!(
+                "invalid media file: {e}"
+            )));
+        }
+
         self.put(rel_dir, file_name, &data)
     }
 
