@@ -11,12 +11,15 @@ COPY web/ ./
 RUN npm run build
 
 # ── Stage 2: Build Rust Binaries (Daemon + CLI) ──
-FROM rust:1.85-slim-bookworm AS rust-builder
+# NOTE: tracks stable 1.x so the pinned Cargo.lock always builds.
+# A fixed 1.85 pin broke when transitive deps started requiring rustc 1.88+.
+FROM rust:1-slim-bookworm AS rust-builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy cargo manifests
