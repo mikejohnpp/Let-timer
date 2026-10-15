@@ -84,4 +84,5 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-          arguments: --all-features
+          # Note: cargo-deny 0.20 has no --all-features CLI flag;
+          # all-features = true lives in deny.toml [graph].

@@ -4,16 +4,16 @@
 targets = [
     { triple = "x86_64-unknown-linux-gnu" },
 ]
+all-features = true
 
 [advisories]
 db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
-unmaintained = "warn"
 yanked = "deny"
+unmaintained = "workspace"
+unsound = "all"
 ignore = []
 
 [licenses]
-unlicensed = "deny"
 allow = [
     "MIT",
     "Apache-2.0",
@@ -28,6 +28,9 @@ allow = [
     "GPL-3.0-or-later",
     "GPL-3.0",
     "OpenSSL",
+    # webpki-roots (CA certificate bundle pulled in by reqwest/rustls):
+    # OSI-approved permissive data license, no copyleft obligations.
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.8
 
