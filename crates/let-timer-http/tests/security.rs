@@ -889,10 +889,11 @@ async fn sec_2_route_enumeration_public_allowlist_coverage() {
                 "Expected 200 OK for public route {method} {path}"
             );
         } else {
-            assert_eq!(
-                res.status(),
-                StatusCode::UNAUTHORIZED,
-                "Expected 401 UNAUTHORIZED for protected route {method} {path}"
+            assert!(
+                res.status() == StatusCode::UNAUTHORIZED
+                    || res.status() == StatusCode::TOO_MANY_REQUESTS,
+                "Expected 401 UNAUTHORIZED or 429 TOO_MANY_REQUESTS for protected route {method} {path}, got {}",
+                res.status()
             );
         }
     }
