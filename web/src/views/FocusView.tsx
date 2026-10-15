@@ -167,18 +167,20 @@ export const FocusView: React.FC<FocusViewProps> = ({
     return () => window.removeEventListener('let-timer-settings-changed', handleSync);
   }, []);
 
-  // Crossfade between images every 90s if > 1 and auto-rotate is enabled
+  // Crossfade between images every 90s if > 1, auto-rotate is enabled, and an image is currently selected
   useEffect(() => {
-    if (images.length <= 1 || !autoRotateBg) return;
+    if (images.length <= 1 || !autoRotateBg || currentImageIndex === null) return;
     const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+      setCurrentImageIndex((prev) => (prev === null ? null : (prev + 1) % images.length));
     }, 90000);
     return () => clearInterval(interval);
-  }, [images.length, autoRotateBg]);
+  }, [images.length, autoRotateBg, currentImageIndex, setCurrentImageIndex]);
 
   const appWallpaper = typeof localStorage !== 'undefined' ? localStorage.getItem('let_timer_wallpaper') : null;
-  const hasImageBg = images.length > 0;
-  const effectiveBg = hasImageBg ? (images[currentImageIndex]?.url || null) : appWallpaper;
+  const hasImageBg = images.length > 0 && currentImageIndex !== null;
+  const effectiveBg = hasImageBg && currentImageIndex !== null
+    ? (images[currentImageIndex]?.url || null)
+    : (mediaListDetail && currentImageIndex === null ? null : appWallpaper);
   const hasAnyBg = Boolean(effectiveBg);
 
   const isIdle = !snapshot || snapshot.state === 'idle';

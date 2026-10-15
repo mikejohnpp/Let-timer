@@ -52,10 +52,10 @@ export const AppContent: React.FC = () => {
   const floatingTransition = useMotionTransition('base');
 
   const focusImages = mediaListDetail?.items.filter((i) => i.media_type === 'image' && i.url) || [];
-  const hasTaskFocusImages = isFocusView && focusImages.length > 0;
-  const taskFocusImageUrl = hasTaskFocusImages ? (focusImages[currentImageIndex]?.url || null) : null;
+  const hasTaskFocusImages = isFocusView && focusImages.length > 0 && currentImageIndex !== null;
+  const taskFocusImageUrl = hasTaskFocusImages && currentImageIndex !== null ? (focusImages[currentImageIndex]?.url || null) : null;
   const activeWallpaperUrl = isFocusView
-    ? (taskFocusImageUrl || wallpaperUrl || null)
+    ? (mediaListDetail && currentImageIndex === null ? null : (taskFocusImageUrl || wallpaperUrl || null))
     : (wallpaperUrl || null);
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export const AppContent: React.FC = () => {
       pause();
     }
 
-    if (prevTaskId !== currentTaskId || prevState === 'idle') {
+    if (currentState !== 'idle' && (prevTaskId !== currentTaskId || prevState === 'idle')) {
       if (currentMediaListId) {
         loadMediaListForTask(currentMediaListId);
       } else {

@@ -22,8 +22,8 @@ export interface AudioPlayerContextType {
   volume: number;
   isMuted: boolean;
   mediaListDetail: MediaListDetail | null;
-  currentImageIndex: number;
-  setCurrentImageIndex: React.Dispatch<React.SetStateAction<number>>;
+  currentImageIndex: number | null;
+  setCurrentImageIndex: React.Dispatch<React.SetStateAction<number | null>>;
   playTrack: (track: MediaItem, newPlaylist?: MediaItem[]) => void;
   togglePlay: () => void;
   pause: () => void;
@@ -46,7 +46,7 @@ const fallbackContext: AudioPlayerContextType = {
   volume: 0.8,
   isMuted: false,
   mediaListDetail: null,
-  currentImageIndex: 0,
+  currentImageIndex: null,
   setCurrentImageIndex: () => {},
   playTrack: () => {},
   togglePlay: () => {},
@@ -76,7 +76,7 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [volume, setVolumeState] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof localStorage !== 'undefined') {
       const saved = localStorage.getItem('let_timer_player_volume');
       if (saved) {
         const parsed = parseFloat(saved);
@@ -87,7 +87,7 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
   });
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [mediaListDetail, setMediaListDetail] = useState<MediaListDetail | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
+  const [currentImageIndex, setCurrentImageIndex] = useState<number | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const loadedListIdRef = useRef<number | null>(null);
@@ -194,7 +194,8 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
   }, []);
 
   const togglePlay = useCallback(() => {
-    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
     if (!currentTrack) {
       if (playlist.length > 0) {
@@ -204,25 +205,32 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
     }
 
     if (isPlaying) {
-      audioRef.current.pause();
+      audio.pause();
     } else {
-      audioRef.current.play().catch((err) => {
+      if (!audio.src || audio.src === '' || audio.src === window.location.href) {
+        audio.src = currentTrack.url;
+      }
+      audio.play().catch((err) => {
         console.warn('Playback error:', err);
       });
     }
   }, [currentTrack, isPlaying, playlist, playTrack]);
 
   const pause = useCallback(() => {
-    if (audioRef.current && isPlaying) {
+    if (audioRef.current) {
       audioRef.current.pause();
     }
-  }, [isPlaying]);
+  }, []);
 
   const resume = useCallback(() => {
-    if (audioRef.current && !isPlaying && currentTrack) {
-      audioRef.current.play().catch(() => {});
+    const audio = audioRef.current;
+    if (audio && currentTrack) {
+      if (!audio.src || audio.src === '' || audio.src === window.location.href) {
+        audio.src = currentTrack.url;
+      }
+      audio.play().catch(() => {});
     }
-  }, [isPlaying, currentTrack]);
+  }, [currentTrack]);
 
   const seek = useCallback((seconds: number) => {
     if (audioRef.current) {
@@ -255,7 +263,7 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
     if (clamped > 0 && isMuted) {
       setIsMuted(false);
     }
-    if (typeof window !== 'undefined') {
+    if (typeof localStorage !== 'undefined') {
       localStorage.setItem('let_timer_player_volume', String(clamped));
     }
   }, [isMuted]);
@@ -273,7 +281,7 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
     setPlaylist([]);
     setMediaListDetail(null);
     loadedListIdRef.current = null;
-    setCurrentImageIndex(0);
+    setCurrentImageIndex(null);
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
@@ -295,18 +303,20 @@ export const AudioPlayerProvider: React.FC<AudioPlayerProviderProps> = ({ childr
         loadedListIdRef.current = mediaListId;
 
         const musicTracks = data.items.filter((item) => item.media_type === 'music');
+        const imageItems = data.items.filter((item) => item.media_type === 'image' && item.url);
         setPlaylist(musicTracks);
-        setCurrentImageIndex(0);
+        setCurrentImageIndex(imageItems.length > 0 ? 0 : null);
 
-        // Pre-select first music track if none currently selected
+        // Pre-select first music track if none currently selected or if old track not in list
+        const firstTrack = musicTracks.length > 0 ? musicTracks[0] : null;
         setCurrentTrack((prev) => {
-          if (!prev && musicTracks.length > 0) {
-            if (audioRef.current) {
-              audioRef.current.src = musicTracks[0].url;
-            }
-            return musicTracks[0];
+          if (prev && musicTracks.some((t) => t.id === prev.id)) {
+            return prev;
           }
-          return prev;
+          if (audioRef.current && firstTrack) {
+            audioRef.current.src = firstTrack.url;
+          }
+          return firstTrack;
         });
       } else {
         clearPlayer();

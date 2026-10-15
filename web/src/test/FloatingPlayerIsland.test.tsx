@@ -146,4 +146,49 @@ describe('T4: FloatingPlayerIsland single Motion engine', () => {
     const playSvg = playBtn.querySelector('svg');
     expect(playSvg?.classList.contains('ml-0.5')).toBe(false);
   });
+
+  it('renders None option in Background tab and allows selecting None or image', async () => {
+    const mockSetCurrentImageIndex = vi.fn();
+    const contextWithImages: AudioPlayerContextType = {
+      ...mockAudioContext,
+      currentImageIndex: 0,
+      setCurrentImageIndex: mockSetCurrentImageIndex,
+      mediaListDetail: {
+        list: { id: 1, name: 'Deep Focus', created_at: '', updated_at: '' },
+        items: [
+          { id: 1, name: 'Ambient Rain', url: '/rain.mp3', media_type: 'music', created_at: '', updated_at: '' },
+          { id: 2, name: 'Ocean Mist', url: '/ocean.jpg', media_type: 'image', created_at: '', updated_at: '' },
+        ],
+      },
+    };
+
+    render(
+      <MotionProvider>
+        <AudioPlayerContext.Provider value={contextWithImages}>
+          <FloatingPlayerIsland />
+        </AudioPlayerContext.Provider>
+      </MotionProvider>
+    );
+
+    // Expand player
+    const expandButton = screen.getByRole('button', { name: 'Expand player' });
+    fireEvent.click(expandButton);
+
+    // Click Background tab
+    const bgTabBtn = await screen.findByRole('button', { name: /background/i });
+    fireEvent.click(bgTabBtn);
+
+    // Verify None button exists and is rendered
+    const noneBtn = screen.getByRole('button', { name: 'No background' });
+    expect(noneBtn).toBeInTheDocument();
+
+    // Click None
+    fireEvent.click(noneBtn);
+    expect(mockSetCurrentImageIndex).toHaveBeenCalledWith(null);
+
+    // Click Ocean Mist image
+    const imageBtn = screen.getByRole('button', { name: /ocean mist/i });
+    fireEvent.click(imageBtn);
+    expect(mockSetCurrentImageIndex).toHaveBeenCalledWith(0);
+  });
 });

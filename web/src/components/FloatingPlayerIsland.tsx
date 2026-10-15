@@ -12,6 +12,7 @@ import {
   BookOpen,
   ExternalLink,
   Image as ImageIcon,
+  ImageOff,
   ListMusic,
   Check,
 } from 'lucide-react';
@@ -79,12 +80,15 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
   const tracks = playlist.length > 0 ? playlist : mediaListDetail?.items.filter((i) => i.media_type === 'music') || [];
   const focusImages = mediaListDetail?.items.filter((i) => i.media_type === 'image' && i.url) || [];
 
-  // If active tab was background but current task has no images, fallback to music
+  // If active tab was background but current task has no images, fallback to music.
+  // If no music tracks exist but background images do, switch to background tab.
   useEffect(() => {
     if (focusImages.length === 0 && activeTab === 'background') {
       setActiveTab('music');
+    } else if (tracks.length === 0 && focusImages.length > 0 && activeTab === 'music') {
+      setActiveTab('background');
     }
-  }, [focusImages.length, activeTab]);
+  }, [focusImages.length, tracks.length, activeTab]);
 
   useEffect(() => {
     if (activeTrackRef.current && isExpanded && activeTab === 'music' && showQueue) {
@@ -498,17 +502,39 @@ export const FloatingPlayerIsland: React.FC<FloatingPlayerIslandProps> = ({
             </div>
           )}
 
-          {/* Tab 2: Task Focus Background Selector */}
+          {/* Tab 2: Focus Background Selector */}
           {activeTab === 'background' && focusImages.length > 0 && (
             <div className="flex flex-col gap-2.5 py-1 px-1">
               <div className="flex items-center justify-between text-xs text-[var(--muted)] px-1">
-                <span>Task focus background</span>
+                <span>Focus background</span>
                 <span className="text-xs tabular-nums">
-                  {currentImageIndex + 1}/{focusImages.length}
+                  {currentImageIndex === null
+                    ? `None (${focusImages.length} available)`
+                    : `${currentImageIndex + 1}/${focusImages.length}`}
                 </span>
               </div>
 
               <div className="grid grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-0.5">
+                {/* None option: clears focus background photo */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentImageIndex(null)}
+                  className={`group relative aspect-video rounded-lg overflow-hidden border transition-all cursor-pointer text-left focus:outline-none flex flex-col items-center justify-center gap-1.5 p-2 ${
+                    currentImageIndex === null
+                      ? 'border-[var(--accent)] ring-2 ring-[var(--accent)] shadow-md bg-[var(--accent)]/10 text-[var(--accent-text)]'
+                      : 'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--text)]/40 hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--text)]'
+                  }`}
+                  aria-label="No background"
+                >
+                  <ImageOff className="w-5 h-5 shrink-0" />
+                  <span className="text-xs font-medium">None</span>
+                  {currentImageIndex === null && (
+                    <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[var(--accent)] text-[var(--on-accent)] flex items-center justify-center shadow-md">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    </div>
+                  )}
+                </button>
+
                 {focusImages.map((img, idx) => {
                   const isSelected = currentImageIndex === idx;
                   return (
