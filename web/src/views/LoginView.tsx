@@ -35,6 +35,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoggedIn }) => {
       if (res.ok) {
         setStoredToken(token);
         onLoggedIn();
+      } else if (res.status === 429) {
+        const retryAfter = res.headers.get('retry-after');
+        const secs = retryAfter ? Number.parseInt(retryAfter, 10) : 60;
+        setError(
+          Number.isFinite(secs)
+            ? `Too many login attempts. Please try again in ${secs} seconds.`
+            : 'Too many login attempts. Please try again shortly.',
+        );
       } else {
         const err = await res.json().catch(() => ({}));
         setError(err.message || 'Invalid or revoked API token. Please check and try again.');

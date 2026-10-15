@@ -148,11 +148,12 @@ Media upload and serving are hardened to prevent denial of service (RAM exhausti
   - Client IP is resolved from `ConnectInfo<SocketAddr>`, or from reverse-proxy headers (`X-Forwarded-For` / `X-Real-IP`) when explicitly enabled via `LET_TIMER_TRUSTED_PROXY=1`.
 - **Sliding Window Policy**:
   - Max failed attempts: 10 failed authentications within a 60-second window.
-  - When the limit is exceeded, subsequent authentication attempts from that IP are immediately rejected with `429 Too Many Requests`.
+  - When the limit is exceeded, subsequent *failed* attempts from that IP are immediately rejected with `429 Too Many Requests`.
   - Response headers include `Retry-After: <seconds>` indicating remaining cooldown.
   - Response body returns a standardized error envelope:
     `{ "error": { "code": "rate_limited", "message": "Too many failed authentication attempts. Please retry after 60 seconds." } }`.
-  - Successful authentications do not clear existing failure counts (preventing bypass via interspersed valid tokens).
+  - **Validate-first order (login-lockout fix)**: the token is validated *before* the limiter is consulted. A request with a valid token always passes and clears that IP's failure counter, so a legitimate login can never be locked out by background failures (e.g. an unauthenticated tab polling `/events`). Only failed attempts consult and feed the limiter, which keeps brute-force protection intact.
+  - Known trade-off: every request performs one token validation (SHA-256 + indexed lookup) before the limiter decision, so a locked-out IP still costs one cheap DB read per request instead of being rejected upfront. Acceptable for a single-user server; see `docs/security_hardening_plan.md` (open refinement: check-then-validate).
 - **Resource Protection & Bounded Memory**:
   - Up to 10,000 distinct IPs are tracked concurrently.
   - When capacity is reached, expired failure records are swept and evicted before inserting new tracking entries.

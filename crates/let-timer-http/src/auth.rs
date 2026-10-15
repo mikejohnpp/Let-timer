@@ -60,6 +60,13 @@ impl AuthRateLimiter {
         Ok(())
     }
 
+    /// Forget all recorded failures for an IP (called after a successful
+    /// authentication so a legitimate login is never locked out).
+    pub fn clear(&self, ip: &str) {
+        let mut map = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        map.remove(ip);
+    }
+
     /// Record a failed authentication attempt for a given IP.
     pub fn record_failure(&self, ip: &str, now: Instant) {
         let mut map = self.state.lock().unwrap_or_else(|e| e.into_inner());
@@ -159,35 +166,9 @@ where
                 .map(|c| c.0.clone())
                 .unwrap_or_else(|| crate::router::extract_client_ip(&req));
 
-            // 2. Check failed-authentication rate limiter (SEC-8)
-            let now = Instant::now();
-            if let Err(retry_after) = limiter.check(&client_ip, now) {
-                tracing::warn!(
-                    target: "audit",
-                    ip = %client_ip,
-                    path = %path,
-                    retry_after = %retry_after,
-                    "Authentication rate limited"
-                );
-                return Ok((
-                    StatusCode::TOO_MANY_REQUESTS,
-                    [
-                        (
-                            axum::http::HeaderName::from_static("retry-after"),
-                            axum::http::HeaderValue::from(retry_after),
-                        ),
-                    ],
-                    Json(json!({
-                        "error": {
-                            "code": "rate_limited",
-                            "message": "Too many failed authentication attempts. Please retry after 60 seconds."
-                        }
-                    })),
-                )
-                    .into_response());
-            }
-
-            // 3. Extract token from Authorization or X-Let-Timer-Token
+            // 2. Extract token and validate FIRST so a legitimate login is
+            // never locked out by the rate limiter below (a valid token
+            // always passes and clears the IP's failure counter).
             let token_opt = extract_token(&req);
 
             // Perform DB checks synchronously in a block so no MutexGuard lives across await
@@ -224,8 +205,36 @@ where
             };
 
             match check_result {
-                AuthCheckResult::Authorized => inner.call(req).await,
+                AuthCheckResult::Authorized => {
+                    limiter.clear(&client_ip);
+                    inner.call(req).await
+                }
                 AuthCheckResult::Unauthorized(status, msg) => {
+                    // 3. Only failed attempts consult the rate limiter (SEC-8).
+                    let now = Instant::now();
+                    if let Err(retry_after) = limiter.check(&client_ip, now) {
+                        tracing::warn!(
+                            target: "audit",
+                            ip = %client_ip,
+                            path = %path,
+                            retry_after = %retry_after,
+                            "Authentication rate limited"
+                        );
+                        return Ok((
+                            StatusCode::TOO_MANY_REQUESTS,
+                            [(
+                                axum::http::HeaderName::from_static("retry-after"),
+                                axum::http::HeaderValue::from(retry_after),
+                            )],
+                            Json(json!({
+                                "error": {
+                                    "code": "rate_limited",
+                                    "message": "Too many failed authentication attempts. Please retry after 60 seconds."
+                                }
+                            })),
+                        )
+                            .into_response());
+                    }
                     limiter.record_failure(&client_ip, Instant::now());
 
                     tracing::warn!(

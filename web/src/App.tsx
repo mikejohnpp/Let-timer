@@ -35,7 +35,9 @@ export const AppContent: React.FC = () => {
   const [isStartPickerOpen, setIsStartPickerOpen] = useState(false);
   const { wallpaperUrl } = useWallpaper();
 
-  const { connectionStatus, snapshot, receivedAt, refetchSnapshot } = useEventStream();
+  // Only poll the event stream and snapshots once authenticated: pre-login
+  // polling without a token fills the server's failed-auth rate limiter.
+  const { connectionStatus, snapshot, receivedAt, refetchSnapshot } = useEventStream(authStatus === 'ok');
   const {
     currentTrack,
     pause,

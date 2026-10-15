@@ -4,6 +4,7 @@
 > Read first: `AGENTS.md`, `docs/server_web_spec.md` §5.5 (security baseline), `docs/deploy.md`.
 > Status of the findings: they come from **static reading** of the Rust code (the reviewer could not build or run the server). **Every task starts by reproducing the finding with a failing test.** If a finding does not reproduce, record the evidence in the PR and close that item; do not "fix" what is not broken.
 > Revision 2: folds in the agent review (see section 3a): V2 mechanism reworded, SEC-1.2 struck (already implemented), V4 narrowed to the vectors that can actually work.
+> Revision 3 (login-lockout fix): SEC-8 reordered to validate-first — a valid token always passes and clears the IP counter, so background failures (e.g. an unauthenticated web tab polling `/events`) can no longer lock out a legitimate login. Regression test `sec_8b_valid_token_bypasses_lockout_on_same_ip`. Web: event stream polls only when authenticated; login shows the 429 retry message. Open refinement (not implemented): check-then-validate — keep `limiter.check()` first but still validate on 429 so locked-out IPs cost no DB read while valid logins always pass.
 > Out of scope: TLS termination (Caddy), multi-user accounts, OAuth/OIDC, bundle size.
 
 ---
@@ -225,7 +226,8 @@ Use it for `LET_TIMER_WEB_DIR` and media serving, and in `LocalStorageBackend::d
 
 **Files**: `auth.rs`, `router.rs`.
 **Do**: in-memory limiter keyed by peer IP (use `ConnectInfo`; behind Caddy use the proxy-provided address only when `LET_TIMER_TRUSTED_PROXY` is set): 10 failed authentications per minute ⇒ `429` with `Retry-After`; successful requests are not limited; periodic cleanup of old entries. Use `subtle::ConstantTimeEq` wherever a secret is compared in Rust (signatures; token hashes are looked up in SQL).
-**Tests**: 11th failure in a minute ⇒ 429; a good token is not blocked by another client's failures; limiter state is bounded.
+**Order (Revision 3)**: validate the token *before* consulting the limiter. A valid token always passes and clears the IP's failure counter (`AuthRateLimiter::clear`); only failed attempts consult and feed the limiter. This fixed the real-world login lockout where unauthenticated background polling filled the counter for 127.0.0.1.
+**Tests**: 11th failure in a minute ⇒ 429; a good token is not blocked by another client's failures; a good token from the *same* locked-out IP succeeds and clears the counter (`sec_8b`); limiter state is bounded.
 
 ---
 

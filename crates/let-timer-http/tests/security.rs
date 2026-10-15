@@ -1932,3 +1932,104 @@ async fn sec_8_failed_auth_rate_limiter() {
         std::env::remove_var("LET_TIMER_TRUSTED_PROXY");
     }
 }
+
+#[tokio::test]
+async fn sec_8b_valid_token_bypasses_lockout_on_same_ip() {
+    // Regression test for the login lockout: unauthenticated background
+    // polling once filled the limiter for 127.0.0.1 and a subsequent Sign-in
+    // with a VALID token still received 429. A valid token must always pass
+    // and clear the IP's failure counter.
+    let _env_guard = ENV_MUTEX.lock().await;
+    unsafe {
+        std::env::set_var("LET_TIMER_TRUSTED_PROXY", "1");
+    }
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    let valid_token = {
+        let db_lock = db.lock().unwrap();
+        let repo = let_timer_core::TokenRepository::new(db_lock.conn());
+        repo.create("sec8b_test_token").unwrap().token
+    };
+
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+    let app = build_router(state);
+
+    let ip = "192.168.7.7";
+
+    // 1. Ten failed attempts (mix of missing and wrong tokens, like
+    // pre-login background polling plus guessing).
+    for i in 1..=10 {
+        let mut builder = Request::builder()
+            .method("GET")
+            .uri("/api/v1/tasks")
+            .header("host", "127.0.0.1:8080")
+            .header("x-forwarded-for", ip);
+        builder = if i % 2 == 0 {
+            builder.header("authorization", format!("Bearer wrong_token_{i}"))
+        } else {
+            builder
+        };
+        let res = app
+            .clone()
+            .oneshot(builder.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    // 2. IP is now locked: an 11th bad attempt is 429.
+    let req_bad = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("x-forwarded-for", ip)
+        .header("authorization", "Bearer still_wrong")
+        .body(Body::empty())
+        .unwrap();
+    let res_bad = app.clone().oneshot(req_bad).await.unwrap();
+    assert_eq!(res_bad.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    // 3. The VALID token from the SAME locked IP must still succeed.
+    let req_good = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("x-forwarded-for", ip)
+        .header("authorization", format!("Bearer {valid_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let res_good = app.clone().oneshot(req_good).await.unwrap();
+    assert_eq!(
+        res_good.status(),
+        StatusCode::OK,
+        "Valid token must bypass the rate limiter"
+    );
+
+    // 4. The success cleared the counter: the next bad attempt is 401, not 429.
+    let req_after = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("x-forwarded-for", ip)
+        .header("authorization", "Bearer wrong_after_success")
+        .body(Body::empty())
+        .unwrap();
+    let res_after = app.clone().oneshot(req_after).await.unwrap();
+    assert_eq!(
+        res_after.status(),
+        StatusCode::UNAUTHORIZED,
+        "Counter should have been cleared by the successful login"
+    );
+
+    unsafe {
+        std::env::remove_var("LET_TIMER_TRUSTED_PROXY");
+    }
+}

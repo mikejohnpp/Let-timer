@@ -61,7 +61,7 @@ export class SseParser {
   }
 }
 
-export function useEventStream(): UseEventStreamResult {
+export function useEventStream(enabled = true): UseEventStreamResult {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
   const [snapshot, setSnapshot] = useState<TimerSnapshot | null>(null);
   const [receivedAt, setReceivedAt] = useState<number>(Date.now());
@@ -123,6 +123,10 @@ export function useEventStream(): UseEventStreamResult {
   }, [fetchCurrentSnapshot]);
 
   useEffect(() => {
+    if (!enabled) {
+      setConnectionStatus('disconnected');
+      return;
+    }
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
     let isMounted = true;
 
@@ -192,7 +196,7 @@ export function useEventStream(): UseEventStreamResult {
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchCurrentSnapshot, handleSseMessage]);
+  }, [enabled, fetchCurrentSnapshot, handleSseMessage]);
 
   return {
     connectionStatus,
