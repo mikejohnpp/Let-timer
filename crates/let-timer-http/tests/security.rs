@@ -1827,3 +1827,107 @@ async fn sec_7_5_daemon_status_reports_security_posture() {
         std::env::remove_var("LET_TIMER_ENABLE_DOCS");
     }
 }
+
+#[tokio::test]
+async fn sec_8_failed_auth_rate_limiter() {
+    let _env_guard = ENV_MUTEX.lock().await;
+    unsafe {
+        std::env::set_var("LET_TIMER_TRUSTED_PROXY", "1");
+    }
+
+    let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+    // Seed an active token so auth is strictly enforced
+    let valid_token = {
+        let db_lock = db.lock().unwrap();
+        let repo = let_timer_core::TokenRepository::new(db_lock.conn());
+        repo.create("sec8_test_token").unwrap().token
+    };
+
+    let state = Arc::new(AppState {
+        db: Arc::clone(&db),
+        is_loopback: true,
+        command_handler: Arc::new(|cmd, conn, ctx, notify, events| {
+            let_timer_daemon::handle_command(cmd, conn, ctx, notify, events)
+        }),
+        timer_notify: None,
+        events: None,
+    });
+    let app = build_router(state);
+
+    let ip_attacker = "192.168.1.50";
+    let ip_legitimate = "192.168.1.51";
+
+    // 1. Issue 10 failed authentication attempts from attacker IP
+    for i in 1..=10 {
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/v1/tasks")
+            .header("host", "127.0.0.1:8080")
+            .header("x-forwarded-for", ip_attacker)
+            .header("authorization", format!("Bearer wrong_token_{i}"))
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(
+            res.status(),
+            StatusCode::UNAUTHORIZED,
+            "Attempt {i} from attacker should be 401 UNAUTHORIZED"
+        );
+    }
+
+    // 2. 11th attempt from attacker IP must be rejected with 429 Too Many Requests
+    let req_11th = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("x-forwarded-for", ip_attacker)
+        .header("authorization", "Bearer another_bad_token")
+        .body(Body::empty())
+        .unwrap();
+    let res_11th = app.clone().oneshot(req_11th).await.unwrap();
+    assert_eq!(res_11th.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    // Verify Retry-After header is present
+    let retry_after = res_11th.headers().get("retry-after");
+    assert!(retry_after.is_some(), "Expected Retry-After header");
+
+    let body_bytes = res_11th.into_body().collect().await.unwrap().to_bytes();
+    let body_json: Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert_eq!(body_json["error"]["code"], "rate_limited");
+
+    // 3. Request from legitimate IP with valid token must succeed with 200 OK
+    let req_legit = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("x-forwarded-for", ip_legitimate)
+        .header("authorization", format!("Bearer {valid_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let res_legit = app.clone().oneshot(req_legit).await.unwrap();
+    assert_eq!(
+        res_legit.status(),
+        StatusCode::OK,
+        "Legitimate IP should not be affected by attacker IP's rate limit"
+    );
+
+    // 4. Request from legitimate IP with invalid token returns 401 UNAUTHORIZED (not 429)
+    let req_legit_bad = Request::builder()
+        .method("GET")
+        .uri("/api/v1/tasks")
+        .header("host", "127.0.0.1:8080")
+        .header("x-forwarded-for", ip_legitimate)
+        .header("authorization", "Bearer wrong_token_from_legit_ip")
+        .body(Body::empty())
+        .unwrap();
+    let res_legit_bad = app.clone().oneshot(req_legit_bad).await.unwrap();
+    assert_eq!(
+        res_legit_bad.status(),
+        StatusCode::UNAUTHORIZED,
+        "Legitimate IP has not exceeded rate limit and should receive 401"
+    );
+
+    unsafe {
+        std::env::remove_var("LET_TIMER_TRUSTED_PROXY");
+    }
+}

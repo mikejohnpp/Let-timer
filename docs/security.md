@@ -139,6 +139,24 @@ Media upload and serving are hardened to prevent denial of service (RAM exhausti
     - Configured CORS origins.
     - API documentation state (enabled / disabled).
 
+---
+
+## 11. Failed-Authentication Rate Limiting
+
+- **In-Memory Rate Limiter**:
+  - `AuthRateLimiter` tracks failed authentication attempts in memory keyed by client IP.
+  - Client IP is resolved from `ConnectInfo<SocketAddr>`, or from reverse-proxy headers (`X-Forwarded-For` / `X-Real-IP`) when explicitly enabled via `LET_TIMER_TRUSTED_PROXY=1`.
+- **Sliding Window Policy**:
+  - Max failed attempts: 10 failed authentications within a 60-second window.
+  - When the limit is exceeded, subsequent authentication attempts from that IP are immediately rejected with `429 Too Many Requests`.
+  - Response headers include `Retry-After: <seconds>` indicating remaining cooldown.
+  - Response body returns a standardized error envelope:
+    `{ "error": { "code": "rate_limited", "message": "Too many failed authentication attempts. Please retry after 60 seconds." } }`.
+  - Successful authentications do not clear existing failure counts (preventing bypass via interspersed valid tokens).
+- **Resource Protection & Bounded Memory**:
+  - Up to 10,000 distinct IPs are tracked concurrently.
+  - When capacity is reached, expired failure records are swept and evicted before inserting new tracking entries.
+
 
 
 

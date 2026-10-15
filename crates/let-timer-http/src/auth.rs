@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 
 use axum::Json;
 use axum::extract::Request;
@@ -12,15 +14,95 @@ use tower::{Layer, Service};
 
 use crate::router::AppState;
 
-/// Tower Layer for API authentication.
+/// In-memory tracker for failed authentications keyed by peer IP (SEC-8).
+#[derive(Debug, Clone)]
+pub struct AuthRateLimiter {
+    state: Arc<Mutex<HashMap<String, Vec<Instant>>>>,
+    max_attempts: usize,
+    window: Duration,
+    max_tracked_ips: usize,
+}
+
+impl Default for AuthRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AuthRateLimiter {
+    pub fn new() -> Self {
+        Self {
+            state: Arc::new(Mutex::new(HashMap::new())),
+            max_attempts: 10,
+            window: Duration::from_secs(60),
+            max_tracked_ips: 10_000,
+        }
+    }
+
+    /// Check if the client IP has exceeded the allowed failed authentication rate.
+    /// Returns Ok(()) if allowed, or Err(retry_after_secs) if rate limited.
+    pub fn check(&self, ip: &str, now: Instant) -> Result<(), u64> {
+        let mut map = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(timestamps) = map.get_mut(ip) {
+            let window = self.window;
+            timestamps.retain(|&t| now.duration_since(t) < window);
+            if timestamps.len() >= self.max_attempts {
+                let oldest = timestamps[0];
+                let elapsed = now.duration_since(oldest);
+                let retry_after = if elapsed < window {
+                    (window - elapsed).as_secs().max(1)
+                } else {
+                    1
+                };
+                return Err(retry_after);
+            }
+        }
+        Ok(())
+    }
+
+    /// Record a failed authentication attempt for a given IP.
+    pub fn record_failure(&self, ip: &str, now: Instant) {
+        let mut map = self.state.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Bounded memory protection: if at capacity, sweep expired entries
+        if map.len() >= self.max_tracked_ips && !map.contains_key(ip) {
+            let window = self.window;
+            map.retain(|_, timestamps| {
+                timestamps.retain(|&t| now.duration_since(t) < window);
+                !timestamps.is_empty()
+            });
+            // If still full after sweep, evict an arbitrary entry
+            if map.len() >= self.max_tracked_ips
+                && let Some(first_key) = map.keys().next().cloned()
+            {
+                map.remove(&first_key);
+            }
+        }
+
+        let timestamps = map.entry(ip.to_string()).or_default();
+        let window = self.window;
+        timestamps.retain(|&t| now.duration_since(t) < window);
+        timestamps.push(now);
+    }
+}
+
+/// Tower Layer for API authentication and rate limiting.
 #[derive(Clone)]
 pub struct AuthLayer {
     pub state: Arc<AppState>,
+    pub limiter: Arc<AuthRateLimiter>,
 }
 
 impl AuthLayer {
     pub fn new(state: Arc<AppState>) -> Self {
-        Self { state }
+        Self {
+            state,
+            limiter: Arc::new(AuthRateLimiter::new()),
+        }
+    }
+
+    pub fn with_limiter(state: Arc<AppState>, limiter: Arc<AuthRateLimiter>) -> Self {
+        Self { state, limiter }
     }
 }
 
@@ -31,15 +113,17 @@ impl<S> Layer<S> for AuthLayer {
         AuthService {
             inner,
             state: Arc::clone(&self.state),
+            limiter: Arc::clone(&self.limiter),
         }
     }
 }
 
-/// Tower Service for API authentication.
+/// Tower Service for API authentication and rate limiting.
 #[derive(Clone)]
 pub struct AuthService<S> {
     inner: S,
     state: Arc<AppState>,
+    limiter: Arc<AuthRateLimiter>,
 }
 
 impl<S, ReqBody> Service<Request<ReqBody>> for AuthService<S>
@@ -59,16 +143,51 @@ where
     fn call(&mut self, req: Request<ReqBody>) -> Self::Future {
         let mut inner = self.inner.clone();
         let state = Arc::clone(&self.state);
+        let limiter = Arc::clone(&self.limiter);
 
         Box::pin(async move {
-            let path = req.uri().path();
+            let path = req.uri().path().to_string();
 
             // 1. Unauthenticated endpoints (only explicit public allow-list)
-            if crate::router::PUBLIC_ROUTES.contains(&path) {
+            if crate::router::PUBLIC_ROUTES.contains(&path.as_str()) {
                 return inner.call(req).await;
             }
 
-            // 2. Extract token from Authorization or X-Let-Timer-Token
+            let client_ip = req
+                .extensions()
+                .get::<crate::router::ClientIp>()
+                .map(|c| c.0.clone())
+                .unwrap_or_else(|| crate::router::extract_client_ip(&req));
+
+            // 2. Check failed-authentication rate limiter (SEC-8)
+            let now = Instant::now();
+            if let Err(retry_after) = limiter.check(&client_ip, now) {
+                tracing::warn!(
+                    target: "audit",
+                    ip = %client_ip,
+                    path = %path,
+                    retry_after = %retry_after,
+                    "Authentication rate limited"
+                );
+                return Ok((
+                    StatusCode::TOO_MANY_REQUESTS,
+                    [
+                        (
+                            axum::http::HeaderName::from_static("retry-after"),
+                            axum::http::HeaderValue::from(retry_after),
+                        ),
+                    ],
+                    Json(json!({
+                        "error": {
+                            "code": "rate_limited",
+                            "message": "Too many failed authentication attempts. Please retry after 60 seconds."
+                        }
+                    })),
+                )
+                    .into_response());
+            }
+
+            // 3. Extract token from Authorization or X-Let-Timer-Token
             let token_opt = extract_token(&req);
 
             // Perform DB checks synchronously in a block so no MutexGuard lives across await
@@ -107,12 +226,8 @@ where
             match check_result {
                 AuthCheckResult::Authorized => inner.call(req).await,
                 AuthCheckResult::Unauthorized(status, msg) => {
-                    let client_ip = req
-                        .extensions()
-                        .get::<crate::router::ClientIp>()
-                        .map(|c| c.0.clone())
-                        .unwrap_or_else(|| crate::router::extract_client_ip(&req));
-                    let path = req.uri().path().to_string();
+                    limiter.record_failure(&client_ip, Instant::now());
+
                     tracing::warn!(
                         target: "audit",
                         path = %path,
@@ -132,12 +247,6 @@ where
                         .into_response())
                 }
                 AuthCheckResult::DatabaseError(msg) => {
-                    let client_ip = req
-                        .extensions()
-                        .get::<crate::router::ClientIp>()
-                        .map(|c| c.0.clone())
-                        .unwrap_or_else(|| crate::router::extract_client_ip(&req));
-                    let path = req.uri().path().to_string();
                     tracing::error!(
                         target: "audit",
                         path = %path,
