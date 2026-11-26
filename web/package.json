@@ -38,7 +38,7 @@
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.0.9",
-    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/jest-dom": "^8.0.0",
     "@testing-library/react": "^16.2.0",
     "@types/node": "^22.13.9",
     "@types/react": "^19.0.10",
