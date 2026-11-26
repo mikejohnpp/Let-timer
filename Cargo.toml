@@ -40,7 +40,7 @@ tower-http = { version = "0.7", features = ["cors", "trace", "fs"] }
 utoipa = { version = "6.0", features = ["axum_extras", "chrono"] }
 utoipa-swagger-ui = { version = "10.0", features = ["axum"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "multipart"] }
-toml = "0.8"
+toml = "1.2"
 rust-embed = "8.5"
 mime_guess = "2.0"
 let-timer-core = { path = "crates/let-timer-core" }
