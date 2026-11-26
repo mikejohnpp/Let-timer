@@ -1,0 +1,772 @@
+use chrono::NaiveDate;
+use rusqlite::{Connection, params};
+
+use crate::SortOrder;
+
+use super::error::DbError;
+use super::models::{NewTask, Priority, Task, TaskStatus, UpdateTask};
+
+/// Provides CRUD and status-transition operations on the `tasks` table.
+pub struct TaskRepository<'a> {
+    conn: &'a Connection,
+}
+
+impl<'a> TaskRepository<'a> {
+    pub fn new(conn: &'a Connection) -> Self {
+        Self { conn }
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────
+
+    /// Map a `rusqlite::Row` into a `Task`.
+    fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
+        let priority_raw: i64 = row.get("priority")?;
+        let status_raw: String = row.get("status")?;
+
+        Ok(Task {
+            id: row.get("id")?,
+            workspace_id: row.get::<_, i64>("workspace_id")?,
+            media_list_id: row.get::<_, Option<i64>>("media_list_id")?,
+            name: row.get("name")?,
+            description: row.get("description")?,
+            priority: Priority::from_i64(priority_raw).unwrap_or(Priority::NotYet),
+            status: status_raw.parse().unwrap_or(TaskStatus::Pending),
+            estimated_mins: row.get("estimated_mins")?,
+            scheduled_on: row.get::<_, Option<NaiveDate>>("scheduled_on")?,
+            run_no: row.get("run_no")?,
+            notified_at: row.get("notified_at")?,
+            created_at: row.get("created_at")?,
+            updated_at: row.get("updated_at")?,
+        })
+    }
+
+    fn query_by_id(&self, id: i64) -> Result<Task, DbError> {
+        self.conn
+            .query_row(
+                "SELECT * FROM tasks WHERE id = ?1",
+                params![id],
+                Self::row_to_task,
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => DbError::NotFound { entity: "task", id },
+                other => DbError::Sqlite(other),
+            })
+    }
+
+    /// Touch `updated_at` to the current time for a given task.
+    fn touch_updated_at(&self, id: i64) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE tasks SET updated_at = datetime('now') WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
+    // ─── CRUD ────────────────────────────────────────────────────────
+
+    /// Insert a new task and return the created `Task`.
+    pub fn create(&self, new_task: &NewTask) -> Result<Task, DbError> {
+        let ws_exists: i64 = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM workspaces WHERE id = ?1)",
+            params![new_task.workspace_id],
+            |row| row.get(0),
+        )?;
+        if ws_exists == 0 {
+            return Err(DbError::NotFound {
+                entity: "workspace",
+                id: new_task.workspace_id,
+            });
+        }
+
+        if let Some(media_list_id) = new_task.media_list_id {
+            let ml_exists: i64 = self.conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM media_list WHERE id = ?1)",
+                params![media_list_id],
+                |row| row.get(0),
+            )?;
+            if ml_exists == 0 {
+                return Err(DbError::NotFound {
+                    entity: "media_list",
+                    id: media_list_id,
+                });
+            }
+        }
+
+        if let Some(mins) = new_task.estimated_mins
+            && mins <= 0
+        {
+            return Err(DbError::InvalidEstimate(mins));
+        }
+
+        self.conn.execute(
+            "INSERT INTO tasks (workspace_id, media_list_id, name, description, priority, estimated_mins, scheduled_on)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                new_task.workspace_id,
+                new_task.media_list_id,
+                new_task.name,
+                new_task.description,
+                new_task.priority as i64,
+                new_task.estimated_mins,
+                new_task.scheduled_on,
+            ],
+        )?;
+        let id = self.conn.last_insert_rowid();
+        self.query_by_id(id)
+    }
+
+    /// Retrieve a single task by its ID.
+    pub fn get_by_id(&self, id: i64) -> Result<Task, DbError> {
+        self.query_by_id(id)
+    }
+
+    /// Update specific fields of a task. Only `Some` fields are changed.
+    pub fn update(&self, id: i64, update: &UpdateTask) -> Result<Task, DbError> {
+        self.query_by_id(id)?;
+
+        if let Some(ref name) = update.name {
+            self.conn.execute(
+                "UPDATE tasks SET name = ?1 WHERE id = ?2",
+                params![name, id],
+            )?;
+        }
+
+        if let Some(ref desc_opt) = update.description {
+            self.conn.execute(
+                "UPDATE tasks SET description = ?1 WHERE id = ?2",
+                params![desc_opt.as_deref(), id],
+            )?;
+        }
+
+        if let Some(ref ml_opt) = update.media_list_id {
+            if let Some(media_list_id) = *ml_opt {
+                let ml_exists: i64 = self.conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM media_list WHERE id = ?1)",
+                    params![media_list_id],
+                    |row| row.get(0),
+                )?;
+                if ml_exists == 0 {
+                    return Err(DbError::NotFound {
+                        entity: "media_list",
+                        id: media_list_id,
+                    });
+                }
+            }
+            self.conn.execute(
+                "UPDATE tasks SET media_list_id = ?1 WHERE id = ?2",
+                params![*ml_opt, id],
+            )?;
+        }
+
+        if let Some(priority) = update.priority {
+            self.conn.execute(
+                "UPDATE tasks SET priority = ?1 WHERE id = ?2",
+                params![priority as i64, id],
+            )?;
+        }
+
+        if let Some(status) = update.status {
+            self.conn.execute(
+                "UPDATE tasks SET status = ?1 WHERE id = ?2",
+                params![status.as_str(), id],
+            )?;
+        }
+
+        if let Some(ref est_opt) = update.estimated_mins {
+            if let Some(mins) = *est_opt
+                && mins <= 0
+            {
+                return Err(DbError::InvalidEstimate(mins));
+            }
+            self.conn.execute(
+                "UPDATE tasks SET estimated_mins = ?1 WHERE id = ?2",
+                params![*est_opt, id],
+            )?;
+        }
+
+        if let Some(scheduled_opt) = update.scheduled_on {
+            self.conn.execute(
+                "UPDATE tasks SET scheduled_on = ?1 WHERE id = ?2",
+                params![scheduled_opt, id],
+            )?;
+        }
+
+        self.touch_updated_at(id)?;
+        self.query_by_id(id)
+    }
+
+    /// Delete a task by ID. Returns `DbError::NotFound` if it doesn't exist.
+    pub fn delete(&self, id: i64) -> Result<(), DbError> {
+        let rows = self
+            .conn
+            .execute("DELETE FROM tasks WHERE id = ?1", params![id])?;
+        if rows == 0 {
+            return Err(DbError::NotFound { entity: "task", id });
+        }
+        Ok(())
+    }
+
+    // ─── Query ───────────────────────────────────────────────────────
+
+    /// Query tasks with combined filters and configurable ordering.
+    #[allow(clippy::too_many_arguments)]
+    pub fn query(
+        &self,
+        workspace_id: Option<i64>,
+        status: Option<TaskStatus>,
+        priority: Option<Priority>,
+        scheduled_on: Option<NaiveDate>,
+        search_query: Option<&str>,
+        sort_priority: Option<SortOrder>,
+        overdue: Option<bool>,
+    ) -> Result<Vec<Task>, DbError> {
+        let mut sql = String::from("SELECT * FROM tasks WHERE 1=1");
+        let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+        if let Some(ws_id) = workspace_id {
+            sql.push_str(" AND workspace_id = ?");
+            values.push(Box::new(ws_id));
+        }
+
+        if let Some(st) = status {
+            sql.push_str(" AND status = ?");
+            values.push(Box::new(st.as_str().to_string()));
+        }
+
+        if let Some(pr) = priority {
+            sql.push_str(" AND priority = ?");
+            values.push(Box::new(pr.to_i64()));
+        }
+
+        if overdue == Some(true) {
+            if let Some(date) = scheduled_on {
+                sql.push_str(" AND scheduled_on IS NOT NULL AND scheduled_on < ? AND status NOT IN ('completed', 'cancelled')");
+                values.push(Box::new(date.to_string()));
+            }
+        } else if let Some(date) = scheduled_on {
+            sql.push_str(" AND scheduled_on = ?");
+            values.push(Box::new(date.to_string()));
+        }
+
+        if let Some(q) = search_query {
+            sql.push_str(" AND name LIKE ?");
+            values.push(Box::new(format!("%{q}%")));
+        }
+
+        match sort_priority {
+            Some(SortOrder::Ascending) => {
+                sql.push_str(" ORDER BY priority ASC, created_at DESC");
+            }
+            Some(SortOrder::Descending) => {
+                sql.push_str(" ORDER BY priority DESC, created_at DESC");
+            }
+            None => {
+                sql.push_str(
+                    " ORDER BY scheduled_on IS NULL, scheduled_on ASC, priority DESC, created_at DESC",
+                );
+            }
+        }
+
+        let mut stmt = self.conn.prepare(&sql)?;
+        let params_slice: Vec<&dyn rusqlite::types::ToSql> =
+            values.iter().map(|b| b.as_ref()).collect();
+        let tasks = stmt
+            .query_map(params_slice.as_slice(), Self::row_to_task)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(tasks)
+    }
+
+    /// List all tasks ordered by scheduled day (unscheduled last), then by
+    /// descending priority.
+    pub fn list_all(&self) -> Result<Vec<Task>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM tasks
+             ORDER BY scheduled_on IS NULL, scheduled_on, priority DESC, created_at DESC",
+        )?;
+        let tasks = stmt
+            .query_map([], Self::row_to_task)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(tasks)
+    }
+
+    /// List tasks belonging to a workspace.
+    pub fn list_by_workspace(&self, workspace_id: i64) -> Result<Vec<Task>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM tasks WHERE workspace_id = ?1 ORDER BY created_at DESC")?;
+        let tasks = stmt
+            .query_map(params![workspace_id], Self::row_to_task)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(tasks)
+    }
+
+    /// Search tasks whose name contains `query` (case-insensitive).
+    pub fn find_by_name(&self, query: &str) -> Result<Vec<Task>, DbError> {
+        let pattern = format!("%{query}%");
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM tasks WHERE name LIKE ?1 ORDER BY created_at DESC")?;
+        let tasks = stmt
+            .query_map(params![pattern], Self::row_to_task)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(tasks)
+    }
+
+    /// List tasks filtered by status.
+    pub fn list_by_status(&self, status: TaskStatus) -> Result<Vec<Task>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM tasks WHERE status = ?1 ORDER BY created_at DESC")?;
+        let tasks = stmt
+            .query_map(params![status.as_str()], Self::row_to_task)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(tasks)
+    }
+
+    /// List all tasks sorted by priority.
+    pub fn list_sorted_by_priority(&self, sort_by: SortOrder) -> Result<Vec<Task>, DbError> {
+        let sql = match sort_by {
+            SortOrder::Ascending => "SELECT * FROM tasks ORDER BY priority ASC, created_at DESC",
+            SortOrder::Descending => "SELECT * FROM tasks ORDER BY priority DESC, created_at DESC",
+        };
+        let mut stmt = self.conn.prepare(sql)?;
+        let tasks = stmt
+            .query_map([], Self::row_to_task)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(tasks)
+    }
+
+    // ─── Status Operations ───────────────────────────────────────────
+
+    /// Get the currently running task (status = `InProgress`), if any.
+    pub fn get_current(&self) -> Result<Option<Task>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM tasks WHERE status = 'in-progress' LIMIT 1")?;
+        let mut rows = stmt
+            .query_map([], Self::row_to_task)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows.pop())
+    }
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::connection::Database;
+    use crate::db::workspace_repository::WorkspaceRepository;
+
+    fn setup() -> Database {
+        Database::open_in_memory().expect("in-memory db")
+    }
+
+    fn sample_task(workspace_id: i64) -> NewTask {
+        NewTask {
+            workspace_id,
+            media_list_id: None,
+            name: "Write report".to_string(),
+            description: Some("Quarterly report".to_string()),
+            priority: Priority::Immediate,
+            estimated_mins: Some(30),
+            scheduled_on: None,
+        }
+    }
+
+    fn sample_workspace(repo: &WorkspaceRepository) -> i64 {
+        repo.create(&crate::db::models::NewWorkspace {
+            name: "Work".to_string(),
+            description: None,
+        })
+        .unwrap()
+        .id
+    }
+
+    #[test]
+    fn create_and_get_by_id() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+
+        let task = repo.create(&sample_task(ws_id)).unwrap();
+        assert_eq!(task.name, "Write report");
+        assert_eq!(task.workspace_id, ws_id);
+        assert_eq!(task.priority, Priority::Immediate);
+        assert_eq!(task.status, TaskStatus::Pending);
+
+        let fetched = repo.get_by_id(task.id).unwrap();
+        assert_eq!(fetched.id, task.id);
+    }
+
+    #[test]
+    fn create_requires_existing_workspace() {
+        let db = setup();
+        let repo = TaskRepository::new(db.conn());
+        assert!(matches!(
+            repo.create(&sample_task(999)),
+            Err(DbError::NotFound {
+                entity: "workspace",
+                id: 999
+            })
+        ));
+    }
+
+    #[test]
+    fn get_by_id_not_found() {
+        let db = setup();
+        let repo = TaskRepository::new(db.conn());
+        assert!(matches!(
+            repo.get_by_id(999),
+            Err(DbError::NotFound {
+                entity: "task",
+                id: 999
+            })
+        ));
+    }
+
+    #[test]
+    fn update_partial_fields() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
+
+        let updated = repo
+            .update(
+                task.id,
+                &UpdateTask {
+                    name: Some("Updated name".to_string()),
+                    status: Some(TaskStatus::InProgress),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+        assert_eq!(updated.name, "Updated name");
+        assert_eq!(updated.status, TaskStatus::InProgress);
+        assert_eq!(updated.description, Some("Quarterly report".to_string()));
+    }
+
+    #[test]
+    fn update_clear_media_list_id() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
+
+        let updated = repo
+            .update(
+                task.id,
+                &UpdateTask {
+                    media_list_id: Some(Some(42)),
+                    ..Default::default()
+                },
+            )
+            .unwrap_err();
+        assert!(matches!(
+            updated,
+            DbError::NotFound {
+                entity: "media_list",
+                id: 42
+            }
+        ));
+    }
+
+    #[test]
+    fn delete_existing() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
+
+        repo.delete(task.id).unwrap();
+        assert!(matches!(
+            repo.get_by_id(task.id),
+            Err(DbError::NotFound { .. })
+        ));
+    }
+
+    #[test]
+    fn list_and_filter() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+
+        let t1 = repo.create(&sample_task(ws_id)).unwrap();
+        let t2 = repo
+            .create(&NewTask {
+                workspace_id: ws_id,
+                media_list_id: None,
+                name: "Buy groceries".to_string(),
+                description: None,
+                priority: Priority::NotYet,
+                estimated_mins: None,
+                scheduled_on: None,
+            })
+            .unwrap();
+        let _ = (t1, t2);
+
+        assert_eq!(repo.list_by_workspace(ws_id).unwrap().len(), 2);
+        assert_eq!(repo.list_all().unwrap().len(), 2);
+
+        let hits = repo.find_by_name("report").unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].name, "Write report");
+    }
+
+    #[test]
+    fn list_sorted_by_priority() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+
+        repo.create(&NewTask {
+            workspace_id: ws_id,
+            media_list_id: None,
+            name: "Low".to_string(),
+            description: None,
+            priority: Priority::NotYet,
+            estimated_mins: None,
+            scheduled_on: None,
+        })
+        .unwrap();
+        repo.create(&NewTask {
+            workspace_id: ws_id,
+            media_list_id: None,
+            name: "High".to_string(),
+            description: None,
+            priority: Priority::Urgent,
+            estimated_mins: None,
+            scheduled_on: None,
+        })
+        .unwrap();
+
+        let asc = repo.list_sorted_by_priority(SortOrder::Ascending).unwrap();
+        assert_eq!(asc[0].name, "Low");
+        assert_eq!(asc[1].name, "High");
+
+        let desc = repo.list_sorted_by_priority(SortOrder::Descending).unwrap();
+        assert_eq!(desc[0].name, "High");
+        assert_eq!(desc[1].name, "Low");
+    }
+
+    #[test]
+    fn create_and_read_scheduled_on() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let day = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+
+        let mut new_task = sample_task(ws_id);
+        new_task.scheduled_on = Some(day);
+        let task = repo.create(&new_task).unwrap();
+        assert_eq!(task.scheduled_on, Some(day));
+
+        let fetched = repo.get_by_id(task.id).unwrap();
+        assert_eq!(fetched.scheduled_on, Some(day));
+
+        let unscheduled = repo.create(&sample_task(ws_id)).unwrap();
+        assert_eq!(unscheduled.scheduled_on, None);
+    }
+
+    #[test]
+    fn update_sets_and_clears_scheduled_on() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
+        let day = NaiveDate::from_ymd_opt(2026, 12, 31).unwrap();
+
+        let set = repo
+            .update(
+                task.id,
+                &UpdateTask {
+                    scheduled_on: Some(Some(day)),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(set.scheduled_on, Some(day));
+
+        // `None` inside `Some` clears the date.
+        let cleared = repo
+            .update(
+                task.id,
+                &UpdateTask {
+                    scheduled_on: Some(None),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(cleared.scheduled_on, None);
+    }
+
+    #[test]
+    fn list_all_orders_by_scheduled_on_with_unscheduled_last() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+
+        let day_late = NaiveDate::from_ymd_opt(2026, 10, 5).unwrap();
+        let day_early = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+
+        let mut later = sample_task(ws_id);
+        later.name = "Later".to_string();
+        later.scheduled_on = Some(day_late);
+        repo.create(&later).unwrap();
+
+        let mut unscheduled = sample_task(ws_id);
+        unscheduled.name = "Unscheduled".to_string();
+        repo.create(&unscheduled).unwrap();
+
+        let mut early_low = sample_task(ws_id);
+        early_low.name = "Early low".to_string();
+        early_low.priority = Priority::NotYet;
+        early_low.scheduled_on = Some(day_early);
+        repo.create(&early_low).unwrap();
+
+        let mut early_high = sample_task(ws_id);
+        early_high.name = "Early high".to_string();
+        early_high.priority = Priority::Urgent;
+        early_high.scheduled_on = Some(day_early);
+        repo.create(&early_high).unwrap();
+
+        let names: Vec<String> = repo
+            .list_all()
+            .unwrap()
+            .into_iter()
+            .map(|t| t.name)
+            .collect();
+
+        assert_eq!(
+            names,
+            vec!["Early high", "Early low", "Later", "Unscheduled"]
+        );
+    }
+
+    #[test]
+    fn get_current_and_list_by_status() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
+
+        assert_eq!(task.status, TaskStatus::Pending);
+        assert!(repo.get_current().unwrap().is_none());
+
+        db.conn()
+            .execute(
+                "UPDATE tasks SET status = 'in-progress' WHERE id = ?1",
+                params![task.id],
+            )
+            .unwrap();
+        let current = repo.get_current().unwrap();
+        assert!(current.is_some());
+        assert_eq!(current.unwrap().id, task.id);
+
+        db.conn()
+            .execute(
+                "UPDATE tasks SET status = 'completed' WHERE id = ?1",
+                params![task.id],
+            )
+            .unwrap();
+        assert!(repo.get_current().unwrap().is_none());
+        let done_list = repo.list_by_status(TaskStatus::Completed).unwrap();
+        assert_eq!(done_list.len(), 1);
+    }
+
+    #[test]
+    fn delete_workspace_cascades_tasks() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
+
+        ws.delete(ws_id).unwrap();
+        assert!(matches!(
+            repo.get_by_id(task.id),
+            Err(DbError::NotFound { entity: "task", .. })
+        ));
+    }
+
+    #[test]
+    fn create_rejects_zero_or_negative_estimate() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+
+        let mut task_zero = sample_task(ws_id);
+        task_zero.estimated_mins = Some(0);
+        assert!(matches!(
+            repo.create(&task_zero),
+            Err(DbError::InvalidEstimate(0))
+        ));
+
+        let mut task_neg = sample_task(ws_id);
+        task_neg.estimated_mins = Some(-15);
+        assert!(matches!(
+            repo.create(&task_neg),
+            Err(DbError::InvalidEstimate(-15))
+        ));
+    }
+
+    #[test]
+    fn update_rejects_zero_or_negative_estimate() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+        let task = repo.create(&sample_task(ws_id)).unwrap();
+
+        let update_zero = UpdateTask {
+            estimated_mins: Some(Some(0)),
+            ..Default::default()
+        };
+        assert!(matches!(
+            repo.update(task.id, &update_zero),
+            Err(DbError::InvalidEstimate(0))
+        ));
+
+        let update_neg = UpdateTask {
+            estimated_mins: Some(Some(-5)),
+            ..Default::default()
+        };
+        assert!(matches!(
+            repo.update(task.id, &update_neg),
+            Err(DbError::InvalidEstimate(-5))
+        ));
+    }
+
+    #[test]
+    fn update_clears_estimate() {
+        let db = setup();
+        let ws = WorkspaceRepository::new(db.conn());
+        let repo = TaskRepository::new(db.conn());
+        let ws_id = sample_workspace(&ws);
+
+        let mut sample = sample_task(ws_id);
+        sample.estimated_mins = Some(30);
+        let task = repo.create(&sample).unwrap();
+        assert_eq!(task.estimated_mins, Some(30));
+
+        let update_clear = UpdateTask {
+            estimated_mins: Some(None),
+            ..Default::default()
+        };
+        let updated = repo.update(task.id, &update_clear).unwrap();
+        assert_eq!(updated.estimated_mins, None);
+    }
+}

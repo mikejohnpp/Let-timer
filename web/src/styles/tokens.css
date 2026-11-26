@@ -1,0 +1,555 @@
+/*
+ * Let-timer design tokens (v2) — replaces web/src/styles/tokens.css.
+ * Every foreground/background pair below is verified by web/src/test/contrast.test.ts.
+ *
+ * Usage rules
+ *  - Small text and text-sized icons:   --text, --muted, or a *-text token, ONLY on --bg / --surface / --surface-hover.
+ *  - Dots, lines, borders, progress:    the base token (--danger, --warning, --success, --timer-over, --accent-text).
+ *  - Filled buttons/badges:             base token as background + matching --on-* token as label.
+ *  - Tinted banners:                    *-bg background, message in --text, icon in the base token.
+ *  - Never use --danger / --warning / --success / --timer-over as small text colour.
+ *
+ * Typography Scale (§7):
+ *  - Approved scale: 12 / 14 / 16 / 20 / 28 / 48 / 72 px (= xs / sm / base / lg+ / display).
+ *  - Sub-12px text (text-[10px], text-[11px]) is forbidden without an explicit `// type-allow: <reason>`.
+ *
+ * Typography Roles:
+ *  - Group header:       semibold, uppercase, tracking-wider, leading-tight
+ *  - Body:               normal, emphasis via medium, multi-line descriptions via leading-relaxed
+ *  - Headings & CTAs:    semibold, leading-tight (avoid bold except timer digits)
+ *  - Display timer:      font-light, tracking-tighter (large display sizes only; no tracking-tighter on small digits)
+ */
+
+:root {
+  color-scheme: light;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --border-strong: #7b8798;
+  --text: #0f172a;
+  --muted: #5b6b82;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --on-accent: #ffffff;
+  --accent-text: #4f46e5;
+  --timer-over: #ea580c;
+  --on-over: #0f172a;
+  --over-text: #c2410c;
+  --danger: #dc2626;
+  --on-danger: #ffffff;
+  --danger-text: #b91c1c;
+  --warning: #cc6a06;
+  --warning-text: #92400e;
+  --success: #059669;
+  --success-text: #047857;
+  --danger-bg: #fef2f2;
+  --warning-bg: #fffbeb;
+  --success-bg: #ecfdf5;
+  --over-bg: #fff7ed;
+  --info-bg: #eef2ff;
+
+  /* Immersive scope (Focus view over a photo, 65% black overlay) */
+  --imm-text: #ffffff;
+  --imm-muted: #e5e7eb;
+  --imm-overlay: rgb(0 0 0 / 0.65);
+
+  /* Legacy aliases (do not use in new code) */
+  --timer-run: var(--accent-text);
+  --timer-pause: var(--muted);
+  --timer-done: var(--success);
+
+  /* Shape, elevation, layout */
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-modal: 14px;
+  --shadow-popover: 0 8px 24px rgb(15 23 42 / 0.16);
+  --header-h: 3.5rem;
+  --tabbar-h: 3.5rem;
+}
+
+:root[data-palette="forest"] {
+  --bg: #f4f6f4;
+  --surface: #ffffff;
+  --surface-hover: #edf1ed;
+  --border: #dbe2db;
+  --border-strong: #6e8273;
+  --text: #112217;
+  --muted: #4d6052;
+  --accent: #1b633e;
+  --accent-hover: #144e31;
+  --on-accent: #ffffff;
+  --accent-text: #1b633e;
+  --danger-bg: #fdf2f2;
+  --warning-bg: #fefbee;
+  --success-bg: #edfbf3;
+  --over-bg: #fef6ee;
+  --info-bg: #edf6f0;
+}
+
+/* Tokyo Night (Day) — tokyonight.nvim Day palette */
+:root[data-palette="tokyo-night"] {
+  --bg: #e8ecf4;
+  --surface: #ffffff;
+  --surface-hover: #f0f3f9;
+  --border: #d2d8e6;
+  --border-strong: #687296;
+  --text: #1a233e;
+  --muted: #525e82;
+  --accent: #2e58a6;
+  --accent-hover: #24488a;
+  --on-accent: #ffffff;
+  --accent-text: #2e58a6;
+  --over-text: #ba3c04;
+  --danger-bg: #fef2f2;
+  --warning-bg: #fffbee;
+  --success-bg: #edfbf4;
+  --over-bg: #fef6ee;
+  --info-bg: #eff4fc;
+}
+
+/* Catppuccin (Latte) — Catppuccin Latte palette */
+:root[data-palette="catppuccin"] {
+  --bg: #eff1f5;
+  --surface: #ffffff;
+  --surface-hover: #e6e9ef;
+  --border: #ccd0da;
+  --border-strong: #6c6f85;
+  --text: #4c4f69;
+  --muted: #595c74;
+  --accent: #7928d1;
+  --accent-hover: #6820b8;
+  --on-accent: #ffffff;
+  --accent-text: #7928d1;
+  --timer-over: #e65100;
+  --over-text: #ba3c04;
+  --danger-bg: #fdf2f4;
+  --warning-bg: #fefbee;
+  --success-bg: #edfbf3;
+  --over-bg: #fef6ee;
+  --info-bg: #f2f0fc;
+}
+
+/* Kanagawa (Lotus) — kanagawa.nvim Lotus paper palette */
+:root[data-palette="kanagawa"] {
+  --bg: #f2ecbc;
+  --surface: #ffffff;
+  --surface-hover: #f0e8d2;
+  --border: #dcd4b8;
+  --border-strong: #6e6754;
+  --text: #2d2d34;
+  --muted: #54545e;
+  --accent: #2a577c;
+  --accent-hover: #204563;
+  --on-accent: #ffffff;
+  --accent-text: #2a577c;
+  --timer-over: #e65100;
+  --over-text: #ba3c04;
+  --success-text: #036b4d;
+  --danger-bg: #fae8e6;
+  --warning-bg: #f9f0da;
+  --success-bg: #e6f4e8;
+  --over-bg: #faece0;
+  --info-bg: #e8eef6;
+}
+
+/* Everforest (Light Medium) — everforest Light Medium palette */
+:root[data-palette="everforest"] {
+  --bg: #fdf6e3;
+  --surface: #ffffff;
+  --surface-hover: #f4eed8;
+  --border: #e5dfc5;
+  --border-strong: #737c73;
+  --text: #374145;
+  --muted: #5c6a5e;
+  --accent: #3d701e;
+  --accent-hover: #325c19;
+  --on-accent: #ffffff;
+  --accent-text: #3d701e;
+  --timer-over: #e65100;
+  --over-text: #ba3c04;
+  --success-text: #036b4d;
+  --danger-bg: #fdf0f0;
+  --warning-bg: #fdfbee;
+  --success-bg: #eef7ee;
+  --over-bg: #fdf4ec;
+  --info-bg: #edf6f6;
+}
+
+/* Gruvbox (Light Medium) — gruvbox Light Medium palette */
+:root[data-palette="gruvbox"] {
+  --bg: #fbf1c7;
+  --surface: #ffffff;
+  --surface-hover: #f6eed4;
+  --border: #ebdbb2;
+  --border-strong: #7c6f64;
+  --text: #3c3836;
+  --muted: #5f554a;
+  --accent: #076678;
+  --accent-hover: #055160;
+  --on-accent: #ffffff;
+  --accent-text: #076678;
+  --timer-over: #e65100;
+  --over-text: #ba3c04;
+  --success-text: #036b4d;
+  --danger-bg: #fae8e6;
+  --warning-bg: #f9f0da;
+  --success-bg: #e8f4e6;
+  --over-bg: #faece0;
+  --info-bg: #e6f0f4;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0f19;
+  --surface: #111827;
+  --surface-hover: #1f2937;
+  --border: #243044;
+  --border-strong: #6b7a90;
+  --text: #f9fafb;
+  --muted: #9ca3af;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --on-accent: #ffffff;
+  --accent-text: #a5b4fc;
+  --timer-over: #fb923c;
+  --on-over: #0f172a;
+  --over-text: #fb923c;
+  --danger: #dc2626;
+  --on-danger: #ffffff;
+  --danger-text: #f87171;
+  --warning: #f59e0b;
+  --warning-text: #fbbf24;
+  --success: #059669;
+  --success-text: #34d399;
+  --danger-bg: #2a1517;
+  --warning-bg: #2a2010;
+  --success-bg: #0f2a21;
+  --over-bg: #2b1a0e;
+  --info-bg: #1a1f3d;
+  --shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
+}
+
+:root[data-theme="dark"][data-palette="forest"] {
+  --bg: #0b140e;
+  --surface: #122017;
+  --surface-hover: #1a2c20;
+  --border: #1d3325;
+  --border-strong: #64856e;
+  --text: #f0fdf4;
+  --muted: #94a899;
+  --accent: #2d7a50;
+  --accent-hover: #236340;
+  --on-accent: #ffffff;
+  --accent-text: #68d391;
+  --danger-bg: #291416;
+  --warning-bg: #281f0f;
+  --success-bg: #0e291c;
+  --over-bg: #29180c;
+  --info-bg: #14281e;
+}
+
+/* Tokyo Night (Storm) — tokyonight.nvim Storm palette */
+:root[data-theme="dark"][data-palette="tokyo-night"] {
+  --bg: #161822;
+  --surface: #1f2335;
+  --surface-hover: #24283b;
+  --border: #292e42;
+  --border-strong: #6f7cae;
+  --text: #c0caf5;
+  --muted: #9aa5ce;
+  --accent: #2e58a6;
+  --accent-hover: #24488a;
+  --on-accent: #ffffff;
+  --accent-text: #7aa2f7;
+  --danger-bg: #2a1622;
+  --warning-bg: #2a2215;
+  --success-bg: #122a24;
+  --over-bg: #2b1b16;
+  --info-bg: #16233d;
+}
+
+/* Catppuccin (Mocha) — Catppuccin Mocha palette */
+:root[data-theme="dark"][data-palette="catppuccin"] {
+  --bg: #181825;
+  --surface: #1e1e2e;
+  --surface-hover: #252538;
+  --border: #313244;
+  --border-strong: #7f849c;
+  --text: #cdd6f4;
+  --muted: #a6adc8;
+  --accent: #7928d1;
+  --accent-hover: #6820b8;
+  --on-accent: #ffffff;
+  --accent-text: #cba6f7;
+  --danger-bg: #2a1620;
+  --warning-bg: #292114;
+  --success-bg: #12281e;
+  --over-bg: #2a1b14;
+  --info-bg: #201a30;
+}
+
+/* Kanagawa (Wave) — kanagawa.nvim Wave palette */
+:root[data-theme="dark"][data-palette="kanagawa"] {
+  --bg: #16161d;
+  --surface: #1f1f28;
+  --surface-hover: #252532;
+  --border: #2a2a37;
+  --border-strong: #787898;
+  --text: #dcd7ba;
+  --muted: #9e9b93;
+  --accent: #2a4f72;
+  --accent-hover: #203f5c;
+  --on-accent: #ffffff;
+  --accent-text: #7e9cd8;
+  --danger-bg: #29161a;
+  --warning-bg: #292113;
+  --success-bg: #13281c;
+  --over-bg: #291b12;
+  --info-bg: #172233;
+}
+
+/* Everforest (Dark Medium) — everforest Dark Medium palette */
+:root[data-theme="dark"][data-palette="everforest"] {
+  --bg: #1e2326;
+  --surface: #272e33;
+  --surface-hover: #232a2f;
+  --border: #343f44;
+  --border-strong: #7a8c82;
+  --text: #d3c6aa;
+  --muted: #9da9a0;
+  --accent: #2d5b40;
+  --accent-hover: #234833;
+  --on-accent: #ffffff;
+  --accent-text: #7fbbb3;
+  --danger: #e03131;
+  --danger-bg: #2b181c;
+  --warning-bg: #2a2213;
+  --success-bg: #14281e;
+  --over-bg: #2a1b12;
+  --info-bg: #14272c;
+}
+
+/* Gruvbox (Dark Medium) — gruvbox Dark Medium palette */
+:root[data-theme="dark"][data-palette="gruvbox"] {
+  --bg: #1d2021;
+  --surface: #282828;
+  --surface-hover: #242424;
+  --border: #3c3836;
+  --border-strong: #7c6f64;
+  --text: #ebdbb2;
+  --muted: #a89984;
+  --accent: #076678;
+  --accent-hover: #055160;
+  --on-accent: #ffffff;
+  --accent-text: #83a598;
+  --danger: #e03131;
+  --danger-bg: #2b1818;
+  --warning-bg: #2b2210;
+  --success-bg: #14281a;
+  --over-bg: #2b1c12;
+  --info-bg: #142429;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b0f19;
+    --surface: #111827;
+    --surface-hover: #1f2937;
+    --border: #243044;
+    --border-strong: #6b7a90;
+    --text: #f9fafb;
+    --muted: #9ca3af;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --on-accent: #ffffff;
+    --accent-text: #a5b4fc;
+    --timer-over: #fb923c;
+    --on-over: #0f172a;
+    --over-text: #fb923c;
+    --danger: #dc2626;
+    --on-danger: #ffffff;
+    --danger-text: #f87171;
+    --warning: #f59e0b;
+    --warning-text: #fbbf24;
+    --success: #059669;
+    --success-text: #34d399;
+    --danger-bg: #2a1517;
+    --warning-bg: #2a2010;
+    --success-bg: #0f2a21;
+    --over-bg: #2b1a0e;
+    --info-bg: #1a1f3d;
+    --shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
+  }
+
+  :root:not([data-theme="light"])[data-palette="forest"] {
+    --bg: #0b140e;
+    --surface: #122017;
+    --surface-hover: #1a2c20;
+    --border: #1d3325;
+    --border-strong: #64856e;
+    --text: #f0fdf4;
+    --muted: #94a899;
+    --accent: #2d7a50;
+    --accent-hover: #236340;
+    --on-accent: #ffffff;
+    --accent-text: #68d391;
+    --danger-bg: #291416;
+    --warning-bg: #281f0f;
+    --success-bg: #0e291c;
+    --over-bg: #29180c;
+    --info-bg: #14281e;
+  }
+
+  :root:not([data-theme="light"])[data-palette="tokyo-night"] {
+    --bg: #161822;
+    --surface: #1f2335;
+    --surface-hover: #24283b;
+    --border: #292e42;
+    --border-strong: #6f7cae;
+    --text: #c0caf5;
+    --muted: #9aa5ce;
+    --accent: #2e58a6;
+    --accent-hover: #24488a;
+    --on-accent: #ffffff;
+    --accent-text: #7aa2f7;
+    --danger-bg: #2a1622;
+    --warning-bg: #2a2215;
+    --success-bg: #122a24;
+    --over-bg: #2b1b16;
+    --info-bg: #16233d;
+  }
+
+  :root:not([data-theme="light"])[data-palette="catppuccin"] {
+    --bg: #181825;
+    --surface: #1e1e2e;
+    --surface-hover: #252538;
+    --border: #313244;
+    --border-strong: #7f849c;
+    --text: #cdd6f4;
+    --muted: #a6adc8;
+    --accent: #7928d1;
+    --accent-hover: #6820b8;
+    --on-accent: #ffffff;
+    --accent-text: #cba6f7;
+    --danger-bg: #2a1620;
+    --warning-bg: #292114;
+    --success-bg: #12281e;
+    --over-bg: #2a1b14;
+    --info-bg: #201a30;
+  }
+
+  :root:not([data-theme="light"])[data-palette="kanagawa"] {
+    --bg: #16161d;
+    --surface: #1f1f28;
+    --surface-hover: #252532;
+    --border: #2a2a37;
+    --border-strong: #787898;
+    --text: #dcd7ba;
+    --muted: #9e9b93;
+    --accent: #2a4f72;
+    --accent-hover: #203f5c;
+    --on-accent: #ffffff;
+    --accent-text: #7e9cd8;
+    --danger-bg: #29161a;
+    --warning-bg: #292113;
+    --success-bg: #13281c;
+    --over-bg: #291b12;
+    --info-bg: #172233;
+  }
+
+  :root:not([data-theme="light"])[data-palette="everforest"] {
+    --bg: #1e2326;
+    --surface: #272e33;
+    --surface-hover: #232a2f;
+    --border: #343f44;
+    --border-strong: #7a8c82;
+    --text: #d3c6aa;
+    --muted: #9da9a0;
+    --accent: #2d5b40;
+    --accent-hover: #234833;
+    --on-accent: #ffffff;
+    --accent-text: #7fbbb3;
+    --danger: #e03131;
+    --danger-bg: #2b181c;
+    --warning-bg: #2a2213;
+    --success-bg: #14281e;
+    --over-bg: #2a1b12;
+    --info-bg: #14272c;
+  }
+
+  :root:not([data-theme="light"])[data-palette="gruvbox"] {
+    --bg: #1d2021;
+    --surface: #282828;
+    --surface-hover: #242424;
+    --border: #3c3836;
+    --border-strong: #7c6f64;
+    --text: #ebdbb2;
+    --muted: #a89984;
+    --accent: #076678;
+    --accent-hover: #055160;
+    --on-accent: #ffffff;
+    --accent-text: #83a598;
+    --danger: #e03131;
+    --danger-bg: #2b1818;
+    --warning-bg: #2b2210;
+    --success-bg: #14281a;
+    --over-bg: #2b1c12;
+    --info-bg: #142429;
+  }
+}
+
+/* Tabular digits for timers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Screen reader only utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* Custom Wallpaper & Glassmorphism */
+:root[data-has-wallpaper="true"] {
+  --bg-glass-overlay: rgba(11, 15, 25, 0.55);
+}
+
+:root[data-has-wallpaper="true"][data-theme="light"] {
+  --bg-glass-overlay: rgba(248, 250, 252, 0.7);
+}
+
+:root[data-has-wallpaper="true"] .glass-panel,
+:root[data-has-wallpaper="true"] div[class*="rounded-[var(--radius-card)]"] {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+:root[data-has-wallpaper="true"] div[class*="bg-[var(--surface)]"] {
+  background-color: color-mix(in srgb, var(--surface) 86%, transparent);
+}
+
+/* Overlays, popovers, drawers and menus frosted glass surfaces */
+[data-radix-popper-content-wrapper] [data-radix-popover-content],
+[data-radix-popper-content-wrapper] [role="dialog"],
+[role="dialog"],
+[role="menu"] {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+

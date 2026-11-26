@@ -1,0 +1,707 @@
+//! Printing what the daemon said.
+//!
+//! Two ways out, for two kinds of reader. A person wants a line per task, with
+//! the columns in the order they scan them. A script wants the same answer as
+//! JSON, with nothing added and nothing left out -- which is the reply as it
+//! came over the socket, printed rather than picked apart, because a reply this
+//! program does not know about is still a reply somebody else's script can
+//! read.
+//!
+//! Everything here writes to a `Write` rather than straight to the terminal, so
+//! that the columns can be tested without a terminal to test them on.
+
+use std::io::Write;
+
+use let_timer_core::{Response, Task};
+
+/// Print `response` for the reader `--json` asked for.
+pub fn print(response: &Response, json: bool) -> std::io::Result<()> {
+    let mut out = std::io::stdout();
+
+    if json {
+        // The reply as it came, rather than a shape this program picked out of
+        // it: a script should not have to know which version produced it.
+        // Serializing something that came off a socket can only fail if the
+        // reply is not what the socket said it was, and there is nothing to say
+        // about that here.
+        let json = serde_json::to_string_pretty(response)
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
+        writeln!(out, "{json}")?;
+    } else {
+        write_humans(response, &mut out)?;
+    }
+
+    Ok(())
+}
+
+/// Say a failure on stderr.
+///
+/// Not stdout: a script reading stdout has to be able to trust that everything
+/// on it is the answer, and an error is not an answer.
+pub fn complain(message: &str) {
+    eprintln!("Error: {message}");
+}
+
+/// The reply as a person reads it.
+pub fn write_humans(response: &Response, out: &mut impl Write) -> std::io::Result<()> {
+    match response {
+        Response::Ok(Some(task)) => task_detail(out, task),
+        Response::Ok(None) => writeln!(out, "Nothing to show."),
+
+        Response::OkList(tasks) => match tasks.is_empty() {
+            // A header with nothing under it reads as a mistake in this program
+            // rather than as an answer.
+            true => writeln!(out, "No tasks."),
+            false => table(
+                out,
+                &["ID", "PRIORITY", "STATUS", "ON", "NAME"],
+                tasks.iter().map(|task| {
+                    vec![
+                        task.id.to_string(),
+                        task.priority.as_str().to_string(),
+                        task.status.as_str().to_string(),
+                        day(task.scheduled_on),
+                        task.name.clone(),
+                    ]
+                }),
+            ),
+        },
+
+        Response::OkEmpty => writeln!(out, "Done."),
+
+        Response::WorkspaceList(workspaces) => match workspaces.is_empty() {
+            true => writeln!(out, "No workspaces."),
+            false => table(
+                out,
+                &["ID", "NAME", "DESCRIPTION"],
+                workspaces.iter().map(|workspace| {
+                    vec![
+                        workspace.id.to_string(),
+                        workspace.name.clone(),
+                        text(workspace.description.as_deref()),
+                    ]
+                }),
+            ),
+        },
+
+        Response::MediaLists(lists) => match lists.is_empty() {
+            true => writeln!(out, "No media lists."),
+            false => table(
+                out,
+                &["ID", "NAME", "DESCRIPTION"],
+                lists.iter().map(|list| {
+                    vec![
+                        list.id.to_string(),
+                        list.name.clone(),
+                        text(list.description.as_deref()),
+                    ]
+                }),
+            ),
+        },
+
+        Response::Workspace(workspace) => {
+            writeln!(out, "Workspace {}: {}", workspace.id, workspace.name)?;
+            if let Some(description) = &workspace.description {
+                writeln!(out, "  {description}")?;
+            }
+            Ok(())
+        }
+
+        Response::CurrentWorkspace(workspace) => {
+            writeln!(
+                out,
+                "Current workspace: {} (#{})",
+                workspace.name, workspace.id
+            )?;
+            if let Some(description) = &workspace.description {
+                writeln!(out, "  {description}")?;
+            }
+            Ok(())
+        }
+
+        Response::MediaList(list) => {
+            writeln!(out, "Media list {}: {}", list.id, list.name)?;
+            if let Some(description) = &list.description {
+                writeln!(out, "  {description}")?;
+            }
+            Ok(())
+        }
+
+        Response::MediaListDetail { list, items } => {
+            writeln!(out, "Media list {}: {}", list.id, list.name)?;
+            if let Some(description) = &list.description {
+                writeln!(out, "  {description}")?;
+            }
+            if items.is_empty() {
+                writeln!(out, "No items in this list.")?;
+            } else {
+                writeln!(out, "Items ({}):", items.len())?;
+                table(
+                    out,
+                    &["ID", "TYPE", "NAME", "URL"],
+                    items.iter().map(|m| {
+                        vec![
+                            m.id.to_string(),
+                            m.media_type.as_str().to_string(),
+                            m.name.clone(),
+                            m.url.clone(),
+                        ]
+                    }),
+                )?;
+            }
+            Ok(())
+        }
+
+        Response::Medias(medias) => match medias.is_empty() {
+            true => writeln!(out, "No medias."),
+            false => table(
+                out,
+                &["ID", "TYPE", "NAME", "URL"],
+                medias.iter().map(|m| {
+                    vec![
+                        m.id.to_string(),
+                        m.media_type.as_str().to_string(),
+                        m.name.clone(),
+                        m.url.clone(),
+                    ]
+                }),
+            ),
+        },
+
+        Response::Media(media) => {
+            writeln!(
+                out,
+                "Media {}: {} [{}]",
+                media.id,
+                media.name,
+                media.media_type.as_str()
+            )?;
+            writeln!(out, "  url: {}", media.url)?;
+            if let Some(description) = &media.description {
+                writeln!(out, "  {description}")?;
+            }
+            Ok(())
+        }
+
+        Response::Pong => writeln!(out, "pong"),
+
+        Response::DaemonStatus {
+            version,
+            socket_path,
+            db_path,
+            running_task,
+            auth_mode,
+            bind_address,
+            cors_origins,
+            docs_enabled,
+        } => {
+            writeln!(out, "let-timer-daemon v{version}")?;
+            writeln!(out, "Socket: {socket_path}")?;
+            writeln!(out, "Database: {db_path}")?;
+            match running_task {
+                Some(task) => writeln!(out, "Running task: {task}")?,
+                None => writeln!(out, "Running task: none")?,
+            }
+            if let Some(auth) = auth_mode {
+                writeln!(out, "Auth mode: {auth}")?;
+            }
+            if let Some(bind) = bind_address {
+                writeln!(out, "HTTP bind: {bind}")?;
+            }
+            if let Some(cors) = cors_origins {
+                writeln!(out, "CORS origins: {cors}")?;
+            }
+            if let Some(docs) = docs_enabled {
+                writeln!(
+                    out,
+                    "API docs: {}",
+                    if *docs { "enabled" } else { "disabled" }
+                )?;
+            }
+            Ok(())
+        }
+
+        Response::Timer(snapshot) => timer_detail(out, snapshot),
+
+        Response::Timezone(tz) => writeln!(out, "Timezone: {tz}"),
+
+        // Nobody reads this one here: the caller has to exit non-zero over it,
+        // and it belongs on stderr.
+        Response::Error { .. } => Ok(()),
+    }
+}
+
+pub fn format_duration(seconds: i64) -> String {
+    let sign = if seconds < 0 { "-" } else { "" };
+    let abs_secs = seconds.unsigned_abs();
+    let mins = abs_secs / 60;
+    let secs = abs_secs % 60;
+    format!("{sign}{mins:02}:{secs:02}")
+}
+
+/// Render the single status line for `tasks current --format short`.
+pub fn render_current_short(snapshot: Option<&let_timer_core::TimerSnapshot>) -> String {
+    let Some(snap) = snapshot else {
+        return String::new();
+    };
+
+    match snap.state {
+        let_timer_core::TimerState::Idle => String::new(),
+        let_timer_core::TimerState::Running => {
+            if let Some(remaining) = snap.remaining_secs {
+                format!("⏳ {} {}", format_duration(remaining), snap.task.name)
+            } else {
+                format!(
+                    "▶ {} {}",
+                    format_duration(snap.elapsed_secs),
+                    snap.task.name
+                )
+            }
+        }
+        let_timer_core::TimerState::Overtime => {
+            let overtime = snap.remaining_secs.map(|r| -r).unwrap_or(0);
+            format!("⚠ +{} {}", format_duration(overtime), snap.task.name)
+        }
+        let_timer_core::TimerState::Paused => {
+            if let Some(remaining) = snap.remaining_secs {
+                format!("⏸ {} {}", format_duration(remaining), snap.task.name)
+            } else {
+                format!(
+                    "⏸ {} {}",
+                    format_duration(snap.elapsed_secs),
+                    snap.task.name
+                )
+            }
+        }
+    }
+}
+
+/// Render a one-line confirmation + snapshot for lifecycle commands.
+pub fn render_lifecycle_confirmation(verb: &str, snap: &let_timer_core::TimerSnapshot) -> String {
+    let detail = match snap.state {
+        let_timer_core::TimerState::Overtime => {
+            let ot = snap.remaining_secs.map(|r| -r).unwrap_or(0);
+            format!("+{} overtime", format_duration(ot))
+        }
+        _ => {
+            if let Some(remaining) = snap.remaining_secs {
+                format!("{} remaining", format_duration(remaining))
+            } else {
+                format!("{} elapsed", format_duration(snap.elapsed_secs))
+            }
+        }
+    };
+    format!("{verb} #{} \"{}\" — {detail}", snap.task.id, snap.task.name)
+}
+
+fn timer_detail(out: &mut impl Write, snap: &let_timer_core::TimerSnapshot) -> std::io::Result<()> {
+    writeln!(out, "Task #{}: {}", snap.task.id, snap.task.name)?;
+    writeln!(out, "  workspace: {}", snap.workspace_name)?;
+    writeln!(
+        out,
+        "  status: {} ({:?})",
+        snap.task.status.as_str(),
+        snap.state
+    )?;
+    writeln!(out, "  run: #{}", snap.task.run_no)?;
+    writeln!(out, "  elapsed: {}", format_duration(snap.elapsed_secs))?;
+    if let Some(rem) = snap.remaining_secs {
+        let est = snap.task.estimated_mins.unwrap_or(0);
+        writeln!(
+            out,
+            "  remaining: {} (estimate: {} mins)",
+            format_duration(rem),
+            est
+        )?;
+    }
+    Ok(())
+}
+
+/// One task, on its own, for a reply about one task.
+fn task_detail(out: &mut impl Write, task: &Task) -> std::io::Result<()> {
+    writeln!(out, "Task {}: {}", task.id, task.name)?;
+    if let Some(description) = &task.description {
+        writeln!(out, "  {description}")?;
+    }
+    writeln!(
+        out,
+        "  priority {} | status {} | {} mins | on {}",
+        task.priority.as_str(),
+        task.status.as_str(),
+        task.estimated_mins
+            .map(|mins| mins.to_string())
+            .unwrap_or_else(|| "-".into()),
+        day(task.scheduled_on),
+    )
+}
+
+/// A missing day, a missing priority: a dash rather than a gap, because an empty
+/// column looks like the row ended early.
+fn day(date: Option<chrono::NaiveDate>) -> String {
+    date.map(|date| date.format("%Y-%m-%d").to_string())
+        .unwrap_or_else(|| "-".to_string())
+}
+
+fn text(value: Option<&str>) -> String {
+    match value {
+        Some(value) if !value.trim().is_empty() => value.to_string(),
+        _ => "-".to_string(),
+    }
+}
+
+/// Rows in columns, each as wide as its widest cell.
+fn table(
+    out: &mut impl Write,
+    headers: &[&str],
+    rows: impl Iterator<Item = Vec<String>>,
+) -> std::io::Result<()> {
+    let rows: Vec<Vec<String>> = rows.collect();
+
+    let mut widths: Vec<usize> = headers
+        .iter()
+        .map(|header| header.chars().count())
+        .collect();
+    for row in &rows {
+        for (width, cell) in widths.iter_mut().zip(row) {
+            *width = (*width).max(cell.chars().count());
+        }
+    }
+
+    let line = |cells: &[String]| {
+        cells
+            .iter()
+            .enumerate()
+            .map(|(index, cell)| match index == cells.len() - 1 {
+                // The last column is not padded: trailing spaces are not
+                // something anybody reads, and they turn up in a pipe.
+                true => cell.clone(),
+                false => format!("{cell:<width$}", width = widths[index]),
+            })
+            .collect::<Vec<_>>()
+            .join("  ")
+    };
+
+    writeln!(
+        out,
+        "{}",
+        line(
+            &headers
+                .iter()
+                .map(|header| header.to_string())
+                .collect::<Vec<_>>()
+        )
+    )?;
+    for row in &rows {
+        writeln!(out, "{}", line(row))?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use let_timer_core::db::models::{MediaList, Priority, Workspace};
+    use let_timer_core::{TaskStatus, date_on};
+
+    use super::*;
+
+    fn task(id: i64, name: &str) -> Task {
+        Task {
+            id,
+            workspace_id: 1,
+            media_list_id: None,
+            name: name.to_string(),
+            description: None,
+            priority: Priority::NotYet,
+            status: TaskStatus::Pending,
+            estimated_mins: None,
+            scheduled_on: None,
+            run_no: 0,
+            notified_at: None,
+            created_at: "2026-10-01 09:00:00".to_string(),
+            updated_at: "2026-10-01 09:00:00".to_string(),
+        }
+    }
+
+    fn print_to(response: &Response) -> String {
+        let mut out = Vec::new();
+        write_humans(response, &mut out).unwrap();
+        String::from_utf8(out).unwrap()
+    }
+
+    #[test]
+    fn json_is_the_reply_itself() {
+        // Whatever the daemon said, verbatim: a script reading this should not
+        // have to know which version of let-timer produced it.
+        let response = Response::Ok(None);
+
+        assert_eq!(serde_json::to_string(&response).unwrap(), "{\"Ok\":null}");
+    }
+
+    #[test]
+    fn an_empty_list_says_so_rather_than_printing_a_header() {
+        assert_eq!(print_to(&Response::OkList(vec![])), "No tasks.\n");
+    }
+
+    #[test]
+    fn an_empty_workspace_list_says_so() {
+        assert_eq!(
+            print_to(&Response::WorkspaceList(vec![])),
+            "No workspaces.\n"
+        );
+    }
+
+    #[test]
+    fn an_empty_media_list_list_says_so() {
+        assert_eq!(print_to(&Response::MediaLists(vec![])), "No media lists.\n");
+    }
+
+    #[test]
+    fn a_missing_description_is_a_dash() {
+        let out = print_to(&Response::WorkspaceList(vec![Workspace {
+            id: 1,
+            name: "chores".into(),
+            description: None,
+            created_at: "2026-10-01 09:00:00".into(),
+            updated_at: "2026-10-01 09:00:00".into(),
+        }]));
+
+        assert!(out.contains("chores"), "{out}");
+        assert!(
+            out.lines().nth(1).unwrap().trim_end().ends_with('-'),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn a_blank_description_is_a_dash_too() {
+        // A space is not a description; it would print as a column of nothing
+        // and read as an empty field rather than a missing one.
+        assert_eq!(text(Some("   ")), "-");
+        assert_eq!(text(None), "-");
+        assert_eq!(text(Some("a thing")), "a thing");
+    }
+
+    #[test]
+    fn columns_line_up_when_one_name_is_much_longer() {
+        let out = print_to(&Response::OkList(vec![
+            task(1, "a"),
+            task(22, "a much longer name"),
+        ]));
+
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines.len(), 3, "{out}");
+
+        // Every row's name begins under the header's NAME, which is the whole
+        // reason for lining the columns up.
+        let column = lines[0].find("NAME").expect("the header names the column");
+        let indent = |line: &str| {
+            let rest = &line[column..];
+            rest.len() - rest.trim_start().len()
+        };
+        assert_eq!(indent(lines[1]), indent(lines[2]), "{out}");
+    }
+
+    #[test]
+    fn the_last_column_is_not_padded() {
+        // Trailing spaces turn up in a pipe and in a diff, and nobody reading a
+        // table wants them.
+        let out = print_to(&Response::OkList(vec![task(1, "wash up")]));
+
+        for line in out.lines() {
+            assert_eq!(line, line.trim_end(), "{line:?}");
+        }
+    }
+
+    #[test]
+    fn a_task_list_says_which_day_each_task_is_for() {
+        let mut task = task(1, "wash up");
+        task.scheduled_on = date_on("2026-10-05").unwrap();
+
+        assert!(print_to(&Response::OkList(vec![task])).contains("2026-10-05"));
+    }
+
+    #[test]
+    fn a_task_with_no_day_leaves_the_column_empty() {
+        let out = print_to(&Response::OkList(vec![task(1, "wash up")]));
+
+        assert!(out.lines().nth(1).unwrap().contains('-'), "{out}");
+    }
+
+    #[test]
+    fn one_task_on_its_own_is_named_and_dated() {
+        let mut task = task(4, "wash up");
+        task.description = Some("the dishes".into());
+        task.estimated_mins = Some(20);
+        task.scheduled_on = date_on("2026-12-25").unwrap();
+
+        let out = print_to(&Response::Ok(Some(task)));
+
+        assert!(out.contains("Task 4: wash up"), "{out}");
+        assert!(out.contains("the dishes"), "{out}");
+        assert!(out.contains("20 mins"), "{out}");
+        assert!(out.contains("2026-12-25"), "{out}");
+    }
+
+    #[test]
+    fn a_reply_about_nothing_says_nothing() {
+        assert_eq!(print_to(&Response::Ok(None)), "Nothing to show.\n");
+    }
+
+    #[test]
+    fn a_media_list_reply_says_what_it_is() {
+        let out = print_to(&Response::MediaList(MediaList {
+            id: 4,
+            name: "books".into(),
+            description: Some("to read".into()),
+            created_at: "2026-10-01 09:00:00".into(),
+            updated_at: "2026-10-01 09:00:00".into(),
+        }));
+
+        assert!(out.contains("Media list 4: books"), "{out}");
+        assert!(out.contains("to read"), "{out}");
+    }
+
+    #[test]
+    fn a_workspace_reply_says_what_it_is() {
+        let out = print_to(&Response::Workspace(Workspace {
+            id: 2,
+            name: "chores".into(),
+            description: None,
+            created_at: "2026-10-01 09:00:00".into(),
+            updated_at: "2026-10-01 09:00:00".into(),
+        }));
+
+        assert_eq!(out, "Workspace 2: chores\n");
+    }
+
+    #[test]
+    fn a_command_that_did_nothing_says_done() {
+        assert_eq!(print_to(&Response::OkEmpty), "Done.\n");
+    }
+
+    #[test]
+    fn nothing_goes_to_stdout_for_an_error() {
+        // The caller has to exit non-zero over an error, and it has to be on
+        // stderr for that to mean anything to a script.
+        assert_eq!(
+            print_to(&Response::Error {
+                message: "no such task".into()
+            }),
+            ""
+        );
+    }
+
+    #[test]
+    fn short_format_covers_all_timer_states() {
+        use let_timer_core::{TimerSnapshot, TimerState};
+
+        let t = task(3, "Read chapter 3");
+
+        // 1. Idle -> empty
+        let idle_snap = TimerSnapshot {
+            task: t.clone(),
+            state: TimerState::Idle,
+            elapsed_secs: 0,
+            remaining_secs: None,
+            workspace_name: "Default".into(),
+        };
+        assert_eq!(render_current_short(Some(&idle_snap)), "");
+        assert_eq!(render_current_short(None), "");
+
+        // 2. Running, countdown
+        let countdown_snap = TimerSnapshot {
+            task: t.clone(),
+            state: TimerState::Running,
+            elapsed_secs: 568,
+            remaining_secs: Some(932), // 15:32
+            workspace_name: "Default".into(),
+        };
+        assert_eq!(
+            render_current_short(Some(&countdown_snap)),
+            "⏳ 15:32 Read chapter 3"
+        );
+
+        // 3. Running, no estimate
+        let no_est_snap = TimerSnapshot {
+            task: t.clone(),
+            state: TimerState::Running,
+            elapsed_secs: 760, // 12:40
+            remaining_secs: None,
+            workspace_name: "Default".into(),
+        };
+        assert_eq!(
+            render_current_short(Some(&no_est_snap)),
+            "▶ 12:40 Read chapter 3"
+        );
+
+        // 4. Overtime
+        let overtime_snap = TimerSnapshot {
+            task: t.clone(),
+            state: TimerState::Overtime,
+            elapsed_secs: 1635,
+            remaining_secs: Some(-135), // -02:15
+            workspace_name: "Default".into(),
+        };
+        assert_eq!(
+            render_current_short(Some(&overtime_snap)),
+            "⚠ +02:15 Read chapter 3"
+        );
+
+        // 5. Paused
+        let paused_snap = TimerSnapshot {
+            task: t.clone(),
+            state: TimerState::Paused,
+            elapsed_secs: 568,
+            remaining_secs: Some(932), // 15:32
+            workspace_name: "Default".into(),
+        };
+        assert_eq!(
+            render_current_short(Some(&paused_snap)),
+            "⏸ 15:32 Read chapter 3"
+        );
+    }
+
+    #[test]
+    fn lifecycle_confirmation_shows_snapshot() {
+        use let_timer_core::{TimerSnapshot, TimerState};
+
+        let t = task(3, "Read chapter 3");
+        let snap = TimerSnapshot {
+            task: t,
+            state: TimerState::Running,
+            elapsed_secs: 0,
+            remaining_secs: Some(1500),
+            workspace_name: "Default".into(),
+        };
+
+        assert_eq!(
+            render_lifecycle_confirmation("Started", &snap),
+            "Started #3 \"Read chapter 3\" — 25:00 remaining"
+        );
+    }
+
+    #[test]
+    fn daemon_status_render() {
+        let mut out = Vec::new();
+        let resp = Response::DaemonStatus {
+            version: "0.1.0".into(),
+            socket_path: "/tmp/test.sock".into(),
+            db_path: "/tmp/test.db".into(),
+            running_task: Some("#1 Focus".into()),
+            auth_mode: Some("token (protected)".into()),
+            bind_address: Some("127.0.0.1:8765".into()),
+            cors_origins: Some("https://app.example.com".into()),
+            docs_enabled: Some(true),
+        };
+        write_humans(&resp, &mut out).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("let-timer-daemon v0.1.0"));
+        assert!(text.contains("Socket: /tmp/test.sock"));
+        assert!(text.contains("Database: /tmp/test.db"));
+        assert!(text.contains("Running task: #1 Focus"));
+        assert!(text.contains("Auth mode: token (protected)"));
+        assert!(text.contains("HTTP bind: 127.0.0.1:8765"));
+        assert!(text.contains("CORS origins: https://app.example.com"));
+        assert!(text.contains("API docs: enabled"));
+    }
+}

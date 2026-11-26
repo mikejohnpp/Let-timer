@@ -1,0 +1,35 @@
+[package]
+name = "let-timer-http"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "HTTP server, REST, SSE, and RPC endpoints for Let-timer"
+
+[dependencies]
+let-timer-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures-util = { workspace = true }
+async-stream = { workspace = true }
+rusqlite = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }
+tracing = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+tower-http = { workspace = true }
+utoipa = { workspace = true }
+utoipa-swagger-ui = { workspace = true }
+mime_guess = { workspace = true }
+rust-embed = { workspace = true, optional = true }
+
+[features]
+default = []
+embed-web = ["dep:rust-embed"]
+
+[dev-dependencies]
+tower = { workspace = true, features = ["util"] }
+http-body-util = "0.1"
+let-timer-daemon = { path = "../let-timer-daemon" }

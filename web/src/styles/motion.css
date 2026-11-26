@@ -1,0 +1,359 @@
+/*
+ * Let-timer design tokens — Motion (calm, minimal, purposeful)
+ * Single source of truth for web animations, durations, easings and keyframes.
+ * Companion: docs/motion_plan.md
+ */
+
+:root {
+  --dur-instant: 80ms;
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 340ms;
+  --dur-ambient: 460ms;
+  --dur-scenic: 1200ms;          /* wallpaper crossfade only */
+
+  --ease-out:   cubic-bezier(0.2, 0, 0, 1);      /* default, decelerating */
+  --ease-inout: cubic-bezier(0.45, 0, 0.25, 1);  /* ambient, soft */
+  --ease-emph:  cubic-bezier(0.3, 0, 0, 1);      /* continuity moves */
+
+  --travel-s: 8px;               /* rise for new/entering items */
+  --travel-m: 28px;              /* drawer, sheets */
+  --exit-ratio: 0.7;             /* exits are 70% of the entry duration */
+}
+
+/* Reduced: everything becomes a short fade, nothing travels. */
+:root[data-motion="reduced"] {
+  --dur-fast: 100ms;
+  --dur-base: 100ms;
+  --dur-slow: 100ms;
+  --dur-ambient: 100ms;
+  --dur-scenic: 100ms;
+  --travel-s: 0px;
+  --travel-m: 0px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) {   /* system default and "reduced" both land here */
+    --dur-fast: 100ms;
+    --dur-base: 100ms;
+    --dur-slow: 100ms;
+    --dur-ambient: 100ms;
+    --dur-scenic: 100ms;
+    --travel-s: 0px;
+    --travel-m: 0px;
+  }
+}
+
+/* Test-only: set by ?motion=off in non-production builds */
+:root[data-motion="off"] {
+  --dur-instant: 0ms;
+  --dur-fast: 0ms;
+  --dur-base: 0ms;
+  --dur-slow: 0ms;
+  --dur-ambient: 0ms;
+  --dur-scenic: 0ms;
+  --travel-s: 0px;
+  --travel-m: 0px;
+}
+
+/* ─── Shared Keyframes (Appendix A) ────────────────────────────────────────── */
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--travel-s));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes rise-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--travel-s) * 0.6));
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(var(--travel-m));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-out-right {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(var(--travel-m));
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ring-pulse {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.16);
+  }
+}
+
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.75);
+    opacity: 0.55;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes draw-tick {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes slide-date-next {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-date-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.task-check-tick {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+  animation: draw-tick var(--dur-base) var(--ease-out);
+}
+
+/* 7 iterations (approx 28s), then still */
+.dot-running {
+  animation: breathe 4s var(--ease-inout) 7;
+}
+
+.ring-pulse {
+  animation: ring-pulse 1.1s var(--ease-out) 2;
+  animation-delay: 0s;
+}
+
+:root[data-motion="reduced"] .dot-running,
+:root[data-motion="reduced"] .ring-pulse,
+:root[data-motion="reduced"] .task-check-tick,
+:root[data-motion="off"] .dot-running,
+:root[data-motion="off"] .ring-pulse,
+:root[data-motion="off"] .task-check-tick {
+  animation: none !important;
+}
+
+:root[data-motion="reduced"] button:active,
+:root[data-motion="reduced"] [role="button"]:active,
+:root[data-motion="off"] button:active,
+:root[data-motion="off"] [role="button"]:active {
+  transform: none !important;
+}
+
+:root[data-motion="reduced"] .progress-bar-fill,
+:root[data-motion="reduced"] .progress-line-indicator,
+:root[data-motion="off"] .progress-bar-fill,
+:root[data-motion="off"] .progress-line-indicator {
+  transition: none !important;
+}
+
+/* ─── Skeleton Shimmer (A31) ──────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+}
+
+.skeleton-shimmer {
+  animation: shimmer 1.6s var(--ease-inout) infinite;
+}
+
+/* ─── Equalizer Soundwave (A29) ───────────────────────────────────────────── */
+@keyframes eq-bar-1 {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+@keyframes eq-bar-2 {
+  0%, 100% { transform: scaleY(0.9); }
+  50% { transform: scaleY(0.3); }
+}
+@keyframes eq-bar-3 {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(0.85); }
+}
+
+.eq-playing .eq-bar-1 {
+  animation: eq-bar-1 900ms var(--ease-inout) infinite;
+}
+.eq-playing .eq-bar-2 {
+  animation: eq-bar-2 900ms var(--ease-inout) infinite 150ms;
+}
+.eq-playing .eq-bar-3 {
+  animation: eq-bar-3 900ms var(--ease-inout) infinite 300ms;
+}
+
+/* ─── Theme & Palette Transition (A28) ────────────────────────────────────── */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 250ms var(--ease-out),
+              border-color 250ms var(--ease-out),
+              color 250ms var(--ease-out),
+              fill 250ms var(--ease-out),
+              stroke 250ms var(--ease-out) !important;
+  transition-delay: 0s !important;
+}
+
+:root[data-motion="reduced"] .skeleton-shimmer,
+:root[data-motion="reduced"] .eq-bar-1,
+:root[data-motion="reduced"] .eq-bar-2,
+:root[data-motion="reduced"] .eq-bar-3,
+:root[data-motion="reduced"] .animate-spin,
+:root[data-motion="reduced"] .theme-transition,
+:root[data-motion="reduced"] .theme-transition *,
+:root[data-motion="off"] .skeleton-shimmer,
+:root[data-motion="off"] .eq-bar-1,
+:root[data-motion="off"] .eq-bar-2,
+:root[data-motion="off"] .eq-bar-3,
+:root[data-motion="off"] .animate-spin,
+:root[data-motion="off"] .theme-transition,
+:root[data-motion="off"] .theme-transition * {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* Generic Reduced Motion Guard */
+:root[data-motion="reduced"] [class*="animate-"],
+:root[data-motion="off"] [class*="animate-"] {
+  animation: none !important;
+}
+
+/* Date Slide Override (Fade-only under reduced motion, ≤100ms) */
+:root[data-motion="reduced"] [class*="slide-date-"] {
+  animation: fade-in var(--dur-fast) var(--ease-out) !important;
+  transform: none !important;
+}
+
+:root[data-motion="off"] [class*="slide-date-"] {
+  animation: none !important;
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .dot-running,
+  :root:not([data-motion="full"]) .ring-pulse,
+  :root:not([data-motion="full"]) .task-check-tick,
+  :root:not([data-motion="full"]) .skeleton-shimmer,
+  :root:not([data-motion="full"]) .eq-bar-1,
+  :root:not([data-motion="full"]) .eq-bar-2,
+  :root:not([data-motion="full"]) .eq-bar-3,
+  :root:not([data-motion="full"]) .animate-spin {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  :root:not([data-motion="full"]) [class*="animate-"] {
+    animation: none !important;
+  }
+
+  :root:not([data-motion="full"]) [class*="slide-date-"] {
+    animation: fade-in var(--dur-fast) var(--ease-out) !important;
+    transform: none !important;
+  }
+
+  :root:not([data-motion="full"]) button:active,
+  :root:not([data-motion="full"]) [role="button"]:active {
+    transform: none !important;
+  }
+
+  :root:not([data-motion="full"]) .progress-bar-fill,
+  :root:not([data-motion="full"]) .progress-line-indicator,
+  :root:not([data-motion="full"]) .theme-transition,
+  :root:not([data-motion="full"]) .theme-transition * {
+    transition: none !important;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 100ms !important;
+  }
+}
+
+/* ─── Tab / View Transition (A24 managed via ViewHost) ──────────────────────── */
+
+.wallpaper-layers {
+  view-transition-name: none;
+}
+
+:root[data-motion="reduced"]::view-transition-group(*),
+:root[data-motion="reduced"]::view-transition-old(*),
+:root[data-motion="reduced"]::view-transition-new(*) {
+  animation-duration: 100ms !important;
+}
+
+:root[data-motion="off"]::view-transition-group(*),
+:root[data-motion="off"]::view-transition-old(*),
+:root[data-motion="off"]::view-transition-new(*) {
+  animation: none !important;
+}
+

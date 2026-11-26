@@ -1,0 +1,25 @@
+[package]
+name = "let-timer-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Background daemon for Let-timer"
+
+[[bin]]
+name = "let-timer-daemon"
+path = "src/main.rs"
+
+[dependencies]
+let-timer-core = { workspace = true }
+tokio = { workspace = true }
+chrono = { workspace = true }
+rusqlite = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+let-timer-http = { path = "../let-timer-http" }
+axum = { workspace = true }
+clap = { workspace = true }
+
+[features]
+default = []
+embed-web = ["let-timer-http/embed-web"]
